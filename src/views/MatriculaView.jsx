@@ -2329,7 +2329,7 @@ function StudentDetailModal({
           .filter(Boolean)
       : [];
 
-  const journey =
+   const journey =
     journeys.find(
       item =>
         item.id ===
@@ -2337,13 +2337,17 @@ function StudentDetailModal({
     )?.name ||
     assignment?.scheduleType ||
     '';
-  printStudentFile(
-    student,
-    group,
-    journey,
-    turnLabels
-  );
-};
+
+  const handlePrint = () => {
+    printStudentFile(
+      student,
+      group,
+      journey,
+      turnLabels
+    );
+  };
+
+  return (
   return (
     <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
 
@@ -2610,7 +2614,8 @@ function StudentDetailModal({
 >
   <Printer size={16} />
   Imprimir legajo
-</button>
+ </button>
+
         </div>
 
       </div>
@@ -2618,7 +2623,6 @@ function StudentDetailModal({
     </div>
   );
 }
-
 function InfoBox({
   label,
   value
