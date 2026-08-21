@@ -1968,7 +1968,7 @@ function printStudentFile(
   turnLabels,
   levelName,
   institutionConfig
-) => {
+) {
   const escapeHtml = value =>
     String(value ?? '')
       .replace(/&/g, '&amp;')
