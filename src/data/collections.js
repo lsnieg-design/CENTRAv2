@@ -17,6 +17,7 @@ export const COLLECTIONS = {
 
   // Estructura institucional
   GROUPS: 'groups',
+  STUDENT_BITACORA: 'student_bitacora',
 
   // Relaciones
   STUDENT_GROUP_ASSIGNMENTS:
