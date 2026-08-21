@@ -10,35 +10,16 @@ import {
   getDoc
 } from 'firebase/firestore';
 
-import {
-  useFirebase
-} from '../firebase';
-
-const InstitutionContext =
-  createContext(null);
+const InstitutionContext = createContext(null);
 
 export function InstitutionProvider({
-  children
+  children,
+  db,
+  appId
 }) {
-  const {
-    db,
-    appId
-  } = useFirebase();
-
-  const [
-    institution,
-    setInstitution
-  ] = useState(null);
-
-  const [
-    loadingInstitution,
-    setLoadingInstitution
-  ] = useState(true);
-
-  const [
-    institutionError,
-    setInstitutionError
-  ] = useState(null);
+  const [institution, setInstitution] = useState(null);
+  const [loadingInstitution, setLoadingInstitution] = useState(true);
+  const [institutionError, setInstitutionError] = useState(null);
 
   useEffect(() => {
     if (!db || !appId) {
@@ -63,8 +44,7 @@ export function InstitutionProvider({
           'institution'
         );
 
-        const snapshot =
-          await getDoc(institutionRef);
+        const snapshot = await getDoc(institutionRef);
 
         if (cancelled) return;
 
@@ -116,8 +96,7 @@ export function InstitutionProvider({
 }
 
 export function useInstitution() {
-  const context =
-    useContext(InstitutionContext);
+  const context = useContext(InstitutionContext);
 
   if (!context) {
     throw new Error(
