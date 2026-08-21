@@ -166,106 +166,136 @@ function InitialAdminScreen({ onCreated }) {
   const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
   const handleCreate = async (e) => {
-    e.preventDefault();
-    setError('');
+  e.preventDefault();
+  setError('');
 
-    if (form.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
-    if (form.password !== form.confirmPassword) {
-      setError('Las contraseñas no coinciden.');
-      return;
-    }
-    setSaving(true);
+  if (!auth || !db) {
+    setError('CENTRA no está conectado con Firebase.');
+    return;
+  }
+
+  if (form.password.length < 6) {
+    setError('La contraseña debe tener al menos 6 caracteres.');
+    return;
+  }
+
+  if (form.password !== form.confirmPassword) {
+    setError('Las contraseñas no coinciden.');
+    return;
+  }
+
+  setSaving(true);
+
+  try {
+    const email = form.email.trim().toLowerCase();
+    let credential;
 
     try {
-      const email = form.email.trim().toLowerCase();
-      let credential;
-
-      try {
-        credential = await createUserWithEmailAndPassword(auth, email, form.password);
-      } catch (createError) {
-        if (createError?.code === 'auth/email-already-in-use') {
-          // La cuenta puede haber sido creada en un intento anterior.
-          // En lugar de obligar a borrarla, iniciamos sesión y completamos
-          // el perfil institucional.
-          credential = await signInWithEmailAndPassword(auth, email, form.password);
-        } else {
-          throw createError;
-        }
-      }
-
-           const profile = {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        fullName:
-          `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+      credential = await createUserWithEmailAndPassword(
+        auth,
         email,
-        username: email,
-
-        // Rol de acceso a CENTRA.
-        role: 'Equipo Directivo',
-        rol: 'admin',
-        accessRoleId: 'admin',
-
-        isAdmin: true,
-
-        authUid: credential.user.uid,
-
-        // La persona y la cuenta quedan vinculadas.
-        personId: credential.user.uid,
-
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp()
-      };
-
-      // Inicializa la nueva arquitectura de CENTRA:
-      // persona + perfil de personal + usuario + configuración
-      // + control de versión de la instalación.
-      const initialization =
-        await initializeCENTRAInstallation({
-          db,
-          appId,
-          authUser: credential.user,
-          adminProfile: profile
-        });
-
-      const completeProfile = {
-        ...profile,
-        id: credential.user.uid,
-        personId: initialization.personId,
-        architectureVersion:
-          initialization.architectureVersion
-      };
-
-      localStorage.setItem(
-        'schoolApp_profile',
-        JSON.stringify(
-          completeProfile
-        )
+        form.password
       );
-
-      onCreated(
-        completeProfile
-      );
-
-
-
-    } catch (error) {
-      console.error('Initial admin error:', error);
-
-      if (error?.code === 'auth/invalid-credential' ||
-          error?.code === 'auth/wrong-password' ||
-          error?.code === 'auth/user-not-found') {
-        setError('La cuenta ya existe, pero la contraseña no coincide. Usá la contraseña con la que se creó la cuenta en Firebase.');
+    } catch (createError) {
+      if (createError?.code === 'auth/email-already-in-use') {
+        credential = await signInWithEmailAndPassword(
+          auth,
+          email,
+          form.password
+        );
       } else {
-        setError(describeFirebaseError(error));
+        throw createError;
       }
-    } finally {
-      setSaving(false);
     }
-  };
+
+    const profile = {
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      fullName:
+        `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+      email,
+      username: email,
+
+      role: 'Equipo Directivo',
+      rol: 'admin',
+      accessRoleId: 'admin',
+      isAdmin: true,
+
+      authUid: credential.user.uid,
+      personId: credential.user.uid,
+
+      createdAt: serverTimestamp(),
+      lastLogin: serverTimestamp()
+    };
+
+    // Inicializa la arquitectura de CENTRA.
+    const initialization =
+      await initializeCENTRAInstallation({
+        db,
+        appId,
+        authUser: credential.user,
+        adminProfile: profile
+      });
+
+    // IMPORTANTE:
+    // La instalación queda registrada en Firebase.
+    // Esto permite que cualquier dispositivo o navegador
+    // sepa que CENTRA ya fue instalado.
+    const institutionRef = doc(
+      db,
+      'artifacts',
+      appId,
+      'public',
+      'data',
+      'config',
+      'institution'
+    );
+
+    await setDoc(
+      institutionRef,
+      {
+        installationComplete: true,
+        installationCompletedAt: serverTimestamp(),
+        initialAdminUid: credential.user.uid
+      },
+      { merge: true }
+    );
+
+    const completeProfile = {
+      ...profile,
+      id: credential.user.uid,
+      personId: initialization.personId,
+      architectureVersion:
+        initialization.architectureVersion
+    };
+
+    // Esto queda solamente como caché local.
+    // NO determina si CENTRA está instalado.
+    localStorage.setItem(
+      'schoolApp_profile',
+      JSON.stringify(completeProfile)
+    );
+
+    onCreated(completeProfile);
+
+  } catch (error) {
+    console.error('Initial admin error:', error);
+
+    if (
+      error?.code === 'auth/invalid-credential' ||
+      error?.code === 'auth/wrong-password' ||
+      error?.code === 'auth/user-not-found'
+    ) {
+      setError(
+        'La cuenta ya existe, pero la contraseña no coincide. Usá la contraseña con la que se creó la cuenta en Firebase.'
+      );
+    } else {
+      setError(describeFirebaseError(error));
+    }
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -304,86 +334,146 @@ export default function App() {
   const [installationComplete, setInstallationComplete] = useState(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setMinTimePassed(true), 700);
+  const timer = setTimeout(() => {
+    setMinTimePassed(true);
+  }, 700);
 
-    if (!db) {
-      setInstallationComplete(false);
-      setLoading(false);
-      return () => clearTimeout(timer);
-    }
+  if (!db || !auth) {
+    setInstallationComplete(null);
+    setLoading(false);
 
-    let cancelled = false;
-
-    const loadInstallationState = async () => {
-      try {
-        const institutionRef = doc(
-          db,
-          'artifacts',
-          appId,
-          'public',
-          'data',
-          'config',
-          'institution'
-        );
-        const institutionSnap = await getDoc(institutionRef);
-        if (!cancelled) {
-          setInstallationComplete(
-            institutionSnap.exists() &&
-            institutionSnap.data()?.installationComplete === true
-          );
-        }
-      } catch (error) {
-        console.error('No se pudo consultar la instalación:', error);
-        if (!cancelled) setInstallationComplete(false);
-      }
+    return () => {
+      clearTimeout(timer);
     };
+  }
 
-    loadInstallationState();
+  let cancelled = false;
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+  const loadInstallationState = async () => {
+    try {
+      const institutionRef = doc(
+        db,
+        'artifacts',
+        appId,
+        'public',
+        'data',
+        'config',
+        'institution'
+      );
+
+      const institutionSnap =
+        await getDoc(institutionRef);
+
+      if (cancelled) return;
+
+      if (!institutionSnap.exists()) {
+        // Firebase respondió correctamente y
+        // confirmó que todavía no existe la instalación.
+        setInstallationComplete(false);
+        return;
+      }
+
+      const data = institutionSnap.data();
+
+      setInstallationComplete(
+        data?.installationComplete === true
+      );
+
+    } catch (error) {
+      console.error(
+        'No se pudo consultar el estado de instalación:',
+        error
+      );
+
+      if (!cancelled) {
+        // IMPORTANTE:
+        // null significa "no pude comprobarlo".
+        // NO significa "no está instalado".
+        //
+        // Así evitamos mostrar accidentalmente
+        // el formulario de crear administrador.
+        setInstallationComplete(null);
+      }
+    }
+  };
+
+  loadInstallationState();
+
+  const unsubscribe = onAuthStateChanged(
+    auth,
+    async (user) => {
+      if (cancelled) return;
+
       setFirebaseUser(user);
 
       if (user?.uid) {
         try {
           const userDoc = await getDoc(
-            doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid)
+            doc(
+              db,
+              'artifacts',
+              appId,
+              'public',
+              'data',
+              'users',
+              user.uid
+            )
           );
 
           if (userDoc.exists()) {
-            const profile = { ...userDoc.data(), id: userDoc.id };
+            const profile = {
+              ...userDoc.data(),
+              id: userDoc.id
+            };
+
             setCurrentUserProfile(profile);
-            localStorage.setItem('schoolApp_profile', JSON.stringify(profile));
+
+            localStorage.setItem(
+              'schoolApp_profile',
+              JSON.stringify(profile)
+            );
           }
         } catch (error) {
-          console.warn('No se pudo recuperar el perfil:', error);
+          console.warn(
+            'No se pudo recuperar el perfil:',
+            error
+          );
         }
       } else {
-        localStorage.removeItem('schoolApp_profile');
         setCurrentUserProfile(null);
       }
 
       setLoading(false);
-    });
+    }
+  );
 
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      unsubscribe();
-    };
-  }, []);
-
+  return () => {
+    cancelled = true;
+    clearTimeout(timer);
+    unsubscribe();
+  };
+}, []);
   const handleLogin = (profileData) => {
     setCurrentUserProfile(profileData);
     localStorage.setItem('schoolApp_profile', JSON.stringify(profileData));
   };
 
   const handleLogout = async () => {
-    try {
-      if (auth?.currentUser) await signOut(auth);
-    } catch {}
-    setCurrentUserProfile(null);
-    localStorage.removeItem('schoolApp_profile');
-  };
+  try {
+    if (auth?.currentUser) {
+      await signOut(auth);
+    }
+  } catch (error) {
+    console.warn('Error al cerrar sesión:', error);
+  }
+
+  setFirebaseUser(null);
+  setCurrentUserProfile(null);
+
+  // Solo eliminamos la sesión/caché local.
+  // La instalación permanece registrada en Firebase.
+  localStorage.removeItem('schoolApp_profile');
+};
 
   if (Object.keys(firebaseConfig).length === 0) {
     return (
@@ -398,6 +488,7 @@ export default function App() {
   }
 
   if (installationComplete === null || loading || !minTimePassed) {
+    const [installationError, setInstallationError] = useState(null);
     return (
       <div className="flex items-center justify-center h-screen bg-violet-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-violet-600"></div>
