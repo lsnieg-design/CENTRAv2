@@ -1815,6 +1815,7 @@ const toggleActive = async student => {
       student={viewingStudent}
       entries={bitacoraEntries}
       loading={loadingBitacora}
+      institutionConfig={institutionConfig}
       onClose={() =>
         setShowBitacora(false)
       }
@@ -1827,6 +1828,7 @@ const toggleActive = async student => {
        <StudentDetailModal
   student={viewingStudent}
   groups={groups}
+  levels={levels}
   turns={turns}
   journeys={journeys}
   institutionConfig={institutionConfig}
@@ -1964,6 +1966,7 @@ const printStudentFile = (
   group,
   journey,
   turnLabels,
+  levelName,
   institutionConfig
 ) => {
   const escapeHtml = value =>
@@ -2181,9 +2184,9 @@ const printStudentFile = (
             margin-bottom: 12px;
           }
 
-          .institution-logo {
-            width: 48px;
-            height: 38px;
+         .institution-logo {
+  width: 62px;
+  height: 46px;
 
             object-fit: contain;
 
@@ -2267,7 +2270,7 @@ const printStudentFile = (
           }
 
           .student-name {
-            font-size: 21px;
+  font-size: 23px;
 
             font-weight: 900;
 
@@ -2289,9 +2292,9 @@ const printStudentFile = (
             margin-top: 4px;
           }
 
-          .student-photo {
-            width: 46px;
-            height: 54px;
+       .student-photo {
+  width: 62px;
+  height: 74px;
 
             object-fit: cover;
 
@@ -2353,7 +2356,7 @@ const printStudentFile = (
           ================================================== */
 
           .section {
-            margin-top: 7px;
+            margin-top: 6px;
 
             break-inside: avoid;
 
@@ -2389,7 +2392,8 @@ const printStudentFile = (
             margin-bottom: 5px;
           }
 
-          .grid {
+         .grid {
+  gap: 5px 8px;
             display: grid;
 
             grid-template-columns:
@@ -3136,6 +3140,7 @@ function StudentDetailModal({
   institutionConfig,
   onEdit,
   onToggleActive,
+  levels,
   onBitacora
 }) {
   const assignment =
@@ -3173,13 +3178,19 @@ function StudentDetailModal({
     )?.name ||
     assignment?.scheduleType ||
     '';
-
+const levelName =
+  levels.find(
+    item =>
+      item.id === student.level
+  )?.name ||
+ levelName;
 const handlePrint = () => {
   printStudentFile(
     student,
     group,
     journey,
     turnLabels,
+    levelName,
     institutionConfig
   );
 };
@@ -3255,10 +3266,7 @@ const handlePrint = () => {
 
             <InfoBox
               label="Nivel"
-              value={
-                student.level ||
-                'Sin nivel'
-              }
+              value={levelName}
             />
 
           </div>
@@ -3513,7 +3521,419 @@ function ContactLine({
     </div>
   );
 }
+const printBitacora = (
+  student,
+  entries,
+  institutionConfig
+) => {
+  const escapeHtml = value =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
 
+  const primary =
+    institutionConfig?.primaryColor ||
+    '#6d28d9';
+
+  const secondary =
+    institutionConfig?.secondaryColor ||
+    '#f97316';
+
+  const background =
+    institutionConfig?.backgroundColor ||
+    '#f8fafc';
+
+  const institutionName =
+    institutionConfig?.institutionName ||
+    'Mi Institución';
+
+  const logoUrl =
+    institutionConfig?.logoUrl ||
+    '';
+
+  const address =
+    [
+      institutionConfig?.address,
+      institutionConfig?.city,
+      institutionConfig?.province
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+  const contact =
+    [
+      institutionConfig?.phone,
+      institutionConfig?.email,
+      institutionConfig?.website
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+  const printWindow =
+    window.open(
+      '',
+      '_blank',
+      'width=1000,height=900'
+    );
+
+  if (!printWindow) {
+    alert(
+      'El navegador bloqueó la ventana de impresión.'
+    );
+    return;
+  }
+
+  printWindow.document.write(`
+    <!doctype html>
+
+    <html lang="es">
+      <head>
+
+        <meta charset="UTF-8" />
+
+        <title>
+          Bitácora -
+          ${escapeHtml(
+            student.lastName
+          )},
+          ${escapeHtml(
+            student.firstName
+          )}
+        </title>
+
+        <style>
+
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+
+            color: #1e293b;
+
+            font-size: 10px;
+
+            -webkit-print-color-adjust:
+              exact;
+
+            print-color-adjust:
+              exact;
+          }
+
+          .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+
+            padding: 10px 12px;
+
+            border-radius: 9px;
+
+            background:
+              linear-gradient(
+                135deg,
+                ${primary},
+                ${secondary}
+              );
+
+            color: white;
+
+            margin-bottom: 14px;
+          }
+
+          .logo {
+            width: 55px;
+            height: 42px;
+
+            object-fit: contain;
+
+            background: white;
+
+            padding: 4px;
+
+            border-radius: 6px;
+          }
+
+          .institution {
+            font-size: 13px;
+            font-weight: 900;
+            text-transform: uppercase;
+          }
+
+          .institution-meta {
+            font-size: 7px;
+            margin-top: 3px;
+            opacity: .9;
+          }
+
+          .title {
+            color: ${primary};
+            font-size: 19px;
+            font-weight: 900;
+            text-transform: uppercase;
+          }
+
+          .student {
+            font-size: 9px;
+            color: #64748b;
+            font-weight: 700;
+            margin-top: 3px;
+          }
+
+          .section-title {
+            margin-top: 14px;
+
+            padding: 5px 8px;
+
+            border-left:
+              3px solid ${primary};
+
+            background: ${background};
+
+            color: ${primary};
+
+            border-radius: 5px;
+
+            font-size: 8px;
+
+            font-weight: 900;
+
+            text-transform: uppercase;
+          }
+
+          .entry {
+            margin-top: 8px;
+
+            padding: 9px 10px;
+
+            border:
+              1px solid #e2e8f0;
+
+            border-radius: 7px;
+
+            page-break-inside: avoid;
+          }
+
+          .entry-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+          }
+
+          .entry-type {
+            color: ${primary};
+            font-size: 8px;
+            font-weight: 900;
+            text-transform: uppercase;
+          }
+
+          .entry-date {
+            color: #64748b;
+            font-size: 7px;
+            font-weight: 700;
+          }
+
+          .entry-text {
+            margin-top: 6px;
+
+            font-size: 9px;
+
+            line-height: 1.35;
+
+            white-space: pre-wrap;
+          }
+
+          .entry-author {
+            margin-top: 6px;
+
+            font-size: 7px;
+
+            color: #64748b;
+          }
+
+          .footer {
+            margin-top: 12px;
+
+            border-top:
+              1px solid #e2e8f0;
+
+            padding-top: 6px;
+
+            color: #64748b;
+
+            font-size: 7px;
+          }
+
+        </style>
+
+      </head>
+
+      <body>
+
+        <div class="header">
+
+          ${
+            logoUrl
+              ? `
+                <img
+                  src="${escapeHtml(
+                    logoUrl
+                  )}"
+                  class="logo"
+                  alt="Logo"
+                />
+              `
+              : ''
+          }
+
+          <div>
+
+            <div class="institution">
+              ${escapeHtml(
+                institutionName
+              )}
+            </div>
+
+            ${
+              address
+                ? `
+                  <div class="institution-meta">
+                    ${escapeHtml(
+                      address
+                    )}
+                  </div>
+                `
+                : ''
+            }
+
+            ${
+              contact
+                ? `
+                  <div class="institution-meta">
+                    ${escapeHtml(
+                      contact
+                    )}
+                  </div>
+                `
+                : ''
+            }
+
+          </div>
+
+        </div>
+
+        <div class="title">
+          Bitácora
+        </div>
+
+        <div class="student">
+          Legajo del estudiante ·
+          ${escapeHtml(
+            student.lastName
+          )},
+          ${escapeHtml(
+            student.firstName
+          )}
+        </div>
+
+        <div class="section-title">
+          Registros
+        </div>
+
+        ${
+          entries.length === 0
+            ? `
+              <div class="entry">
+                No hay registros en la bitácora.
+              </div>
+            `
+            : entries
+                .map(
+                  entry => `
+                    <div class="entry">
+
+                      <div class="entry-top">
+
+                        <div class="entry-type">
+                          ${escapeHtml(
+                            entry.type ||
+                              'Registro'
+                          )}
+                        </div>
+
+                        <div class="entry-date">
+                          ${escapeHtml(
+                            formatDate(
+                              entry.date
+                            )
+                          )}
+                        </div>
+
+                      </div>
+
+                      <div class="entry-text">
+                        ${escapeHtml(
+                          entry.text
+                        )}
+                      </div>
+
+                      <div class="entry-author">
+                        Registrado por:
+                        ${escapeHtml(
+                          entry.author ||
+                            'Usuario'
+                        )}
+                      </div>
+
+                    </div>
+                  `
+                )
+                .join('')
+        }
+
+        <div class="footer">
+          ${escapeHtml(
+            institutionName
+          )}
+          · Bitácora generada el
+          ${new Date().toLocaleDateString(
+            'es-AR'
+          )}
+        </div>
+
+        <script>
+          window.addEventListener(
+            'load',
+            function() {
+              setTimeout(
+                function() {
+                  window.print();
+                },
+                300
+              );
+            }
+          );
+        </script>
+
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+};
 // ============================================================
 // FORMULARIO
 // ============================================================
@@ -3525,6 +3945,7 @@ function BitacoraModal({
   onClose,
   db,
   appId,
+  institutionConfig,
   user
 }) {
   const [text, setText] =
@@ -3532,6 +3953,13 @@ function BitacoraModal({
 
   const [saving, setSaving] =
     useState(false);
+  const handlePrint = () => {
+  printBitacora(
+    student,
+    entries,
+    institutionConfig
+  );
+};
 
   const addEntry = async () => {
     const cleanText =
@@ -3613,7 +4041,14 @@ function BitacoraModal({
               {student.firstName}
             </p>
           </div>
-
+<button
+  type="button"
+  onClick={handlePrint}
+  className="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-black text-xs flex items-center gap-2"
+>
+  <Printer size={15} />
+  Imprimir
+</button>
           <button
             type="button"
             onClick={onClose}
