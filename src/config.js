@@ -440,6 +440,8 @@ export const MODULES = [
   ['groups', 'Mi Aula'],
 
   ['matricula', 'Legajos'],
+  
+  ['studentFileActions', 'Acciones del legajo'],
 
   ['resources', 'Recursos'],
 
@@ -503,6 +505,12 @@ export const MODULE_CATALOG = {
     description: 'Legajos y matrícula',
     category: 'Personas'
   },
+
+  studentFileActions: {
+  description:
+    'Acciones disponibles dentro del legajo del estudiante',
+  category: 'Personas'
+},
 
   resources: {
     description: 'Recursos institucionales',
@@ -842,10 +850,20 @@ export function normalizeAppConfig(
 
     ...value,
 
-    document: {
-      ...DEFAULT_APP_CONFIG.document,
-      ...(value.document || {})
-    },
+  document: {
+  ...DEFAULT_APP_CONFIG.document,
+  ...(value.document || {}),
+
+  studentFileActions: {
+    ...DEFAULT_APP_CONFIG.document.studentFileActions,
+    ...(value.document?.studentFileActions || {})
+  },
+
+  bitacoraActions: {
+    ...DEFAULT_APP_CONFIG.document.bitacoraActions,
+    ...(value.document?.bitacoraActions || {})
+  }
+},
 
     labels: {
       ...DEFAULT_APP_CONFIG.labels,
