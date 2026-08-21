@@ -361,34 +361,10 @@ export function MatriculaView({
   }, [db, appId]);
 
   // ============================================================
-  // CONFIGURACIÓN
-  // ============================================================
+// CONFIGURACIÓN
+// ============================================================
 
-
-
-  return institutionConfig.levels.map(
-    (level, index) =>
-      typeof level === 'string'
-        ? {
-            id:
-              level
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '_'),
-            name: level
-          }
-        : {
-            id:
-              level?.id ||
-              `nivel_${index + 1}`,
-            name:
-              level?.name ||
-              level?.label ||
-              `Nivel ${index + 1}`
-          }
-  );
-}, [institutionConfig]);
-
-  const levels = useMemo(() => {
+const levels = useMemo(() => {
   if (!Array.isArray(institutionConfig?.levels)) {
     return [];
   }
@@ -397,10 +373,9 @@ export function MatriculaView({
     (level, index) =>
       typeof level === 'string'
         ? {
-            id:
-              level
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '_'),
+            id: level
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '_'),
             name: level
           }
         : {
@@ -415,98 +390,83 @@ export function MatriculaView({
   );
 }, [institutionConfig]);
 
-  
-  const turns = useMemo(() => {
-    if (
-      !Array.isArray(
-        institutionConfig?.turns
-      )
-    ) {
-      return [];
-    }
+const turns = useMemo(() => {
+  if (!Array.isArray(institutionConfig?.turns)) {
+    return [];
+  }
 
-    return institutionConfig.turns.map(
-      (turn, index) =>
-        typeof turn === 'string'
-          ? {
-              id:
-                turn
-                  .toLowerCase()
-                  .replace(
-                    /[^a-z0-9]+/g,
-                    '_'
-                  ),
-              name: turn
-            }
-          : {
-              id:
-                turn?.id ||
-                `turno_${index + 1}`,
-              name:
-                turn?.name ||
-                turn?.label ||
-                `Turno ${index + 1}`
-            }
-    );
-  }, [institutionConfig]);
+  return institutionConfig.turns.map(
+    (turn, index) =>
+      typeof turn === 'string'
+        ? {
+            id: turn
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '_'),
+            name: turn
+          }
+        : {
+            id:
+              turn?.id ||
+              `turno_${index + 1}`,
+            name:
+              turn?.name ||
+              turn?.label ||
+              `Turno ${index + 1}`
+          }
+  );
+}, [institutionConfig]);
 
-  const journeys = useMemo(() => {
-    if (
-      !Array.isArray(
-        institutionConfig?.scheduleTypes
-      )
-    ) {
-      return [];
-    }
+const journeys = useMemo(() => {
+  if (
+    !Array.isArray(
+      institutionConfig?.scheduleTypes
+    )
+  ) {
+    return [];
+  }
 
-    return institutionConfig.scheduleTypes.map(
-      (item, index) =>
-        typeof item === 'string'
-          ? {
-              id:
-                item
-                  .toLowerCase()
-                  .replace(
-                    /[^a-z0-9]+/g,
-                    '_'
-                  ),
-              name: item
-            }
-          : {
-              id:
-                item?.id ||
-                `jornada_${index + 1}`,
-              name:
-                item?.name ||
-                item?.label ||
-                `Jornada ${index + 1}`
-            }
-    );
-  }, [institutionConfig]);
+  return institutionConfig.scheduleTypes.map(
+    (item, index) =>
+      typeof item === 'string'
+        ? {
+            id: item
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '_'),
+            name: item
+          }
+        : {
+            id:
+              item?.id ||
+              `jornada_${index + 1}`,
+            name:
+              item?.name ||
+              item?.label ||
+              `Jornada ${index + 1}`
+          }
+  );
+}, [institutionConfig]);
 
-  const getGroup = groupId =>
-    groups.find(
-      group => group.id === groupId
-    );
+const getGroup = groupId =>
+  groups.find(
+    group => group.id === groupId
+  );
 
-  const getTurnLabels = assignment => {
-    if (
-      !assignment ||
-      !Array.isArray(
-        assignment.turnIds
-      )
-    ) {
-      return [];
-    }
+const getTurnLabels = assignment => {
+  if (
+    !assignment ||
+    !Array.isArray(assignment.turnIds)
+  ) {
+    return [];
+  }
 
-    return assignment.turnIds
-      .map(turnId =>
-        turns.find(
-          turn => turn.id === turnId
-        )?.name
-      )
-      .filter(Boolean);
-  };
+  return assignment.turnIds
+    .map(turnId =>
+      turns.find(
+        turn => turn.id === turnId
+      )?.name
+    )
+    .filter(Boolean);
+};
 
   // ============================================================
   // FILTROS
