@@ -1,0 +1,18 @@
+@media screen {
+  #impresion-masiva { display: none !important; }
+}
+
+@media print {
+  body > *:not(#impresion-masiva):not(script):not(style) {
+    display: none !important;
+  }
+  #impresion-masiva {
+    display: block !important;
+    visibility: visible !important;
+    position: relative;
+    width: 100%;
+  }
+  .pagina { page-break-after: always; }
+  @page { margin: 1cm; }
+  body { background: white; margin: 0; padding: 0; }
+}
