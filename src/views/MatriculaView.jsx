@@ -3185,16 +3185,11 @@ const levelName =
   )?.name ||
  levelName;
 const handlePrint = () => {
-  printStudentFile(
-    student,
-    group,
-    journey,
-    turnLabels,
-    levelName,
-    institutionConfig
+  console.log(
+    'CENTRA → imprimir legajo',
+    student.personId
   );
 };
-
   return (
     <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
 
