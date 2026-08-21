@@ -807,97 +807,48 @@ const getTurnLabels = assignment => {
 
       const now = serverTimestamp();
 
-      // ----------------------------------------
-      // PERSONA
-      // ----------------------------------------
+    // ----------------------------------------
+// PERSONA
+// ----------------------------------------
 
-          await setDoc(
-        DOC(
-          db,
-          appId,
-          COLLECTIONS.STUDENT_PROFILES,
-          personId
-        ),
-        {
-          personId,
+await setDoc(
+  DOC(
+    db,
+    appId,
+    COLLECTIONS.PEOPLE,
+    personId
+  ),
+  {
+    firstName,
+    lastName,
+    fullName:
+      `${firstName} ${lastName}`.trim(),
 
-          firstName,
-          lastName,
-          fullName:
-            `${firstName} ${lastName}`.trim(),
+    type: 'student',
 
-          dni:
-            String(
-              data.dni || ''
-            ).trim(),
+    active:
+      editingStudent?.active !== false,
 
-          birthDate:
-            data.birthDate || null,
+    updatedAt: now,
 
-          gender:
-            data.gender || '',
-
-          level:
-            data.level || '',
-
-          address:
-            data.address || '',
-
-          city:
-            data.city || '',
-
-          phone:
-            data.phone || '',
-
-          email:
-            data.email || '',
-
-          motherName:
-            data.motherName || '',
-
-          motherContact:
-            data.motherContact || '',
-
-          fatherName:
-            data.fatherName || '',
-
-          fatherContact:
-            data.fatherContact || '',
-
-          healthInsurance:
-            data.healthInsurance || '',
-
-          emergencyContact:
-            data.emergencyContact || '',
-
-          cudNumber:
-            data.cudNumber || '',
-
-          cudExpiration:
-            data.cudExpiration || null,
-
-          photoUrl:
-            data.photoUrl || '',
-
-          notes:
-            data.notes || '',
-
-          updatedAt: now,
-
-          ...(editingStudent?.isNew
-            ? {
-                createdAt: now
-              }
-            : {})
-        },
-        {
-          merge: true
+    ...(editingStudent?.isNew
+      ? {
+          createdAt: now
         }
-      );
+      : {})
+  },
+  {
+    merge: true
+  }
+);
 
-      console.log(
-        'CENTRA → student_profiles guardado correctamente'
-      );
+console.log(
+  'CENTRA → people guardado correctamente'
+);
+
+// ----------------------------------------
+// PERFIL DE ESTUDIANTE
+// ----------------------------------------
       // ----------------------------------------
       // PERFIL DE ESTUDIANTE
       // ----------------------------------------
@@ -998,7 +949,10 @@ const getTurnLabels = assignment => {
 
 const toggleActive = async student => {
   try {
-    await updateDoc(
+    const newActive =
+      student.active === false;
+
+    await setDoc(
       DOC(
         db,
         appId,
@@ -1006,14 +960,20 @@ const toggleActive = async student => {
         student.personId
       ),
       {
-        active:
-          student.active === false
-            ? true
-            : false,
-
+        active: newActive,
         updatedAt:
           serverTimestamp()
+      },
+      {
+        merge: true
       }
+    );
+
+    console.log(
+      'CENTRA → estado actualizado:',
+      newActive
+        ? 'activo'
+        : 'inactivo'
     );
 
   } catch (error) {
