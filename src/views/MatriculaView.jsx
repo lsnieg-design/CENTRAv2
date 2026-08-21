@@ -975,8 +975,7 @@ export function MatriculaView({
       alert(
         `No se pudo guardar el estudiante.\n\n${error?.code || ''}\n${error?.message || error}`
       );
-    }
-    } finally {
+     } finally {
       setSaving(false);
     }
   };
