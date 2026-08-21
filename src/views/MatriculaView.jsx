@@ -1240,7 +1240,7 @@ const toggleActive = async student => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
 
-              <select
+              
               <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
 
   <button
