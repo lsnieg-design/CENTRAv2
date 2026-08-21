@@ -365,11 +365,11 @@ class ErrorBoundaryInner extends React.Component {
   }
 }
 export default function App() {
-  const [firebaseUser, setFirebaseUser] = useState(null);
-  const [currentUserProfile, setCurrentUserProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [minTimePassed, setMinTimePassed] = useState(false);
-  const [installationComplete, setInstallationComplete] = useState(null);
+const [firebaseUser, setFirebaseUser] = useState(null);
+const [currentUserProfile, setCurrentUserProfile] = useState(null);
+const [loading, setLoading] = useState(true);
+const [minTimePassed, setMinTimePassed] = useState(false);
+const [installationComplete, setInstallationComplete] = useState(null);
 
   useEffect(() => {
   const timer = setTimeout(() => {
@@ -526,13 +526,12 @@ export default function App() {
   }
 
   if (installationComplete === null || loading || !minTimePassed) {
-    const [installationError, setInstallationError] = useState(null);
-    return (
-      <div className="flex items-center justify-center h-screen bg-violet-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-violet-600"></div>
-      </div>
-    );
-  }
+  return (
+    <div className="flex items-center justify-center h-screen bg-violet-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-violet-600"></div>
+    </div>
+  );
+}
 
   if (!installationComplete) {
     return <InitialAdminScreen onCreated={(profile) => {
