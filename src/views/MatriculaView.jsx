@@ -364,10 +364,7 @@ export function MatriculaView({
   // CONFIGURACIÓN
   // ============================================================
 
- const levels = useMemo(() => {
-  if (!Array.isArray(institutionConfig?.levels)) {
-    return [];
-  }
+
 
   return institutionConfig.levels.map(
     (level, index) =>
