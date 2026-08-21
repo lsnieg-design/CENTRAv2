@@ -1833,9 +1833,10 @@ const toggleActive = async student => {
   onClose={() =>
     setViewingStudent(null)
   }
-  onEdit={() => {
-    ...
-  }}
+ onEdit={() => {
+  openEdit(viewingStudent);
+  setViewingStudent(null);
+}}
   onToggleActive={() =>
     toggleActive(
       viewingStudent
