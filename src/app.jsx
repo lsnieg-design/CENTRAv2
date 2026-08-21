@@ -541,22 +541,8 @@ const [installationComplete, setInstallationComplete] = useState(null);
   }
 
 
-  if (!currentUserProfile) {
-  return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-black text-violet-900">
-          CENTRA
-        </h1>
-        <p className="text-slate-500 mt-2">
-          Instalación verificada correctamente.
-        </p>
-        <p className="text-slate-400 text-sm mt-1">
-          Estamos probando la conexión.
-        </p>
-      </div>
-    </div>
-  );
+if (!currentUserProfile) {
+  return <LoginScreen onLogin={handleLogin} />;
 }
 
   return <MainApp user={currentUserProfile} onLogout={handleLogout} />;
