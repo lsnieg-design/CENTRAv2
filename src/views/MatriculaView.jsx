@@ -779,12 +779,19 @@ export function MatriculaView({
     setSaving(true);
 
     try {
+      console.log('CENTRA → iniciando guardado de estudiante');
+
       let personId =
         editingStudent?.personId;
 
       if (!personId) {
         personId = crypto.randomUUID();
       }
+
+      console.log(
+        'CENTRA → personId:',
+        personId
+      );
 
       const now = serverTimestamp();
 
@@ -799,6 +806,9 @@ export function MatriculaView({
           COLLECTIONS.PEOPLE,
           personId
         ),
+            console.log(
+        'CENTRA → people guardado correctamente'
+      );
         {
           firstName,
           lastName,
@@ -834,6 +844,9 @@ export function MatriculaView({
           COLLECTIONS.STUDENT_PROFILES,
           personId
         ),
+         console.log(
+        'CENTRA → student_profiles guardado correctamente'
+      );
         {
           personId,
 
@@ -978,15 +991,26 @@ export function MatriculaView({
       setShowForm(false);
       setEditingStudent(null);
 
-    } catch (error) {
+       } catch (error) {
       console.error(
-        'Error guardando estudiante:',
+        'CENTRA → ERROR AL GUARDAR ESTUDIANTE',
         error
       );
 
-      alert(
-        `No se pudo guardar el estudiante: ${error.message}`
+      console.error(
+        'Código Firebase:',
+        error?.code
       );
+
+      console.error(
+        'Mensaje Firebase:',
+        error?.message
+      );
+
+      alert(
+        `No se pudo guardar el estudiante.\n\n${error?.code || ''}\n${error?.message || error}`
+      );
+    }
     } finally {
       setSaving(false);
     }
@@ -1003,6 +1027,9 @@ export function MatriculaView({
           db,
           appId,
           COLLECTIONS.PEOPLE,
+              console.log(
+        'CENTRA → people guardado correctamente'
+      );
           student.personId
         ),
         {
