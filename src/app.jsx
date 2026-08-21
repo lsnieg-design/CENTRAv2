@@ -325,7 +325,45 @@ function InitialAdminScreen({ onCreated }) {
     </div>
   );
 }
+function ErrorBoundary({ children }) {
+  const [error, setError] = useState(null);
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-red-50 flex items-center justify-center p-6">
+        <div className="max-w-2xl w-full bg-white rounded-3xl shadow-xl border border-red-200 p-8">
+          <h1 className="text-2xl font-black text-red-700 mb-4">
+            Error al cargar CENTRA
+          </h1>
+
+          <p className="text-slate-600 mb-4">
+            CENTRA encontró un error al renderizar la aplicación.
+          </p>
+
+          <pre className="bg-slate-900 text-white rounded-xl p-4 text-xs overflow-auto whitespace-pre-wrap">
+            {error?.stack || error?.message || String(error)}
+          </pre>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ErrorBoundaryInner onError={setError}>
+      {children}
+    </ErrorBoundaryInner>
+  );
+}
+
+class ErrorBoundaryInner extends React.Component {
+  componentDidCatch(error) {
+    this.props.onError(error);
+  }
+
+  render() {
+    return this.props.children;
+  }
+}
 export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
@@ -505,8 +543,22 @@ export default function App() {
 
 
   if (!currentUserProfile) {
-    return <LoginScreen onLogin={handleLogin} />;
-  }
+  return (
+    <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-black text-violet-900">
+          CENTRA
+        </h1>
+        <p className="text-slate-500 mt-2">
+          Instalación verificada correctamente.
+        </p>
+        <p className="text-slate-400 text-sm mt-1">
+          Estamos probando la conexión.
+        </p>
+      </div>
+    </div>
+  );
+}
 
   return <MainApp user={currentUserProfile} onLogout={handleLogout} />;
 }
