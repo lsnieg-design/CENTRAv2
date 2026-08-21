@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  InstitutionProvider
+  InstitutionProvider,
+  useInstitution
 } from './context/InstitutionContext';
 import { GroupsView } from './views/GroupsView';
 import { PersonalView } from './views/PersonalView';
@@ -553,6 +554,10 @@ if (!currentUserProfile) {
 
 
 function LoginScreen({ onLogin }) {
+  const {
+  institution,
+  loadingInstitution
+} = useInstitution();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -560,6 +565,19 @@ function LoginScreen({ onLogin }) {
   const [showRecover, setShowRecover] = useState(false);
   const [recoverUser, setRecoverUser] = useState('');
   const [recoverStatus, setRecoverStatus] = useState('idle');
+  const institutionName =
+  institution?.institutionName ||
+  institution?.name ||
+  'CENTRA';
+
+const institutionShortName =
+  institution?.institutionShortName ||
+  institution?.shortName ||
+  institutionName;
+
+const institutionLogo =
+  institution?.logoUrl ||
+  null;
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -652,8 +670,28 @@ function LoginScreen({ onLogin }) {
       
       <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border-t-8 border-orange-500 relative z-0">
         <div className="text-center mb-8">
-            <div className="flex justify-center mb-4"><img src={getCachedAppConfig().logoUrl || '/icon-192.png'} alt="Logo institucional" className="h-24 w-auto object-contain drop-shadow-md" /></div>
-            <h1 className="text-2xl font-extrabold text-violet-900 tracking-tight uppercase">{getCachedAppConfig().portalTitle || 'PORTAL INSTITUCIONAL'}<br/><span className="text-orange-500">{getCachedAppConfig().institutionShortName || 'Mi Institución'}</span></h1>
+            <div className="flex justify-center mb-4">
+  {loadingInstitution ? (
+    <div className="h-24 w-24 rounded-2xl bg-violet-100 animate-pulse" />
+  ) : institutionLogo ? (
+    <img
+      src={institutionLogo}
+      alt={`Logo de ${institutionName}`}
+      className="h-24 w-auto max-w-[180px] object-contain drop-shadow-md"
+    />
+  ) : (
+    <div className="h-24 w-24 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center font-black text-3xl">
+      {institutionShortName.slice(0, 2).toUpperCase()}
+    </div>
+  )}
+</div>
+          <h1 className="text-2xl font-extrabold text-violet-900 tracking-tight uppercase">
+  {getCachedAppConfig().portalTitle || 'PORTAL INSTITUCIONAL'}
+  <br />
+  <span className="text-orange-500">
+    {institutionShortName}
+  </span>
+</h1>
         </div>
 
         {!showRecover ? (
@@ -704,6 +742,7 @@ function NavButton({ active, onClick, icon, label }) {
 
 // --- APP PRINCIPAL ---
 function MainApp({ user, onLogout }) {
+  const { institution } = useInstitution();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -841,13 +880,43 @@ function MainApp({ user, onLogout }) {
       appConfig.primaryColor || 'var(--app-primary)'
   }}
 >
-        <div className="flex items-center space-x-3">
-          <img src={appConfig.logoUrl || LOGO_URL()} alt="Logo" className="w-10 h-8 object-contain" />
-          <div>
-            <h1 className="font-bold text-sm leading-tight">{appConfig.institutionShortName || appConfig.institutionName}</h1>
-            <p className="text-[10px] text-orange-200 uppercase font-bold">{user.firstName}</p>
-          </div>
-        </div>
+       <div className="flex items-center space-x-3">
+  {institution?.logoUrl ? (
+    <img
+      src={institution.logoUrl}
+      alt={`Logo de ${institution.institutionName || institution.name || 'la institución'}`}
+      className="w-10 h-8 object-contain"
+    />
+  ) : (
+    <div className="w-10 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+      <span className="text-xs font-black">
+        {(
+          institution?.institutionShortName ||
+          institution?.shortName ||
+          institution?.institutionName ||
+          institution?.name ||
+          'CE'
+        )
+          .slice(0, 2)
+          .toUpperCase()}
+      </span>
+    </div>
+  )}
+
+  <div>
+    <h1 className="font-bold text-sm leading-tight">
+      {institution?.institutionShortName ||
+        institution?.shortName ||
+        institution?.institutionName ||
+        institution?.name ||
+        'CENTRA'}
+    </h1>
+
+    <p className="text-[10px] text-orange-200 uppercase font-bold">
+      {user.firstName}
+    </p>
+  </div>
+</div>
         
         <div className="flex items-center gap-2">
           <button onClick={() => setShowSearch(true)} className="p-2 rounded-full bg-violet-900/50 hover:bg-orange-500 transition"><Search size={20} /></button>
