@@ -799,54 +799,13 @@ export function MatriculaView({
       // PERSONA
       // ----------------------------------------
 
-      await setDoc(
-        DOC(
-          db,
-          appId,
-          COLLECTIONS.PEOPLE,
-          personId
-        ),
-            console.log(
-        'CENTRA → people guardado correctamente'
-      );
-        {
-          firstName,
-          lastName,
-          fullName:
-            `${firstName} ${lastName}`.trim(),
-
-          type: 'student',
-
-          active:
-            data.active !== 'false',
-
-          updatedAt: now,
-
-          ...(editingStudent?.isNew
-            ? {
-                createdAt: now
-              }
-            : {})
-        },
-        {
-          merge: true
-        }
-      );
-
-      // ----------------------------------------
-      // PERFIL DE ESTUDIANTE
-      // ----------------------------------------
-
-      await setDoc(
+          await setDoc(
         DOC(
           db,
           appId,
           COLLECTIONS.STUDENT_PROFILES,
           personId
         ),
-         console.log(
-        'CENTRA → student_profiles guardado correctamente'
-      );
         {
           personId,
 
@@ -894,19 +853,16 @@ export function MatriculaView({
             data.fatherContact || '',
 
           healthInsurance:
-            data.healthInsurance ||
-            '',
+            data.healthInsurance || '',
 
           emergencyContact:
-            data.emergencyContact ||
-            '',
+            data.emergencyContact || '',
 
           cudNumber:
             data.cudNumber || '',
 
           cudExpiration:
-            data.cudExpiration ||
-            null,
+            data.cudExpiration || null,
 
           photoUrl:
             data.photoUrl || '',
@@ -926,6 +882,15 @@ export function MatriculaView({
           merge: true
         }
       );
+
+      console.log(
+        'CENTRA → student_profiles guardado correctamente'
+      );
+      // ----------------------------------------
+      // PERFIL DE ESTUDIANTE
+      // ----------------------------------------
+
+     COLLECTIONS.STUDENT_PROFILES
 
       // ----------------------------------------
       // ASIGNACIÓN
@@ -1022,16 +987,23 @@ export function MatriculaView({
 
   const toggleActive = async student => {
     try {
-      await updateDoc(
+           await updateDoc(
         DOC(
           db,
           appId,
           COLLECTIONS.PEOPLE,
-              console.log(
-        'CENTRA → people guardado correctamente'
-      );
           student.personId
         ),
+        {
+          active:
+            student.active === false
+              ? true
+              : false,
+
+          updatedAt:
+            serverTimestamp()
+        }
+      );
         {
           active:
             student.active === false
