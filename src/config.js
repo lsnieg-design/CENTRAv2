@@ -101,7 +101,11 @@ export const DEFAULT_APP_CONFIG = {
     'Vespertino',
     'Doble'
   ],
-
+scheduleTypes: [
+  'Jornada simple',
+  'Jornada completa',
+  'Doble jornada'
+],
   modalities: [
     'Sede',
     'Inclusión'
@@ -1091,18 +1095,21 @@ export function normalizeAppConfig(
   // LISTAS
   // ----------------------------------------------------------
 
-  [
-    'turns',
-    'modalities',
-    'eventTypes',
-    'roles',
-    'holidays',
-    'sites',
-    'levels',
-    'sections',
-    'areas',
-    'teams'
-  ].forEach(
+ [
+  'turns',
+  'scheduleTypes',
+  'modalities',
+  'eventTypes',
+  'roles',
+  'holidays',
+  'sites',
+  'levels',
+  'sections',
+  'areas',
+  'teams'
+]
+   
+   .forEach(
     key => {
 
       if (
