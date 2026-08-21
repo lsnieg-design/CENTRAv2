@@ -3183,7 +3183,8 @@ const levelName =
     item =>
       item.id === student.level
   )?.name ||
- levelName;
+  student.level ||
+  'Sin nivel';
 const handlePrint = () => {
   console.log(
     'CENTRA → imprimir legajo',
