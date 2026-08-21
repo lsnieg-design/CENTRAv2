@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  InstitutionProvider
+} from './context/InstitutionContext';
 import { GroupsView } from './views/GroupsView';
 import { PersonalView } from './views/PersonalView';
 import { initializeCENTRAInstallation } from './data/initializeCENTRA';
@@ -364,7 +367,7 @@ class ErrorBoundaryInner extends React.Component {
     return this.props.children;
   }
 }
-export default function App() {
+function AppContent() {
 const [firebaseUser, setFirebaseUser] = useState(null);
 const [currentUserProfile, setCurrentUserProfile] = useState(null);
 const [loading, setLoading] = useState(true);
@@ -1021,3 +1024,12 @@ function StartIcon({size}) {
     </svg>
   );
 }
+function App() {
+  return (
+    <InstitutionProvider>
+      <AppContent />
+    </InstitutionProvider>
+  );
+}
+
+export default App;
