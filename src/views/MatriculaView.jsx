@@ -165,6 +165,14 @@ export function MatriculaView({
 
   const [viewingStudent, setViewingStudent] =
     useState(null);
+  const [showBitacora, setShowBitacora] =
+  useState(false);
+
+const [bitacoraEntries, setBitacoraEntries] =
+  useState([]);
+
+const [loadingBitacora, setLoadingBitacora] =
+  useState(false);
 
   const [editingStudent, setEditingStudent] =
     useState(null);
@@ -716,7 +724,60 @@ const getTurnLabels = assignment => {
     initStudentId,
     students
   ]);
+useEffect(() => {
+  if (
+    !db ||
+    !appId ||
+    !showBitacora ||
+    !viewingStudent?.personId
+  ) {
+    return;
+  }
 
+  setLoadingBitacora(true);
+
+  const unsubscribe =
+    onSnapshot(
+      BASE(
+        db,
+        appId,
+        COLLECTIONS.STUDENT_BITACORA
+      ),
+      snapshot => {
+        const entries =
+          snapshot.docs
+            .map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }))
+            .filter(
+              entry =>
+                entry.studentId ===
+                viewingStudent.personId
+            )
+            .sort(
+              (a, b) =>
+                new Date(
+                  b.date || 0
+                ) -
+                new Date(
+                  a.date || 0
+                )
+            );
+
+        setBitacoraEntries(entries);
+        setLoadingBitacora(false);
+      }
+    );
+
+  return unsubscribe;
+}, [
+  db,
+  appId,
+  showBitacora,
+  viewingStudent?.personId
+]);
+  
   // ============================================================
   // NUEVO / EDITAR
   // ============================================================
@@ -1180,26 +1241,55 @@ const toggleActive = async student => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
 
               <select
-                value={filters.status}
-                onChange={event =>
-                  setFilters(prev => ({
-                    ...prev,
-                    status:
-                      event.target.value
-                  }))
-                }
-                className="p-3 bg-white rounded-xl border border-slate-200 text-xs font-bold"
-              >
-                <option value="active">
-                  Activos
-                </option>
-                <option value="inactive">
-                  Inactivos
-                </option>
-                <option value="all">
-                  Todos
-                </option>
-              </select>
+              <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+
+  <button
+    type="button"
+    onClick={() =>
+      setFilters(prev => ({
+        ...prev,
+        status: 'active'
+      }))
+    }
+    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition ${
+      filters.status === 'active'
+        ? 'bg-white text-violet-700 shadow-sm'
+        : 'text-slate-400'
+    }`}
+  >
+    Activos
+    <span className="ml-1">
+      {students.filter(
+        student =>
+          student.active !== false
+      ).length}
+    </span>
+  </button>
+
+  <button
+    type="button"
+    onClick={() =>
+      setFilters(prev => ({
+        ...prev,
+        status: 'inactive'
+      }))
+    }
+    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition ${
+      filters.status === 'inactive'
+        ? 'bg-white text-red-600 shadow-sm'
+        : 'text-slate-400'
+    }`}
+  >
+    Bajas
+    <span className="ml-1">
+      {students.filter(
+        student =>
+          student.active === false
+      ).length}
+    </span>
+  </button>
+
+</div>
 
               <select
                 value={filters.level}
@@ -1719,35 +1809,42 @@ const toggleActive = async student => {
           MODAL LEGAJO
       ====================================================== */}
 
+     {showBitacora &&
+  viewingStudent && (
+    <BitacoraModal
+      student={viewingStudent}
+      entries={bitacoraEntries}
+      loading={loadingBitacora}
+      onClose={() =>
+        setShowBitacora(false)
+      }
+      db={db}
+      appId={appId}
+      user={user}
+    />
+  )}
       {viewingStudent && (
-        <StudentDetailModal
-          student={viewingStudent}
-          groups={groups}
-          turns={turns}
-          journeys={journeys}
-          onClose={() =>
-            setViewingStudent(null)
-          }
-          onEdit={() => {
-            const student =
-              students.find(
-                item =>
-                  item.id ===
-                  viewingStudent.id
-              );
-
-            setViewingStudent(null);
-
-            if (student) {
-              openEdit(student);
-            }
-          }}
-          onToggleActive={() =>
-            toggleActive(
-              viewingStudent
-            )
-          }
-        />
+       <StudentDetailModal
+  student={viewingStudent}
+  groups={groups}
+  turns={turns}
+  journeys={journeys}
+  institutionConfig={institutionConfig}
+  onClose={() =>
+    setViewingStudent(null)
+  }
+  onEdit={() => {
+    ...
+  }}
+  onToggleActive={() =>
+    toggleActive(
+      viewingStudent
+    )
+  }
+  onBitacora={() =>
+    setShowBitacora(true)
+  }
+/>
       )}
 
       {/* ======================================================
@@ -1786,6 +1883,7 @@ function StatCard({
   positive,
   warning
 }) {
+ 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
 
@@ -1864,18 +1962,114 @@ const printStudentFile = (
   student,
   group,
   journey,
-  turnLabels
+  turnLabels,
+  institutionConfig
 ) => {
   const escapeHtml = value =>
     String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
 
   const age = calculateAge(
     student.birthDate
   );
+
+  const primary =
+    institutionConfig?.primaryColor ||
+    '#6d28d9';
+
+  const secondary =
+    institutionConfig?.secondaryColor ||
+    '#f97316';
+
+  const background =
+    institutionConfig?.backgroundColor ||
+    '#f8fafc';
+
+  const textColor =
+    institutionConfig?.textColor ||
+    '#1e293b';
+
+  const institutionName =
+    institutionConfig?.institutionName ||
+    'Mi Institución';
+
+  const institutionShortName =
+    institutionConfig?.institutionShortName ||
+    institutionName;
+
+  const logoUrl =
+    institutionConfig?.logoUrl ||
+    '';
+
+  const address =
+    institutionConfig?.address ||
+    '';
+
+  const phone =
+    institutionConfig?.phone ||
+    '';
+
+  const email =
+    institutionConfig?.email ||
+    '';
+
+  const website =
+    institutionConfig?.website ||
+    '';
+
+  const city =
+    institutionConfig?.city ||
+    '';
+
+  const province =
+    institutionConfig?.province ||
+    '';
+
+  const documentHeader =
+    institutionConfig?.document?.header ||
+    '';
+
+  const documentFooter =
+    institutionConfig?.document?.footer ||
+    '';
+
+  const showLogo =
+    institutionConfig?.document?.showLogo !== false;
+
+  const statusText =
+    student.active === false
+      ? 'BAJA'
+      : 'ACTIVO';
+
+  const statusColor =
+    student.active === false
+      ? '#b91c1c'
+      : '#15803d';
+
+  const statusBackground =
+    student.active === false
+      ? '#fee2e2'
+      : '#dcfce7';
+
+  const fullAddress = [
+    address,
+    city,
+    province
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const contactLine = [
+    phone,
+    email,
+    website
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const printWindow =
     window.open(
@@ -1891,11 +2085,25 @@ const printStudentFile = (
     return;
   }
 
+  const logoHtml =
+    showLogo && logoUrl
+      ? `
+        <img
+          src="${escapeHtml(logoUrl)}"
+          alt="Logo institucional"
+          class="institution-logo"
+        />
+      `
+      : '';
+
   printWindow.document.write(`
     <!doctype html>
+
     <html lang="es">
       <head>
+
         <meta charset="UTF-8" />
+
         <title>
           Legajo - ${escapeHtml(
             student.lastName
@@ -1905,382 +2113,1007 @@ const printStudentFile = (
         </title>
 
         <style>
+
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
+
           * {
             box-sizing: border-box;
           }
 
+          html,
           body {
-            font-family: Arial, sans-serif;
-            color: #1e293b;
             margin: 0;
-            padding: 32px;
+            padding: 0;
+            background: #ffffff;
           }
 
-          h1 {
-            margin: 0;
-            font-size: 24px;
+          body {
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+
+            color: ${textColor};
+
+            font-size: 10px;
+
+            -webkit-print-color-adjust:
+              exact;
+
+            print-color-adjust:
+              exact;
           }
 
-          h2 {
-            font-size: 14px;
-            margin: 26px 0 12px;
-            padding-bottom: 6px;
-            border-bottom: 2px solid #e2e8f0;
+          .sheet {
+            width: 100%;
+            max-width: 194mm;
+            margin: 0 auto;
           }
 
-          .subtitle {
-            color: #64748b;
-            margin-top: 4px;
-            font-size: 12px;
-          }
+          /* ==================================================
+             ENCABEZADO INSTITUCIONAL
+          ================================================== */
 
-          .grid {
-            display: grid;
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
-            gap: 10px;
-          }
+          .institution-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
 
-          .item {
-            border: 1px solid #e2e8f0;
+            padding: 9px 12px;
+
             border-radius: 10px;
-            padding: 10px;
+
+            background:
+              linear-gradient(
+                135deg,
+                ${primary},
+                ${secondary}
+              );
+
+            color: white;
+
+            min-height: 48px;
+
+            margin-bottom: 12px;
           }
 
-          .label {
-            color: #64748b;
-            font-size: 9px;
+          .institution-logo {
+            width: 48px;
+            height: 38px;
+
+            object-fit: contain;
+
+            background: white;
+
+            border-radius: 7px;
+
+            padding: 4px;
+
+            flex-shrink: 0;
+          }
+
+          .institution-text {
+            min-width: 0;
+            flex: 1;
+          }
+
+          .institution-name {
+            font-size: 13px;
+            font-weight: 900;
             text-transform: uppercase;
-            font-weight: 700;
-            letter-spacing: .08em;
+            letter-spacing: .03em;
+
+            line-height: 1.1;
           }
 
-          .value {
-            margin-top: 4px;
-            font-size: 12px;
-            font-weight: 700;
-            white-space: pre-wrap;
-            word-break: break-word;
+          .institution-meta {
+            font-size: 8px;
+            font-weight: 600;
+
+            opacity: .92;
+
+            margin-top: 3px;
+
+            line-height: 1.3;
           }
 
-          .header {
+          .document-header {
+            font-size: 8px;
+            opacity: .9;
+            margin-top: 3px;
+          }
+
+          /* ==================================================
+             TITULO DEL DOCUMENTO
+          ================================================== */
+
+          .document-title {
             display: flex;
             justify-content: space-between;
-            gap: 24px;
             align-items: flex-start;
-            margin-bottom: 24px;
+
+            gap: 12px;
+
+            padding: 7px 2px 9px;
+
+            border-bottom:
+              2px solid ${primary};
+
+            margin-bottom: 9px;
+          }
+
+          .document-title-left {
+            flex: 1;
+            min-width: 0;
+          }
+
+          .document-kicker {
+            color: ${primary};
+
+            font-size: 7px;
+
+            font-weight: 900;
+
+            text-transform:
+              uppercase;
+
+            letter-spacing: .15em;
+
+            margin-bottom: 3px;
+          }
+
+          .student-name {
+            font-size: 21px;
+
+            font-weight: 900;
+
+            line-height: 1;
+
+            text-transform:
+              uppercase;
+
+            color: ${textColor};
+          }
+
+          .student-summary {
+            font-size: 9px;
+
+            font-weight: 700;
+
+            color: #64748b;
+
+            margin-top: 4px;
+          }
+
+          .student-photo {
+            width: 46px;
+            height: 54px;
+
+            object-fit: cover;
+
+            border-radius: 8px;
+
+            border:
+              2px solid ${primary};
+
+            flex-shrink: 0;
+
+            background: #f1f5f9;
+          }
+
+          .student-photo-empty {
+            width: 46px;
+            height: 54px;
+
+            border-radius: 8px;
+
+            border:
+              2px solid ${primary};
+
+            background: #f8fafc;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            color: #94a3b8;
+
+            font-size: 7px;
+
+            text-align: center;
+
+            flex-shrink: 0;
           }
 
           .status {
             display: inline-block;
-            padding: 5px 9px;
+
+            padding: 3px 7px;
+
             border-radius: 999px;
-            font-size: 9px;
-            font-weight: 700;
-            text-transform: uppercase;
-            background: ${
-              student.active === false
-                ? '#fee2e2'
-                : '#dcfce7'
-            };
-            color: ${
-              student.active === false
-                ? '#b91c1c'
-                : '#15803d'
-            };
+
+            font-size: 7px;
+
+            font-weight: 900;
+
+            color: ${statusColor};
+
+            background:
+              ${statusBackground};
+
+            margin-top: 5px;
           }
+
+          /* ==================================================
+             SECCIONES
+          ================================================== */
+
+          .section {
+            margin-top: 7px;
+
+            break-inside: avoid;
+
+            page-break-inside: avoid;
+          }
+
+          .section-title {
+            display: flex;
+            align-items: center;
+
+            gap: 6px;
+
+            padding: 4px 7px;
+
+            background: ${background};
+
+            border-left:
+              3px solid ${primary};
+
+            border-radius: 5px;
+
+            color: ${primary};
+
+            font-size: 8px;
+
+            font-weight: 900;
+
+            text-transform:
+              uppercase;
+
+            letter-spacing: .05em;
+
+            margin-bottom: 5px;
+          }
+
+          .grid {
+            display: grid;
+
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr));
+
+            gap: 5px 8px;
+          }
+
+          .field {
+            min-width: 0;
+
+            padding: 3px 2px;
+
+            border-bottom:
+              1px solid #e2e8f0;
+          }
+
+          .field-label {
+            font-size: 6.5px;
+
+            font-weight: 900;
+
+            text-transform:
+              uppercase;
+
+            letter-spacing: .06em;
+
+            color: #64748b;
+
+            line-height: 1.1;
+          }
+
+          .field-value {
+            font-size: 8.5px;
+
+            font-weight: 700;
+
+            color: ${textColor};
+
+            margin-top: 2px;
+
+            line-height: 1.15;
+
+            word-break:
+              break-word;
+
+            white-space:
+              pre-wrap;
+          }
+
+          .full {
+            grid-column:
+              1 / -1;
+          }
+
+          /* ==================================================
+             ASIGNACION
+          ================================================== */
+
+          .assignment-box {
+            display: grid;
+
+            grid-template-columns:
+              1.4fr 1fr 1fr;
+
+            gap: 6px;
+
+            padding: 7px;
+
+            border:
+              1px solid ${primary};
+
+            border-radius: 7px;
+
+            background:
+              linear-gradient(
+                135deg,
+                ${primary}12,
+                ${secondary}10
+              );
+          }
+
+          .assignment-field {
+            padding: 4px 6px;
+
+            background:
+              rgba(255,255,255,.78);
+
+            border-radius: 5px;
+          }
+
+          /* ==================================================
+             FAMILIA
+          ================================================== */
+
+          .family-grid {
+            display: grid;
+
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr));
+
+            gap: 7px;
+          }
+
+          .family-card {
+            border:
+              1px solid #e2e8f0;
+
+            border-radius: 6px;
+
+            padding: 5px 7px;
+          }
+
+          /* ==================================================
+             PIE
+          ================================================== */
+
+          .footer {
+            margin-top: 9px;
+
+            padding-top: 6px;
+
+            border-top:
+              1px solid #e2e8f0;
+
+            display: flex;
+
+            justify-content:
+              space-between;
+
+            gap: 12px;
+
+            color: #64748b;
+
+            font-size: 6.5px;
+
+            line-height: 1.3;
+          }
+
+          .footer-right {
+            text-align: right;
+          }
+
+          /* ==================================================
+             CONTROL DE IMPRESION
+          ================================================== */
 
           @media print {
+
+            html,
             body {
-              padding: 15mm;
+              width: 210mm;
+              min-height: 297mm;
             }
 
-            .no-print {
-              display: none;
+            .sheet {
+              width: 194mm;
+              max-width: 194mm;
             }
+
           }
+
         </style>
+
       </head>
 
       <body>
 
-        <div class="header">
-          <div>
-            <h1>
-              ${escapeHtml(
-                student.lastName
-              )},
-              ${escapeHtml(
-                student.firstName
-              )}
-            </h1>
+        <div class="sheet">
 
-            <div class="subtitle">
-              Legajo del estudiante
+          <!-- ===============================================
+               IDENTIDAD INSTITUCIONAL
+          ================================================ -->
+
+          <div class="institution-header">
+
+            ${logoHtml}
+
+            <div class="institution-text">
+
+              <div class="institution-name">
+                ${escapeHtml(
+                  institutionShortName
+                )}
+              </div>
+
+              ${
+                fullAddress
+                  ? `
+                    <div class="institution-meta">
+                      ${escapeHtml(
+                        fullAddress
+                      )}
+                    </div>
+                  `
+                  : ''
+              }
+
+              ${
+                contactLine
+                  ? `
+                    <div class="institution-meta">
+                      ${escapeHtml(
+                        contactLine
+                      )}
+                    </div>
+                  `
+                  : ''
+              }
+
+              ${
+                documentHeader
+                  ? `
+                    <div class="document-header">
+                      ${escapeHtml(
+                        documentHeader
+                      )}
+                    </div>
+                  `
+                  : ''
+              }
+
             </div>
+
           </div>
 
-          <div class="status">
+          <!-- ===============================================
+               ESTUDIANTE
+          ================================================ -->
+
+          <div class="document-title">
+
+            <div class="document-title-left">
+
+              <div class="document-kicker">
+                ${escapeHtml(
+                  institutionName
+                )}
+                · Legajo del estudiante
+              </div>
+
+              <div class="student-name">
+                ${escapeHtml(
+                  student.lastName
+                )},
+                ${escapeHtml(
+                  student.firstName
+                )}
+              </div>
+
+              <div class="student-summary">
+
+                ${
+                  student.dni
+                    ? `DNI ${escapeHtml(
+                        student.dni
+                      )}`
+                    : ''
+                }
+
+                ${
+                  age !== null
+                    ? ` · ${age} años`
+                    : ''
+                }
+
+              </div>
+
+              <div class="status">
+                ${statusText}
+              </div>
+
+            </div>
+
             ${
-              student.active === false
-                ? 'Baja'
-                : 'Activo'
+              student.photoUrl
+                ? `
+                  <img
+                    src="${escapeHtml(
+                      student.photoUrl
+                    )}"
+                    alt="Foto del estudiante"
+                    class="student-photo"
+                  />
+                `
+                : `
+                  <div class="student-photo-empty">
+                    SIN FOTO
+                  </div>
+                `
             }
+
           </div>
-        </div>
 
-        <h2>Datos personales</h2>
+          <!-- ===============================================
+               DATOS PERSONALES
+          ================================================ -->
 
-        <div class="grid">
+          <div class="section">
 
-          <div class="item">
-            <div class="label">DNI</div>
-            <div class="value">
+            <div class="section-title">
+              Datos personales
+            </div>
+
+            <div class="grid">
+
+              <div class="field">
+                <div class="field-label">
+                  DNI
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.dni ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Fecha de nacimiento
+                </div>
+
+                <div class="field-value">
+                  ${
+                    student.birthDate
+                      ? escapeHtml(
+                          formatDate(
+                            student.birthDate
+                          )
+                        )
+                      : 'Sin datos'
+                  }
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Edad
+                </div>
+
+                <div class="field-value">
+                  ${
+                    age !== null
+                      ? `${age} años`
+                      : 'Sin datos'
+                  }
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Género
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.gender ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Dirección
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.address ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Localidad
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.city ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Teléfono
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.phone ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Email
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.email ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ===============================================
+               SALUD Y DOCUMENTACION
+          ================================================ -->
+
+          <div class="section">
+
+            <div class="section-title">
+              Salud y documentación
+            </div>
+
+            <div class="grid">
+
+              <div class="field">
+                <div class="field-label">
+                  Obra social / prepaga
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.healthInsurance ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  CUD
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.cudNumber ||
+                      'No registrado'
+                  )}
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Vencimiento CUD
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.cudExpiration ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  Contacto de emergencia
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.emergencyContact ||
+                      'Sin datos'
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ===============================================
+               ESCOLARIDAD
+          ================================================ -->
+
+          <div class="section">
+
+            <div class="section-title">
+              Escolaridad actual
+            </div>
+
+            <div class="assignment-box">
+
+              <div class="assignment-field">
+
+                <div class="field-label">
+                  Nivel
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.level ||
+                      'Sin nivel'
+                  )}
+                </div>
+
+              </div>
+
+              <div class="assignment-field">
+
+                <div class="field-label">
+                  Grupo
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    group?.name ||
+                      'Sin asignación'
+                  )}
+                </div>
+
+              </div>
+
+              <div class="assignment-field">
+
+                <div class="field-label">
+                  Jornada
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    journey ||
+                      'Sin jornada'
+                  )}
+                </div>
+
+              </div>
+
+              <div class="assignment-field">
+
+                <div class="field-label">
+                  Turno
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    turnLabels.join(
+                      ' · '
+                    ) ||
+                      'Sin turno'
+                  )}
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ===============================================
+               FAMILIA
+          ================================================ -->
+
+          <div class="section">
+
+            <div class="section-title">
+              Familia y contacto
+            </div>
+
+            <div class="family-grid">
+
+              <div class="family-card">
+
+                <div class="field-label">
+                  Adulto responsable 1
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.motherName ||
+                      'Sin datos'
+                  )}
+
+                  ${
+                    student.motherContact
+                      ? `<br>${escapeHtml(
+                          student.motherContact
+                        )}`
+                      : ''
+                  }
+
+                </div>
+
+              </div>
+
+              <div class="family-card">
+
+                <div class="field-label">
+                  Adulto responsable 2
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.fatherName ||
+                      'Sin datos'
+                  )}
+
+                  ${
+                    student.fatherContact
+                      ? `<br>${escapeHtml(
+                          student.fatherContact
+                        )}`
+                      : ''
+                  }
+
+                </div>
+
+              </div>
+
+              <div class="family-card full">
+
+                <div class="field-label">
+                  Contacto de emergencia
+                </div>
+
+                <div class="field-value">
+                  ${escapeHtml(
+                    student.emergencyContact ||
+                      'Sin datos'
+                  )}
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ===============================================
+               OBSERVACIONES
+          ================================================ -->
+
+          <div class="section">
+
+            <div class="section-title">
+              Observaciones
+            </div>
+
+            <div class="field full">
+
+              <div class="field-value">
+                ${escapeHtml(
+                  student.notes ||
+                    'Sin observaciones'
+                )}
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ===============================================
+               PIE
+          ================================================ -->
+
+          <div class="footer">
+
+            <div>
               ${escapeHtml(
-                student.dni ||
-                  'Sin datos'
+                institutionName
               )}
-            </div>
-          </div>
 
-          <div class="item">
-            <div class="label">
-              Fecha de nacimiento
-            </div>
-            <div class="value">
               ${
-                student.birthDate
+                fullAddress
+                  ? ` · ${escapeHtml(
+                      fullAddress
+                    )}`
+                  : ''
+              }
+            </div>
+
+            <div class="footer-right">
+
+              ${
+                documentFooter
                   ? `${escapeHtml(
-                      formatDate(
-                        student.birthDate
-                      )
-                    )} ${
-                      age !== null
-                        ? `· ${age} años`
-                        : ''
-                    }`
-                  : 'Sin datos'
-              }
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">Género</div>
-            <div class="value">
-              ${escapeHtml(
-                student.gender ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">Nivel</div>
-            <div class="value">
-              ${escapeHtml(
-                student.level ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        <h2>Contacto</h2>
-
-        <div class="grid">
-
-          <div class="item">
-            <div class="label">Dirección</div>
-            <div class="value">
-              ${escapeHtml(
-                student.address ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">Localidad</div>
-            <div class="value">
-              ${escapeHtml(
-                student.city ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">Teléfono</div>
-            <div class="value">
-              ${escapeHtml(
-                student.phone ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">Email</div>
-            <div class="value">
-              ${escapeHtml(
-                student.email ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">
-              Contacto de emergencia
-            </div>
-            <div class="value">
-              ${escapeHtml(
-                student.emergencyContact ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        <h2>Familia</h2>
-
-        <div class="grid">
-
-          <div class="item">
-            <div class="label">
-              Adulto responsable 1
-            </div>
-            <div class="value">
-              ${escapeHtml(
-                student.motherName ||
-                  'Sin datos'
-              )}
-              ${
-                student.motherContact
-                  ? ` · ${escapeHtml(
-                      student.motherContact
-                    )}`
+                      documentFooter
+                    )}<br>`
                   : ''
               }
-            </div>
-          </div>
 
-          <div class="item">
-            <div class="label">
-              Adulto responsable 2
-            </div>
-            <div class="value">
-              ${escapeHtml(
-                student.fatherName ||
-                  'Sin datos'
+              Legajo generado el
+              ${new Date().toLocaleDateString(
+                'es-AR'
               )}
-              ${
-                student.fatherContact
-                  ? ` · ${escapeHtml(
-                      student.fatherContact
-                    )}`
-                  : ''
-              }
+
             </div>
+
           </div>
 
-        </div>
-
-        <h2>Salud y documentación</h2>
-
-        <div class="grid">
-
-          <div class="item">
-            <div class="label">
-              Obra social / prepaga
-            </div>
-            <div class="value">
-              ${escapeHtml(
-                student.healthInsurance ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">CUD</div>
-            <div class="value">
-              ${escapeHtml(
-                student.cudNumber ||
-                  'No registrado'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">
-              Vencimiento CUD
-            </div>
-            <div class="value">
-              ${escapeHtml(
-                student.cudExpiration ||
-                  'Sin datos'
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        <h2>Escolaridad actual</h2>
-
-        <div class="grid">
-
-          <div class="item">
-            <div class="label">Grupo</div>
-            <div class="value">
-              ${escapeHtml(
-                group?.name ||
-                  'Sin asignación'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">Jornada</div>
-            <div class="value">
-              ${escapeHtml(
-                journey ||
-                  'Sin jornada'
-              )}
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="label">Turno</div>
-            <div class="value">
-              ${escapeHtml(
-                turnLabels.join(
-                  ' · '
-                ) ||
-                  'Sin turno'
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        <h2>Observaciones</h2>
-
-        <div class="item">
-          <div class="value">
-            ${escapeHtml(
-              student.notes ||
-                'Sin observaciones'
-            )}
-          </div>
         </div>
 
         <script>
-          window.onload = function() {
-            window.print();
-          };
+
+          window.addEventListener(
+            'load',
+            function() {
+
+              setTimeout(
+                function() {
+                  window.print();
+                },
+                300
+              );
+
+            }
+          );
+
         </script>
 
       </body>
@@ -2294,13 +3127,15 @@ const printStudentFile = (
 // ============================================================
 
 function StudentDetailModal({
-  student,
+ student,
   groups,
   turns,
   journeys,
   onClose,
+  institutionConfig,
   onEdit,
-  onToggleActive
+  onToggleActive,
+  onBitacora
 }) {
   const assignment =
     getCurrentAssignment(
@@ -2338,15 +3173,15 @@ function StudentDetailModal({
     assignment?.scheduleType ||
     '';
 
-  const handlePrint = () => {
-    printStudentFile(
-      student,
-      group,
-      journey,
-      turnLabels
-    );
-  };
-
+const handlePrint = () => {
+  printStudentFile(
+    student,
+    group,
+    journey,
+    turnLabels,
+    institutionConfig
+  );
+};
 
   return (
     <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -2607,6 +3442,14 @@ function StudentDetailModal({
             <Edit3 size={16} />
             Editar legajo
           </button>
+          <button
+  type="button"
+  onClick={() => onBitacora()}
+  className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-black text-xs flex items-center gap-2 hover:bg-emerald-100"
+>
+  <BookOpen size={16} />
+  Bitácora
+</button>
 <button
   type="button"
   onClick={handlePrint}
@@ -2674,6 +3517,220 @@ function ContactLine({
 // FORMULARIO
 // ============================================================
 
+function BitacoraModal({
+  student,
+  entries,
+  loading,
+  onClose,
+  db,
+  appId,
+  user
+}) {
+  const [text, setText] =
+    useState('');
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const addEntry = async () => {
+    const cleanText =
+      text.trim();
+
+    if (!cleanText) return;
+
+    setSaving(true);
+
+    try {
+      await setDoc(
+        doc(
+          db,
+          'artifacts',
+          appId,
+          'public',
+          'data',
+          COLLECTIONS.STUDENT_BITACORA,
+          crypto.randomUUID()
+        ),
+        {
+          studentId:
+            student.personId,
+
+          date:
+            new Date().toISOString(),
+
+          type: 'Nota',
+
+          severity: 'medium',
+
+          text: cleanText,
+
+          author:
+            user?.fullName ||
+            user?.firstName ||
+            'Usuario',
+
+          authorId:
+            user?.id || null,
+
+          createdAt:
+            serverTimestamp()
+        }
+      );
+
+      setText('');
+
+    } catch (error) {
+      console.error(
+        'Error guardando bitácora:',
+        error
+      );
+
+      alert(
+        `No se pudo guardar la bitácora: ${
+          error?.message || error
+        }`
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+
+      <div className="bg-white rounded-[28px] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+
+          <div>
+            <h3 className="text-xl font-black text-slate-900">
+              Bitácora
+            </h3>
+
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+              {student.lastName},{' '}
+              {student.firstName}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-xl bg-slate-100 text-slate-500"
+          >
+            <X size={20} />
+          </button>
+
+        </div>
+
+        <div className="p-5 border-b border-slate-100 bg-slate-50">
+
+          <textarea
+            value={text}
+            onChange={event =>
+              setText(
+                event.target.value
+              )
+            }
+            rows={3}
+            placeholder="Escribí una observación o registro..."
+            className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 resize-none"
+          />
+
+          <div className="flex justify-end mt-2">
+
+            <button
+              type="button"
+              onClick={addEntry}
+              disabled={
+                saving ||
+                !text.trim()
+              }
+              className="px-4 py-2.5 rounded-xl bg-violet-600 text-white font-black text-xs disabled:opacity-40 flex items-center gap-2"
+            >
+              <Plus size={16} />
+              {saving
+                ? 'Guardando...'
+                : 'Agregar registro'}
+            </button>
+
+          </div>
+
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+
+          {loading ? (
+            <div className="py-10 text-center text-xs font-black uppercase tracking-widest text-slate-400">
+              Cargando bitácora...
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="py-10 text-center">
+
+              <BookOpen
+                size={32}
+                className="mx-auto text-slate-300"
+              />
+
+              <p className="mt-3 text-sm font-bold text-slate-400">
+                Todavía no hay registros.
+              </p>
+
+            </div>
+          ) : (
+
+            <div className="space-y-3">
+
+              {entries.map(entry => (
+
+                <div
+                  key={entry.id}
+                  className="border border-slate-200 rounded-2xl p-4 bg-white"
+                >
+
+                  <div className="flex items-center justify-between gap-3">
+
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">
+                        {entry.type ||
+                          'Registro'}
+                      </p>
+
+                      <p className="text-[10px] text-slate-400 font-bold mt-1">
+                        {formatDate(
+                          entry.date
+                        )}{' '}
+                        ·{' '}
+                        {entry.author ||
+                          'Usuario'}
+                      </p>
+                    </div>
+
+                    <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase">
+                      {entry.severity ||
+                        'medium'}
+                    </span>
+
+                  </div>
+
+                  <p className="mt-3 text-sm text-slate-700 font-medium whitespace-pre-wrap">
+                    {entry.text}
+                  </p>
+
+                </div>
+
+              ))}
+
+            </div>
+          )}
+
+        </div>
+
+      </div>
+
+    </div>
+  );
+}
 function StudentFormModal({
   student,
   groups,
