@@ -7,6 +7,11 @@ const TABS = [
   { id: 'identity', label: 'Institución', icon: Building2 },
   { id: 'branding', label: 'Apariencia', icon: Palette },
   { id: 'structure', label: 'Estructura', icon: SlidersHorizontal },
+ {
+  id: 'studentFileActions',
+  label: 'Acciones del legajo',
+  icon: Settings2
+},
   { id: 'features', label: 'Módulos', icon: Settings2 },
   { id: 'permissions', label: 'Usuarios y permisos', icon: ShieldCheck },
   { id: 'labels', label: 'Nombres y documentos', icon: FileText },
@@ -301,7 +306,191 @@ export function ConfiguracionView({ db, appId, auth }) {
             </div>
           </section>}
 
-          {tab === 'features' && <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
+         {tab === 'studentFileActions' && (
+  <div className="space-y-5">
+
+    <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
+
+      <div>
+        <p className="text-xs font-black uppercase tracking-widest text-violet-600">
+          Legajos
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900">
+          Acciones del legajo
+        </h3>
+
+        <p className="text-sm text-slate-500 mt-1">
+          Elegí qué acciones estarán disponibles
+          cuando se consulte el legajo de un estudiante.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3">
+
+        {[
+          ['edit', 'Editar legajo'],
+          ['bitacora', 'Ver bitácora'],
+          ['print', 'Imprimir legajo'],
+          [
+            'toggleActive',
+            'Dar de baja / Reactivar'
+          ]
+        ].map(([key, label]) => (
+
+          <label
+            key={key}
+            className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200"
+          >
+
+            <div>
+              <p className="text-sm font-black text-slate-800">
+                {label}
+              </p>
+
+              <p className="text-xs text-slate-500 mt-1">
+                {key === 'edit' &&
+                  'Permite modificar los datos del legajo.'}
+
+                {key === 'bitacora' &&
+                  'Permite consultar el historial del estudiante.'}
+
+                {key === 'print' &&
+                  'Permite generar el legajo imprimible.'}
+
+                {key === 'toggleActive' &&
+                  'Permite dar de baja o reactivar al estudiante.'}
+              </p>
+            </div>
+
+            <input
+              type="checkbox"
+              checked={
+                config.document
+                  ?.studentFileActions?.[key] !== false
+              }
+              onChange={event =>
+                setConfig(prev => ({
+                  ...prev,
+
+                  document: {
+                    ...(prev.document || {}),
+
+                    studentFileActions: {
+                      ...(prev.document
+                        ?.studentFileActions || {}),
+
+                      [key]:
+                        event.target.checked
+                    }
+                  }
+                }))
+              }
+              className="w-5 h-5 accent-violet-600"
+            />
+
+          </label>
+
+        ))}
+
+      </div>
+
+    </section>
+
+    <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
+
+      <div>
+        <p className="text-xs font-black uppercase tracking-widest text-emerald-600">
+          Bitácora
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900">
+          Acciones de la bitácora
+        </h3>
+
+        <p className="text-sm text-slate-500 mt-1">
+          Definí qué acciones estarán disponibles
+          dentro de la bitácora.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3">
+
+        {[
+          ['add', 'Agregar registro'],
+          ['print', 'Imprimir bitácora']
+        ].map(([key, label]) => (
+
+          <label
+            key={key}
+            className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200"
+          >
+
+            <div>
+              <p className="text-sm font-black text-slate-800">
+                {label}
+              </p>
+
+              <p className="text-xs text-slate-500 mt-1">
+                {key === 'add'
+                  ? 'Permite escribir nuevos registros.'
+                  : 'Permite imprimir el historial de bitácora.'}
+              </p>
+            </div>
+
+            <input
+              type="checkbox"
+              checked={
+                config.document
+                  ?.bitacoraActions?.[key] !== false
+              }
+              onChange={event =>
+                setConfig(prev => ({
+                  ...prev,
+
+                  document: {
+                    ...(prev.document || {}),
+
+                    bitacoraActions: {
+                      ...(prev.document
+                        ?.bitacoraActions || {}),
+
+                      [key]:
+                        event.target.checked
+                    }
+                  }
+                }))
+              }
+              className="w-5 h-5 accent-violet-600"
+            />
+
+          </label>
+
+        ))}
+
+      </div>
+
+    </section>
+
+    <section className="rounded-2xl bg-violet-50 border border-violet-100 p-4">
+
+      <p className="text-sm font-bold text-violet-900">
+        Esta funcionalidad también puede
+        desactivarse completamente desde
+        <strong> Configuración → Módulos</strong>.
+      </p>
+
+      <p className="text-xs text-violet-700 mt-1">
+        Cuando esté desactivada, CENTRA no mostrará
+        las acciones del legajo.
+      </p>
+
+    </section>
+
+  </div>
+)}
+         
+         {tab === 'features' && <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
             <div><h3 className="text-lg font-black">Módulos y funcionalidades</h3><p className="text-sm text-slate-500">Elegí qué partes del sistema estarán disponibles en esta instalación.</p></div>
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><p className="text-xs font-black uppercase text-slate-500">Paquete</p><p className="font-black text-slate-800">{PLAN_OPTIONS.find(p=>p.key===config.plan?.key)?.name || 'Personalizado'}</p><p className="text-xs text-slate-500 mt-1">{PLAN_OPTIONS.find(p=>p.key===config.plan?.key)?.description || ''}</p></div><select value={config.plan?.key || 'custom'} onChange={e=>update('plan',{key:e.target.value,name:PLAN_OPTIONS.find(p=>p.key===e.target.value)?.name || 'Personalizado'})} className="rounded-xl border border-slate-200 px-3 py-2.5 bg-white font-bold">{PLAN_OPTIONS.map(plan=><option key={plan.key} value={plan.key}>{plan.name}</option>)}</select></div>
