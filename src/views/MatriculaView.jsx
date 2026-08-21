@@ -1961,7 +1961,7 @@ function StatsList({
     </div>
   );
 }
-const printStudentFile = (
+function printStudentFile(
   student,
   group,
   journey,
@@ -3126,7 +3126,7 @@ const printStudentFile = (
   `);
 
   printWindow.document.close();
-};
+}
 // ============================================================
 // DETALLE
 // ============================================================
