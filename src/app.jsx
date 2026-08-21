@@ -666,7 +666,16 @@ const institutionLogo =
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-900 to-fuchsia-900 flex items-center justify-center p-6 relative">
+   <div
+  className="min-h-screen flex items-center justify-center p-6 relative"
+  style={{
+    background: `linear-gradient(
+      135deg,
+      ${institution?.primaryColor || '#4c1d95'},
+      ${institution?.secondaryColor || '#86198f'}
+    )`
+  }}
+>
       
       <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border-t-8 border-orange-500 relative z-0">
         <div className="text-center mb-8">
