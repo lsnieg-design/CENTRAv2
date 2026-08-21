@@ -33,13 +33,26 @@ export const DEFAULT_APP_CONFIG = {
   // DOCUMENTOS
   // =========================================================
 
-  document: {
-    header: '',
-    footer: '',
-    signatureName: '',
-    signatureRole: '',
-    showLogo: true
+  
+   document: {
+  header: '',
+  footer: '',
+  signatureName: '',
+  signatureRole: '',
+  showLogo: true,
+
+  studentFileActions: {
+    edit: true,
+    bitacora: true,
+    print: true,
+    toggleActive: true
   },
+
+  bitacoraActions: {
+    add: true,
+    print: true
+  }
+},
 
   // =========================================================
   // NOMBRES / NOMENCLATURAS
