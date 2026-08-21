@@ -364,6 +364,61 @@ export function MatriculaView({
   // CONFIGURACIÓN
   // ============================================================
 
+ const levels = useMemo(() => {
+  if (!Array.isArray(institutionConfig?.levels)) {
+    return [];
+  }
+
+  return institutionConfig.levels.map(
+    (level, index) =>
+      typeof level === 'string'
+        ? {
+            id:
+              level
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_'),
+            name: level
+          }
+        : {
+            id:
+              level?.id ||
+              `nivel_${index + 1}`,
+            name:
+              level?.name ||
+              level?.label ||
+              `Nivel ${index + 1}`
+          }
+  );
+}, [institutionConfig]);
+
+  const levels = useMemo(() => {
+  if (!Array.isArray(institutionConfig?.levels)) {
+    return [];
+  }
+
+  return institutionConfig.levels.map(
+    (level, index) =>
+      typeof level === 'string'
+        ? {
+            id:
+              level
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_'),
+            name: level
+          }
+        : {
+            id:
+              level?.id ||
+              `nivel_${index + 1}`,
+            name:
+              level?.name ||
+              level?.label ||
+              `Nivel ${index + 1}`
+          }
+  );
+}, [institutionConfig]);
+
+  
   const turns = useMemo(() => {
     if (
       !Array.isArray(
@@ -2490,14 +2545,24 @@ function StudentFormModal({
 
             <div className="grid md:grid-cols-2 gap-3">
 
-              <Input
-                name="level"
-                label="Nivel"
-                defaultValue={
-                  student.level
-                }
-                placeholder="Ej.: Primaria"
-              />
+              <Select
+  name="level"
+  label="Nivel"
+  defaultValue={student.level || ''}
+>
+  <option value="">
+    Seleccionar
+  </option>
+
+  {levels.map(level => (
+    <option
+      key={level.id}
+      value={level.id}
+    >
+      {level.name}
+    </option>
+  ))}
+</Select>
 
               <div />
 
