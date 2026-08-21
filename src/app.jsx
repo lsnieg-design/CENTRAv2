@@ -677,7 +677,7 @@ const institutionLogo =
   }}
 >
       
-      <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border-t-8 border-orange-500 relative z-0">
+      <div   className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border-t-8 relative z-0"   style={{     borderTopColor: getCachedAppConfig().primaryColor || '#f97316'   }} >
         <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
   {loadingInstitution ? (
