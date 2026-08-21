@@ -29,6 +29,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Save,
+  Printer,
+BookOpen,
   UserRound,
   Clock3
 } from 'lucide-react';
@@ -948,10 +950,22 @@ console.log(
   // ============================================================
 
 const toggleActive = async student => {
-  try {
-    const newActive =
-      student.active === false;
+  const newActive =
+    student.active === false;
 
+  const action = newActive
+    ? 'reactivar'
+    : 'dar de baja';
+
+  const confirmed = window.confirm(
+    newActive
+      ? `¿Querés reactivar a ${student.fullName}?`
+      : `¿Querés dar de baja a ${student.fullName}?`
+  );
+
+  if (!confirmed) return;
+
+  try {
     await setDoc(
       DOC(
         db,
@@ -961,6 +975,15 @@ const toggleActive = async student => {
       ),
       {
         active: newActive,
+        status: newActive
+          ? 'active'
+          : 'inactive',
+        ...(newActive
+          ? {}
+          : {
+              deactivatedAt:
+                serverTimestamp()
+            }),
         updatedAt:
           serverTimestamp()
       },
@@ -969,21 +992,59 @@ const toggleActive = async student => {
       }
     );
 
-    console.log(
-      'CENTRA → estado actualizado:',
-      newActive
-        ? 'activo'
-        : 'inactivo'
+    // Actualizar inmediatamente la pantalla
+    setStudents(prev =>
+      prev.map(item =>
+        item.personId === student.personId
+          ? {
+              ...item,
+              active: newActive,
+              status: newActive
+                ? 'active'
+                : 'inactive'
+            }
+          : item
+      )
     );
+
+    setViewingStudent(prev =>
+      prev
+        ? {
+            ...prev,
+            active: newActive,
+            status: newActive
+              ? 'active'
+              : 'inactive'
+          }
+        : prev
+    );
+
+    console.log(
+      `CENTRA → estudiante ${action}do correctamente`
+    );
+
+    // Si se da de baja, cerramos su asignación actual
+    if (!newActive) {
+      const currentAssignment =
+        getCurrentAssignment(student);
+
+      if (currentAssignment) {
+        await closeStudentGroupAssignment(
+          db,
+          appId,
+          currentAssignment.id
+        );
+      }
+    }
 
   } catch (error) {
     console.error(
-      'Error actualizando estado del estudiante:',
+      'Error actualizando estado:',
       error
     );
 
     alert(
-      `No se pudo actualizar el estado: ${
+      `No se pudo ${action} al estudiante.\n\n${
         error?.message || error
       }`
     );
@@ -1698,6 +1759,7 @@ const toggleActive = async student => {
           <StudentFormModal
             student={editingStudent}
             groups={groups}
+             levels={levels}
             turns={turns}
             journeys={journeys}
             onClose={() => {
@@ -1798,7 +1860,435 @@ function StatsList({
     </div>
   );
 }
+const printStudentFile = (
+  student,
+  group,
+  journey,
+  turnLabels
+) => {
+  const escapeHtml = value =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
 
+  const age = calculateAge(
+    student.birthDate
+  );
+
+  const printWindow =
+    window.open(
+      '',
+      '_blank',
+      'width=1000,height=900'
+    );
+
+  if (!printWindow) {
+    alert(
+      'El navegador bloqueó la ventana de impresión.'
+    );
+    return;
+  }
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>
+          Legajo - ${escapeHtml(
+            student.lastName
+          )}, ${escapeHtml(
+            student.firstName
+          )}
+        </title>
+
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            font-family: Arial, sans-serif;
+            color: #1e293b;
+            margin: 0;
+            padding: 32px;
+          }
+
+          h1 {
+            margin: 0;
+            font-size: 24px;
+          }
+
+          h2 {
+            font-size: 14px;
+            margin: 26px 0 12px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #e2e8f0;
+          }
+
+          .subtitle {
+            color: #64748b;
+            margin-top: 4px;
+            font-size: 12px;
+          }
+
+          .grid {
+            display: grid;
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr));
+            gap: 10px;
+          }
+
+          .item {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px;
+          }
+
+          .label {
+            color: #64748b;
+            font-size: 9px;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: .08em;
+          }
+
+          .value {
+            margin-top: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: pre-wrap;
+            word-break: break-word;
+          }
+
+          .header {
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+            align-items: flex-start;
+            margin-bottom: 24px;
+          }
+
+          .status {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 999px;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: ${
+              student.active === false
+                ? '#fee2e2'
+                : '#dcfce7'
+            };
+            color: ${
+              student.active === false
+                ? '#b91c1c'
+                : '#15803d'
+            };
+          }
+
+          @media print {
+            body {
+              padding: 15mm;
+            }
+
+            .no-print {
+              display: none;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+
+        <div class="header">
+          <div>
+            <h1>
+              ${escapeHtml(
+                student.lastName
+              )},
+              ${escapeHtml(
+                student.firstName
+              )}
+            </h1>
+
+            <div class="subtitle">
+              Legajo del estudiante
+            </div>
+          </div>
+
+          <div class="status">
+            ${
+              student.active === false
+                ? 'Baja'
+                : 'Activo'
+            }
+          </div>
+        </div>
+
+        <h2>Datos personales</h2>
+
+        <div class="grid">
+
+          <div class="item">
+            <div class="label">DNI</div>
+            <div class="value">
+              ${escapeHtml(
+                student.dni ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">
+              Fecha de nacimiento
+            </div>
+            <div class="value">
+              ${
+                student.birthDate
+                  ? `${escapeHtml(
+                      formatDate(
+                        student.birthDate
+                      )
+                    )} ${
+                      age !== null
+                        ? `· ${age} años`
+                        : ''
+                    }`
+                  : 'Sin datos'
+              }
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">Género</div>
+            <div class="value">
+              ${escapeHtml(
+                student.gender ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">Nivel</div>
+            <div class="value">
+              ${escapeHtml(
+                student.level ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        <h2>Contacto</h2>
+
+        <div class="grid">
+
+          <div class="item">
+            <div class="label">Dirección</div>
+            <div class="value">
+              ${escapeHtml(
+                student.address ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">Localidad</div>
+            <div class="value">
+              ${escapeHtml(
+                student.city ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">Teléfono</div>
+            <div class="value">
+              ${escapeHtml(
+                student.phone ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">Email</div>
+            <div class="value">
+              ${escapeHtml(
+                student.email ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">
+              Contacto de emergencia
+            </div>
+            <div class="value">
+              ${escapeHtml(
+                student.emergencyContact ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        <h2>Familia</h2>
+
+        <div class="grid">
+
+          <div class="item">
+            <div class="label">
+              Adulto responsable 1
+            </div>
+            <div class="value">
+              ${escapeHtml(
+                student.motherName ||
+                  'Sin datos'
+              )}
+              ${
+                student.motherContact
+                  ? ` · ${escapeHtml(
+                      student.motherContact
+                    )}`
+                  : ''
+              }
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">
+              Adulto responsable 2
+            </div>
+            <div class="value">
+              ${escapeHtml(
+                student.fatherName ||
+                  'Sin datos'
+              )}
+              ${
+                student.fatherContact
+                  ? ` · ${escapeHtml(
+                      student.fatherContact
+                    )}`
+                  : ''
+              }
+            </div>
+          </div>
+
+        </div>
+
+        <h2>Salud y documentación</h2>
+
+        <div class="grid">
+
+          <div class="item">
+            <div class="label">
+              Obra social / prepaga
+            </div>
+            <div class="value">
+              ${escapeHtml(
+                student.healthInsurance ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">CUD</div>
+            <div class="value">
+              ${escapeHtml(
+                student.cudNumber ||
+                  'No registrado'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">
+              Vencimiento CUD
+            </div>
+            <div class="value">
+              ${escapeHtml(
+                student.cudExpiration ||
+                  'Sin datos'
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        <h2>Escolaridad actual</h2>
+
+        <div class="grid">
+
+          <div class="item">
+            <div class="label">Grupo</div>
+            <div class="value">
+              ${escapeHtml(
+                group?.name ||
+                  'Sin asignación'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">Jornada</div>
+            <div class="value">
+              ${escapeHtml(
+                journey ||
+                  'Sin jornada'
+              )}
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="label">Turno</div>
+            <div class="value">
+              ${escapeHtml(
+                turnLabels.join(
+                  ' · '
+                ) ||
+                  'Sin turno'
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        <h2>Observaciones</h2>
+
+        <div class="item">
+          <div class="value">
+            ${escapeHtml(
+              student.notes ||
+                'Sin observaciones'
+            )}
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+};
 // ============================================================
 // DETALLE
 // ============================================================
@@ -1847,7 +2337,13 @@ function StudentDetailModal({
     )?.name ||
     assignment?.scheduleType ||
     '';
-
+  printStudentFile(
+    student,
+    group,
+    journey,
+    turnLabels
+  );
+};
   return (
     <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
 
@@ -2107,7 +2603,14 @@ function StudentDetailModal({
             <Edit3 size={16} />
             Editar legajo
           </button>
-
+<button
+  type="button"
+  onClick={handlePrint}
+  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-black text-xs flex items-center gap-2 hover:bg-slate-200"
+>
+  <Printer size={16} />
+  Imprimir legajo
+</button>
         </div>
 
       </div>
@@ -2170,6 +2673,7 @@ function ContactLine({
 function StudentFormModal({
   student,
   groups,
+  levels,
   turns,
   journeys,
   onClose,
