@@ -2347,7 +2347,7 @@ function StudentDetailModal({
     );
   };
 
-  return (
+
   return (
     <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
 
