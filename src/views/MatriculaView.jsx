@@ -984,43 +984,39 @@ export function MatriculaView({
   // ESTADO
   // ============================================================
 
-  const toggleActive = async student => {
-    try {
-           await updateDoc(
-        DOC(
-          db,
-          appId,
-          COLLECTIONS.PEOPLE,
-          student.personId
-        ),
-        {
-          active:
-            student.active === false
-              ? true
-              : false,
+const toggleActive = async student => {
+  try {
+    await updateDoc(
+      DOC(
+        db,
+        appId,
+        COLLECTIONS.PEOPLE,
+        student.personId
+      ),
+      {
+        active:
+          student.active === false
+            ? true
+            : false,
 
-          updatedAt:
-            serverTimestamp()
-        }
-      );
-        {
-          active:
-            student.active === false
-              ? true
-              : false,
+        updatedAt:
+          serverTimestamp()
+      }
+    );
 
-          updatedAt:
-            serverTimestamp()
-        }
-      );
-    } catch (error) {
-      console.error(error);
+  } catch (error) {
+    console.error(
+      'Error actualizando estado del estudiante:',
+      error
+    );
 
-      alert(
-        `No se pudo actualizar el estado: ${error.message}`
-      );
-    }
-  };
+    alert(
+      `No se pudo actualizar el estado: ${
+        error?.message || error
+      }`
+    );
+  }
+};
 
   // ============================================================
   // RENDER
