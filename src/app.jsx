@@ -1026,7 +1026,10 @@ function StartIcon({size}) {
 }
 function App() {
   return (
-    <InstitutionProvider>
+    <InstitutionProvider
+      db={db}
+      appId={appId}
+    >
       <AppContent />
     </InstitutionProvider>
   );
