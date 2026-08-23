@@ -291,39 +291,57 @@ const isDoubleJourney =
       // BÚSQUEDA GLOBAL
       // ----------------------------------------
 
-      if (searchValue) {
-        const searchable = [
-          student.firstName,
-          student.lastName,
-          student.fullName,
-          student.dni,
-          student.address,
-          student.phone,
-          student.email,
-          student.healthInsurance,
-          student.originSchool,
-          student.motherName,
-          student.fatherName,
-          student.emergencyContact,
-          student.city,
+   if (searchValue) {
+  const placements =
+    getPlacementsWithNames(
+      assignment
+    );
 
-         ...groupsForStudent.map(
-  group => group.name
-),
+  const groupsForStudent =
+    placements
+      .map(
+        placement =>
+          placement.group?.name
+      )
+      .filter(Boolean);
 
-...turnNamesForStudent
-          .filter(Boolean)
-          .map(normalizeText);
+  const turnNamesForStudent =
+    placements
+      .map(
+        placement =>
+          placement.turn?.name
+      )
+      .filter(Boolean);
 
-        if (
-          !searchable.some(value =>
-            value.includes(searchValue)
-          )
-        ) {
-          return false;
-        }
-      }
+  const searchable = [
+    student.firstName,
+    student.lastName,
+    student.fullName,
+    student.dni,
+    student.address,
+    student.phone,
+    student.email,
+    student.healthInsurance,
+    student.originSchool,
+    student.motherName,
+    student.fatherName,
+    student.emergencyContact,
+    student.city,
 
+    ...groupsForStudent,
+    ...turnNamesForStudent
+  ]
+    .filter(Boolean)
+    .map(normalizeText);
+
+  if (
+    !searchable.some(value =>
+      value.includes(searchValue)
+    )
+  ) {
+    return false;
+  }
+}
       // ----------------------------------------
       // NIVEL
       // ----------------------------------------
