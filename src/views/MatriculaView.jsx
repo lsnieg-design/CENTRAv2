@@ -127,356 +127,125 @@ const getCurrentAssignment = student =>
       !assignment.validTo
   ) || null;
 
-export function MatriculaView({
-  user,
-  db,
-  appId,
-  initStudentId
-}) {
-  // ============================================================
-  // DATOS
-  // ============================================================
-
-  const [students, setStudents] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [institutionConfig, setInstitutionConfig] =
-    useState({});
-
-  const [loading, setLoading] = useState(true);
-
-  // ============================================================
-  // INTERFAZ
-  // ============================================================
-
-  const [search, setSearch] = useState('');
-  const [showFilters, setShowFilters] =
-    useState(false);
-  const [showStats, setShowStats] =
-    useState(false);
-
-  const [filters, setFilters] = useState({
-    status: 'active',
-    level: 'all',
-    group: 'all',
-    turn: 'all',
-    journey: 'all',
-    gender: 'all'
-  });
-
-  const [viewingStudent, setViewingStudent] =
-    useState(null);
-  const [showBitacora, setShowBitacora] =
-  useState(false);
-
-const [bitacoraEntries, setBitacoraEntries] =
-  useState([]);
-
-const [loadingBitacora, setLoadingBitacora] =
-  useState(false);
-
-  const [editingStudent, setEditingStudent] =
-    useState(null);
-
-  const [showForm, setShowForm] =
-    useState(false);
-
-  const [saving, setSaving] =
-    useState(false);
-
-  // ============================================================
-  // CARGA DE FIREBASE
-  // ============================================================
-
-  useEffect(() => {
-    if (!db || !appId) return;
-
-    setLoading(true);
-
-    let people = [];
-    let profiles = [];
-    let assignments = [];
-
-    const rebuildStudents = () => {
-      const peopleById = new Map(
-        people.map(person => [
-          person.id,
-          person
-        ])
-      );
-
-      const result =
-        profiles
-          .map(profile => {
-            const person =
-              peopleById.get(
-                profile.personId
-              ) || {};
-
-            const studentId =
-              profile.personId ||
-              person.id;
-
-            const currentAssignments =
-              assignments.filter(item =>
-                item.studentId ===
-                  studentId &&
-                item.status ===
-                  'active' &&
-                !item.validTo
-              );
-
-            return {
-              ...person,
-              ...profile,
-
-              id: studentId,
-
-              personId: studentId,
-
-              firstName:
-                profile.firstName ||
-                person.firstName ||
-                '',
-
-              lastName:
-                profile.lastName ||
-                person.lastName ||
-                '',
-
-              fullName:
-                profile.fullName ||
-                person.fullName ||
-                `${person.firstName || ''} ${person.lastName || ''}`.trim(),
-
-              groupAssignments:
-                currentAssignments
-            };
-          })
-          .sort((a, b) =>
-            `${a.lastName} ${a.firstName}`
-              .localeCompare(
-                `${b.lastName} ${b.firstName}`,
-                'es'
-              )
-          );
-
-      setStudents(result);
-      setLoading(false);
-    };
-
-    const unsubPeople = onSnapshot(
-      query(
-        BASE(
-          db,
-          appId,
-          COLLECTIONS.PEOPLE
-        ),
-        where('type', '==', 'student')
-      ),
-      snapshot => {
-        people =
-          snapshot.docs.map(item => ({
-            id: item.id,
-            ...item.data()
-          }));
-
-        rebuildStudents();
-      }
-    );
-
-    const unsubProfiles = onSnapshot(
-      BASE(
-        db,
-        appId,
-        COLLECTIONS.STUDENT_PROFILES
-      ),
-      snapshot => {
-        profiles =
-          snapshot.docs.map(item => ({
-            id: item.id,
-            ...item.data()
-          }));
-
-        rebuildStudents();
-      }
-    );
-
-    const unsubAssignments =
-      onSnapshot(
-        BASE(
-          db,
-          appId,
-          COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS
-        ),
-        snapshot => {
-          assignments =
-            snapshot.docs.map(item => ({
-              id: item.id,
-              ...item.data()
-            }));
-
-          rebuildStudents();
-        }
-      );
-
-    const unsubGroups = onSnapshot(
-      BASE(
-        db,
-        appId,
-        COLLECTIONS.GROUPS
-      ),
-      snapshot => {
-        setGroups(
-          snapshot.docs
-            .map(item => ({
-              id: item.id,
-              ...item.data()
-            }))
-            .filter(
-              group => group.active !== false
-            )
-            .sort((a, b) =>
-              (a.name || '').localeCompare(
-                b.name || '',
-                'es'
-              )
-            )
-        );
-      }
-    );
-
-    const unsubConfig = onSnapshot(
-      DOC(
-        db,
-        appId,
-        'config',
-        'institution'
-      ),
-      snapshot => {
-        if (snapshot.exists()) {
-          setInstitutionConfig(
-            snapshot.data()
-          );
-        }
-      }
-    );
-
-    return () => {
-      unsubPeople();
-      unsubProfiles();
-      unsubAssignments();
-      unsubGroups();
-      unsubConfig();
-    };
-  }, [db, appId]);
-
-  // ============================================================
-// CONFIGURACIÓN
-// ============================================================
-
-const levels = useMemo(() => {
-  if (!Array.isArray(institutionConfig?.levels)) {
+const getPlacements = assignment => {
+  if (!assignment) {
     return [];
   }
 
-  return institutionConfig.levels.map(
-    (level, index) =>
-      typeof level === 'string'
-        ? {
-            id: level
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_'),
-            name: level
-          }
-        : {
-            id:
-              level?.id ||
-              `nivel_${index + 1}`,
-            name:
-              level?.name ||
-              level?.label ||
-              `Nivel ${index + 1}`
-          }
-  );
-}, [institutionConfig]);
-
-const turns = useMemo(() => {
-  if (!Array.isArray(institutionConfig?.turns)) {
-    return [];
-  }
-
-  return institutionConfig.turns.map(
-    (turn, index) =>
-      typeof turn === 'string'
-        ? {
-            id: turn
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_'),
-            name: turn
-          }
-        : {
-            id:
-              turn?.id ||
-              `turno_${index + 1}`,
-            name:
-              turn?.name ||
-              turn?.label ||
-              `Turno ${index + 1}`
-          }
-  );
-}, [institutionConfig]);
-
-const journeys = useMemo(() => {
   if (
-    !Array.isArray(
-      institutionConfig?.scheduleTypes
-    )
+    Array.isArray(
+      assignment.placements
+    ) &&
+    assignment.placements.length > 0
   ) {
+    return assignment.placements;
+  }
+
+  // Compatibilidad con asignaciones antiguas
+  const groupId =
+    assignment.groupId || '';
+
+  const turnIds =
+    Array.isArray(
+      assignment.turnIds
+    )
+      ? assignment.turnIds
+      : [];
+
+  if (!groupId) {
     return [];
   }
 
-  return institutionConfig.scheduleTypes.map(
-    (item, index) =>
-      typeof item === 'string'
-        ? {
-            id: item
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_'),
-            name: item
-          }
-        : {
-            id:
-              item?.id ||
-              `jornada_${index + 1}`,
-            name:
-              item?.name ||
-              item?.label ||
-              `Jornada ${index + 1}`
-          }
-  );
-}, [institutionConfig]);
+  return turnIds.map(turnId => ({
+    groupId,
+    turnId
+  }));
+};
+
+const getPlacementGroupIds =
+  assignment =>
+    getPlacements(assignment)
+      .map(
+        placement =>
+          placement.groupId
+      )
+      .filter(Boolean);
+
+const getPlacementTurnIds =
+  assignment =>
+    getPlacements(assignment)
+      .map(
+        placement =>
+          placement.turnId
+      )
+      .filter(Boolean);
 
 const getGroup = groupId =>
   groups.find(
-    group => group.id === groupId
+    group =>
+      group.id === groupId
   );
 
-const getTurnLabels = assignment => {
-  if (
-    !assignment ||
-    !Array.isArray(assignment.turnIds)
-  ) {
-    return [];
-  }
+const getTurnName = turnId =>
+  turns.find(
+    turn =>
+      turn.id === turnId
+  )?.name || turnId;
 
-  return assignment.turnIds
+const getTurnLabels = assignment =>
+  getPlacementTurnIds(
+    assignment
+  )
     .map(turnId =>
       turns.find(
-        turn => turn.id === turnId
+        turn =>
+          turn.id === turnId
       )?.name
     )
     .filter(Boolean);
-};
+
+const getPlacementsWithNames =
+  assignment =>
+    getPlacements(assignment).map(
+      placement => ({
+        ...placement,
+        group:
+          getGroup(
+            placement.groupId
+          ),
+        turn:
+          turns.find(
+            turn =>
+              turn.id ===
+              placement.turnId
+          )
+      })
+    );
+
+const getScheduleName =
+  assignment =>
+    journeys.find(
+      journey =>
+        journey.id ===
+        assignment?.scheduleType
+    )?.name ||
+    assignment?.scheduleType ||
+    '';
+
+const isDoubleJourney =
+  assignment => {
+    const name =
+      normalizeText(
+        getScheduleName(
+          assignment
+        )
+      );
+
+    return (
+      name.includes('doble') ||
+      name.includes('completa')
+    );
+  };
 
   // ============================================================
   // FILTROS
@@ -538,12 +307,11 @@ const getTurnLabels = assignment => {
           student.emergencyContact,
           student.city,
 
-          group?.name,
+         ...groupsForStudent.map(
+  group => group.name
+),
 
-          ...getTurnLabels(
-            assignment
-          )
-        ]
+...turnNamesForStudent
           .filter(Boolean)
           .map(normalizeText);
 
@@ -573,12 +341,13 @@ const getTurnLabels = assignment => {
       // ----------------------------------------
 
       if (
-        filters.group !== 'all' &&
-        assignment?.groupId !==
-          filters.group
-      ) {
-        return false;
-      }
+  filters.group !== 'all' &&
+  !getPlacementGroupIds(
+    assignment
+  ).includes(filters.group)
+) {
+  return false;
+}
 
       // ----------------------------------------
       // JORNADA
@@ -599,10 +368,10 @@ const getTurnLabels = assignment => {
       if (
         filters.turn !== 'all'
       ) {
-        const hasTurn =
-          assignment?.turnIds?.includes(
-            filters.turn
-          );
+       const hasTurn =
+  getPlacementTurnIds(
+    assignment
+  ).includes(filters.turn);
 
         if (!hasTurn) {
           return false;
@@ -922,62 +691,183 @@ console.log(
       // ASIGNACIÓN
       // ----------------------------------------
 
-      const oldAssignment =
-        editingStudent?.isNew
-          ? null
-          : getCurrentAssignment(
-              editingStudent
-            );
+  const oldAssignment =
+  editingStudent?.isNew
+    ? null
+    : getCurrentAssignment(
+        editingStudent
+      );
 
-      const groupId =
-        data.groupId || '';
+const scheduleType =
+  data.scheduleType || '';
 
-      const turnIds =
-        form.getAll('turnId');
+const selectedJourney =
+  journeys.find(
+    journey =>
+      journey.id ===
+      scheduleType
+  );
 
-      const scheduleType =
-        data.scheduleType ||
-        'simple';
+const selectedJourneyName =
+  normalizeText(
+    selectedJourney?.name ||
+      ''
+  );
 
-      const changedAssignment =
-        oldAssignment?.groupId !==
-          groupId ||
-        oldAssignment?.scheduleType !==
-          scheduleType ||
-        JSON.stringify(
-          oldAssignment?.turnIds ||
-          []
-        ) !==
-          JSON.stringify(turnIds);
+const isDouble =
+  selectedJourneyName.includes(
+    'doble'
+  ) ||
+  selectedJourneyName.includes(
+    'completa'
+  );
 
-      if (
-        changedAssignment
-      ) {
-        if (oldAssignment) {
-          await closeStudentGroupAssignment(
-            db,
-            appId,
-            oldAssignment.id
-          );
-        }
+let placements = [];
 
-        if (groupId) {
-          await createStudentGroupAssignment(
-            db,
-            appId,
-            {
-              studentId:
-                personId,
+/*
+ * ------------------------------------------------------------
+ * JORNADA DOBLE
+ * ------------------------------------------------------------
+ */
 
-              groupId,
+if (isDouble) {
 
-              turnIds,
+  if (
+    data.morningGroupId &&
+    morningTurn
+  ) {
+    placements.push({
+      groupId:
+        data.morningGroupId,
 
-              scheduleType
-            }
-          );
-        }
+      turnId:
+        morningTurn.id
+    });
+  }
+
+  if (
+    data.afternoonGroupId &&
+    afternoonTurn
+  ) {
+    placements.push({
+      groupId:
+        data.afternoonGroupId,
+
+      turnId:
+        afternoonTurn.id
+    });
+  }
+
+}
+
+/*
+ * ------------------------------------------------------------
+ * JORNADA SIMPLE
+ * ------------------------------------------------------------
+ */
+
+else {
+
+  if (
+    data.simpleGroupId &&
+    data.simpleTurnId
+  ) {
+
+    placements.push({
+      groupId:
+        data.simpleGroupId,
+
+      turnId:
+        data.simpleTurnId
+    });
+
+  }
+
+}
+
+/*
+ * ------------------------------------------------------------
+ * COMPARACIÓN
+ * ------------------------------------------------------------
+ */
+
+const normalizePlacementsForCompare =
+  value =>
+    [...(value || [])]
+      .map(
+        placement => ({
+          groupId:
+            placement.groupId,
+
+          turnId:
+            placement.turnId
+        })
+      )
+      .sort((a, b) =>
+        `${a.turnId}-${a.groupId}`.localeCompare(
+          `${b.turnId}-${b.groupId}`
+        )
+      );
+
+const oldPlacements =
+  getPlacements(
+    oldAssignment
+  );
+
+const changedAssignment =
+  oldAssignment?.scheduleType !==
+    scheduleType ||
+  JSON.stringify(
+    normalizePlacementsForCompare(
+      oldPlacements
+    )
+  ) !==
+    JSON.stringify(
+      normalizePlacementsForCompare(
+        placements
+      )
+    );
+
+/*
+ * ------------------------------------------------------------
+ * GUARDAR
+ * ------------------------------------------------------------
+ */
+
+if (
+  changedAssignment
+) {
+
+  if (oldAssignment) {
+
+    await closeStudentGroupAssignment(
+      db,
+      appId,
+      oldAssignment.id
+    );
+
+  }
+
+  if (
+    placements.length > 0
+  ) {
+
+    await createStudentGroupAssignment(
+      db,
+      appId,
+      {
+        studentId:
+          personId,
+
+        placements,
+
+        scheduleType
       }
+    );
+
+  }
+
+}
 
       setShowForm(false);
       setEditingStudent(null);
@@ -1572,12 +1462,26 @@ const toggleActive = async student => {
                   student
                 );
 
-              const group =
-                assignment
-                  ? getGroup(
-                      assignment.groupId
-                    )
-                  : null;
+             const placements =
+  getPlacementsWithNames(
+    assignment
+  );
+
+const groupsForStudent =
+  placements
+    .map(
+      placement =>
+        placement.group
+    )
+    .filter(Boolean);
+
+const turnNamesForStudent =
+  placements
+    .map(
+      placement =>
+        placement.turn?.name
+    )
+    .filter(Boolean);
 
               const turnLabels =
                 getTurnLabels(
@@ -2882,83 +2786,318 @@ function printStudentFile(
 
           </div>
 
-          <!-- ===============================================
-               ESCOLARIDAD
-          ================================================ -->
+        {/* ESCOLARIDAD */}
 
-          <div class="section">
+<section>
 
-            <div class="section-title">
-              Escolaridad actual
+  <SectionTitle>
+    Escolaridad
+  </SectionTitle>
+
+  <div className="grid md:grid-cols-2 gap-3">
+
+    <Select
+      name="level"
+      label="Nivel"
+      defaultValue={
+        student.level || ''
+      }
+    >
+      <option value="">
+        Seleccionar
+      </option>
+
+      {levels.map(
+        level => (
+          <option
+            key={level.id}
+            value={level.id}
+          >
+            {level.name}
+          </option>
+        )
+      )}
+
+    </Select>
+
+    <Select
+      name="scheduleType"
+      label="Jornada"
+      defaultValue={
+        currentJourney
+      }
+    >
+
+      <option value="">
+        Seleccionar
+      </option>
+
+      {journeys.map(
+        journey => (
+          <option
+            key={journey.id}
+            value={journey.id}
+          >
+            {journey.name}
+          </option>
+        )
+      )}
+
+    </Select>
+
+  </div>
+
+  {/* JORNADA SIMPLE */}
+
+  {!currentIsDouble && (
+
+    <div className="mt-4 p-4 rounded-2xl bg-violet-50 border border-violet-100">
+
+      <div className="flex items-center gap-2 mb-3">
+
+        <Clock3
+          size={16}
+          className="text-violet-600"
+        />
+
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
+            Jornada simple
+          </p>
+
+          <p className="text-xs font-bold text-slate-500">
+            Elegí el turno y el grupo donde concurre.
+          </p>
+        </div>
+
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-3">
+
+        <Select
+          name="simpleTurnId"
+          label="Turno"
+          defaultValue={
+            currentSimpleTurnId
+          }
+        >
+
+          <option value="">
+            Seleccionar
+          </option>
+
+          {turns.map(
+            turn => (
+              <option
+                key={turn.id}
+                value={turn.id}
+              >
+                {turn.name}
+              </option>
+            )
+          )}
+
+        </Select>
+
+        <Select
+          name="simpleGroupId"
+          label="Grupo"
+          defaultValue={
+            currentSimplePlacement?.groupId ||
+            ''
+          }
+        >
+
+          <option value="">
+            Sin asignar
+          </option>
+
+          {groups.map(
+            group => (
+              <option
+                key={group.id}
+                value={group.id}
+              >
+                {group.name}
+              </option>
+            )
+          )}
+
+        </Select>
+
+      </div>
+
+    </div>
+
+  )}
+
+  {/* DOBLE JORNADA */}
+
+  {currentIsDouble && (
+
+    <div className="mt-4 space-y-3">
+
+      {/* MAÑANA */}
+
+      <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
+
+        <div className="flex items-center gap-2 mb-3">
+
+          <Clock3
+            size={16}
+            className="text-amber-600"
+          />
+
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+              Mañana
+            </p>
+
+            <p className="text-xs font-bold text-slate-500">
+              Grupo correspondiente al turno mañana.
+            </p>
+          </div>
+
+        </div>
+
+        {morningTurn ? (
+
+          <div className="grid md:grid-cols-2 gap-3">
+
+            <div className="p-3 rounded-xl bg-white border border-amber-100">
+
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                Turno
+              </span>
+
+              <p className="text-sm font-black text-slate-700 mt-1">
+                {morningTurn.name}
+              </p>
+
             </div>
 
-            <div class="assignment-box">
+            <Select
+              name="morningGroupId"
+              label="Grupo"
+              defaultValue={
+                currentMorning?.groupId ||
+                ''
+              }
+            >
 
-              <div class="assignment-field">
+              <option value="">
+                Sin asignar
+              </option>
 
-                <div class="field-label">
-                  Nivel
-                </div>
+              {groups.map(
+                group => (
+                  <option
+                    key={group.id}
+                    value={group.id}
+                  >
+                    {group.name}
+                  </option>
+                )
+              )}
 
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.level ||
-                      'Sin nivel'
-                  )}
-                </div>
-
-              </div>
-
-              <div class="assignment-field">
-
-                <div class="field-label">
-                  Grupo
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    group?.name ||
-                      'Sin asignación'
-                  )}
-                </div>
-
-              </div>
-
-              <div class="assignment-field">
-
-                <div class="field-label">
-                  Jornada
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    journey ||
-                      'Sin jornada'
-                  )}
-                </div>
-
-              </div>
-
-              <div class="assignment-field">
-
-                <div class="field-label">
-                  Turno
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    turnLabels.join(
-                      ' · '
-                    ) ||
-                      'Sin turno'
-                  )}
-                </div>
-
-              </div>
-
-            </div>
+            </Select>
 
           </div>
+
+        ) : (
+
+          <p className="text-xs text-amber-700 font-bold">
+            No hay un turno configurado como “Mañana”.
+          </p>
+
+        )}
+
+      </div>
+
+      {/* TARDE */}
+
+      <div className="p-4 rounded-2xl bg-sky-50 border border-sky-100">
+
+        <div className="flex items-center gap-2 mb-3">
+
+          <Clock3
+            size={16}
+            className="text-sky-600"
+          />
+
+          <div>
+
+            <p className="text-[10px] font-black uppercase tracking-widest text-sky-600">
+              Tarde
+            </p>
+
+            <p className="text-xs font-bold text-slate-500">
+              Grupo correspondiente al turno tarde.
+            </p>
+
+          </div>
+
+        </div>
+
+        {afternoonTurn ? (
+
+          <div className="grid md:grid-cols-2 gap-3">
+
+            <div className="p-3 rounded-xl bg-white border border-sky-100">
+
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                Turno
+              </span>
+
+              <p className="text-sm font-black text-slate-700 mt-1">
+                {afternoonTurn.name}
+              </p>
+
+            </div>
+
+            <Select
+              name="afternoonGroupId"
+              label="Grupo"
+              defaultValue={
+                currentAfternoon?.groupId ||
+                ''
+              }
+            >
+
+              <option value="">
+                Sin asignar
+              </option>
+
+              {groups.map(
+                group => (
+                  <option
+                    key={group.id}
+                    value={group.id}
+                  >
+                    {group.name}
+                  </option>
+                )
+              )}
+
+            </Select>
+
+          </div>
+
+        ) : (
+
+          <p className="text-xs text-sky-700 font-bold">
+            No hay un turno configurado como “Tarde”.
+          </p>
+
+        )}
+
+      </div>
+
+    </div>
+
+  )}
+
+</section>
 
           <!-- ===============================================
                FAMILIA
@@ -4173,23 +4312,146 @@ function StudentFormModal({
   onSave,
   saving
 }) {
-  const currentAssignment =
-    getCurrentAssignment(
-      student
-    );
+ const currentAssignment =
+  getCurrentAssignment(
+    student
+  );
 
-  const currentGroupId =
-    currentAssignment?.groupId ||
-    '';
+const currentPlacements =
+  getPlacements(
+    currentAssignment
+  );
 
-  const currentTurnIds =
-    currentAssignment?.turnIds ||
-    [];
+const currentJourney =
+  currentAssignment?.scheduleType ||
+  journeys[0]?.id ||
+  '';
 
-  const currentJourney =
-    currentAssignment?.scheduleType ||
-    journeys[0]?.id ||
-    'simple';
+const morningTurn =
+  turns.find(
+    turn =>
+      normalizeText(
+        turn.name
+      ).includes('manana')
+  ) ||
+  null;
+
+const afternoonTurn =
+  turns.find(
+    turn =>
+      normalizeText(
+        turn.name
+      ).includes('tarde')
+  ) ||
+  null;
+
+const otherTurns =
+  turns.filter(
+    turn =>
+      turn.id !==
+        morningTurn?.id &&
+      turn.id !==
+        afternoonTurn?.id
+  );
+
+const currentMorning =
+  currentPlacements.find(
+    placement =>
+      placement.turnId ===
+      morningTurn?.id
+  );
+
+const currentAfternoon =
+  currentPlacements.find(
+    placement =>
+      placement.turnId ===
+      afternoonTurn?.id
+  );
+
+const currentOther =
+  currentPlacements.find(
+    placement =>
+      ![
+        morningTurn?.id,
+        afternoonTurn?.id
+      ].includes(
+        placement.turnId
+      )
+  );
+
+const currentJourneyName =
+  journeys.find(
+    journey =>
+      journey.id ===
+      currentJourney
+  )?.name ||
+  '';
+
+const currentIsDouble =
+  normalizeText(
+    currentJourneyName
+  ).includes('doble') ||
+  normalizeText(
+    currentJourneyName
+  ).includes('completa');
+
+const currentSimplePlacement =
+  currentPlacements[0] || null;
+
+const currentSimpleTurnId =
+  currentSimplePlacement?.turnId ||
+  morningTurn?.id ||
+  turns[0]?.id ||
+  '';
+
+const morningTurn =
+  turns.find(
+    turn =>
+      normalizeText(
+        turn.name
+      ).includes('manana')
+  ) ||
+  turns[0];
+
+const afternoonTurn =
+  turns.find(
+    turn =>
+      normalizeText(
+        turn.name
+      ).includes('tarde')
+  ) ||
+  turns[1] ||
+  turns[0];
+
+const currentMorning =
+  currentPlacements.find(
+    placement =>
+      placement.turnId ===
+      morningTurn?.id
+  );
+
+const currentAfternoon =
+  currentPlacements.find(
+    placement =>
+      placement.turnId ===
+      afternoonTurn?.id
+  );
+
+const selectedJourneyName =
+  journeys.find(
+    journey =>
+      journey.id ===
+      currentJourney
+  )?.name ||
+  '';
+
+const currentIsDouble =
+  normalizeText(
+    selectedJourneyName
+  ).includes('doble') ||
+  normalizeText(
+    selectedJourneyName
+  ).includes('completa');
 
   return (
     <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -4449,139 +4711,210 @@ function StudentFormModal({
 
           </section>
 
-          {/* ESCOLARIDAD */}
+       <section>
+  <SectionTitle>
+    Escolaridad
+  </SectionTitle>
 
-          <section>
+  <div className="grid md:grid-cols-2 gap-3">
 
-            <SectionTitle>
-              Escolaridad
-            </SectionTitle>
-
-            <div className="grid md:grid-cols-2 gap-3">
-
-              <Select
-  name="level"
-  label="Nivel"
-  defaultValue={student.level || ''}
->
-  <option value="">
-    Seleccionar
-  </option>
-
-  {levels.map(level => (
-    <option
-      key={level.id}
-      value={level.id}
+    <Select
+      name="level"
+      label="Nivel"
+      defaultValue={
+        student.level || ''
+      }
     >
-      {level.name}
-    </option>
-  ))}
-</Select>
+      <option value="">
+        Seleccionar
+      </option>
 
-              <div />
+      {levels.map(level => (
+        <option
+          key={level.id}
+          value={level.id}
+        >
+          {level.name}
+        </option>
+      ))}
+    </Select>
 
-              <Select
-                name="groupId"
-                label="Grupo"
-                defaultValue={
-                  currentGroupId
-                }
-              >
-                <option value="">
-                  Sin asignar
-                </option>
+    <Select
+      name="scheduleType"
+      label="Jornada"
+      defaultValue={
+        currentJourney
+      }
+    >
+      <option value="">
+        Seleccionar
+      </option>
 
-                {groups.map(
-                  group => (
-                    <option
-                      key={group.id}
-                      value={group.id}
-                    >
-                      {group.name}
-                    </option>
-                  )
-                )}
-              </Select>
+      {journeys.map(
+        journey => (
+          <option
+            key={journey.id}
+            value={journey.id}
+          >
+            {journey.name}
+          </option>
+        )
+      )}
+    </Select>
 
-              <Select
-                name="scheduleType"
-                label="Jornada"
-                defaultValue={
-                  currentJourney
-                }
-              >
-                <option value="">
-                  Seleccionar
-                </option>
+  </div>
 
-                {journeys.map(
-                  journey => (
-                    <option
-                      key={journey.id}
-                      value={journey.id}
-                    >
-                      {journey.name}
-                    </option>
-                  )
-                )}
-              </Select>
+  <div className="mt-4 space-y-3">
 
-            </div>
+    {/* MAÑANA */}
 
-            <div className="mt-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
 
-              <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3">
+        <Clock3
+          size={16}
+          className="text-amber-600"
+        />
 
-                <Clock3
-                  size={16}
-                  className="text-violet-600"
-                />
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+            Turno mañana
+          </p>
 
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  Turnos
-                </span>
+          <p className="text-xs font-bold text-slate-500">
+            Grupo correspondiente
+          </p>
+        </div>
+      </div>
 
-              </div>
+      <input
+        type="hidden"
+        name="morningTurnId"
+        value={
+          morningTurn?.id || ''
+        }
+        readOnly
+      />
 
-              <div className="flex flex-wrap gap-2">
+      <Select
+        name="morningGroupId"
+        label="Grupo"
+        defaultValue={
+          currentMorning?.groupId ||
+          ''
+        }
+      >
+        <option value="">
+          Sin asignar
+        </option>
 
-                {turns.map(turn => (
+        {groups.map(
+          group => (
+            <option
+              key={group.id}
+              value={group.id}
+            >
+              {group.name}
+            </option>
+          )
+        )}
+      </Select>
 
-                  <label
-                    key={turn.id}
-                    className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl cursor-pointer"
-                  >
+    </div>
 
-                    <input
-                      type="checkbox"
-                      name="turnId"
-                      value={turn.id}
-                      defaultChecked={currentTurnIds.includes(
-                        turn.id
-                      )}
-                      className="accent-violet-600"
-                    />
+    {/* TARDE */}
 
-                    <span className="text-xs font-bold text-slate-600">
-                      {turn.name}
-                    </span>
+    <div
+      className={`p-4 rounded-2xl border ${
+        currentIsDouble
+          ? 'bg-sky-50 border-sky-100'
+          : 'bg-slate-50 border-slate-200'
+      }`}
+    >
 
-                  </label>
+      <div className="flex items-center gap-2 mb-3">
 
-                ))}
+        <Clock3
+          size={16}
+          className={
+            currentIsDouble
+              ? 'text-sky-600'
+              : 'text-slate-400'
+          }
+        />
 
-                {turns.length === 0 && (
-                  <p className="text-xs text-slate-400">
-                    Todavía no hay turnos configurados.
-                  </p>
-                )}
+        <div>
+          <p
+            className={`text-[10px] font-black uppercase tracking-widest ${
+              currentIsDouble
+                ? 'text-sky-600'
+                : 'text-slate-400'
+            }`}
+          >
+            Turno tarde
+          </p>
 
-              </div>
+          <p className="text-xs font-bold text-slate-500">
+            Para estudiantes con doble jornada
+          </p>
+        </div>
 
-            </div>
+      </div>
 
-          </section>
+      <input
+        type="hidden"
+        name="afternoonTurnId"
+        value={
+          afternoonTurn?.id || ''
+        }
+        readOnly
+      />
 
+      <Select
+        name="afternoonGroupId"
+        label="Grupo"
+        defaultValue={
+          currentAfternoon?.groupId ||
+          ''
+        }
+      >
+        <option value="">
+          Sin asignar
+        </option>
+
+        {groups.map(
+          group => (
+            <option
+              key={group.id}
+              value={group.id}
+            >
+              {group.name}
+            </option>
+          )
+        )}
+      </Select>
+
+    </div>
+
+  </div>
+
+  <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+
+    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+      Cómo se guarda
+    </p>
+
+    <p className="text-xs font-bold text-slate-600 mt-1">
+
+      {currentIsDouble
+        ? 'Mañana y tarde pueden tener grupos diferentes.'
+        : 'Jornada simple: se utiliza un solo grupo.'}
+
+    </p>
+
+  </div>
+
+</section>
           {/* OBSERVACIONES */}
 
           <section>
