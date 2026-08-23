@@ -1886,6 +1886,9 @@ const groupsForStudent =
         placement.group
     )
     .filter(Boolean);
+const group =
+  groupsForStudent[0] ||
+  null;
 
 const turnNamesForStudent =
   placements
