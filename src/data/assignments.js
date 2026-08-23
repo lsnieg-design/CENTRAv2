@@ -22,6 +22,90 @@ export const ASSIGNMENT_STATUS = {
 };
 
 // ============================================================
+// NORMALIZACIÓN DE ASIGNACIONES DE ESTUDIANTES
+// ============================================================
+
+const normalizePlacements = assignment => {
+  // Modelo nuevo
+  if (
+    Array.isArray(
+      assignment?.placements
+    ) &&
+    assignment.placements.length > 0
+  ) {
+    return assignment.placements
+      .filter(
+        placement =>
+          placement?.groupId &&
+          placement?.turnId
+      )
+      .map(placement => ({
+        groupId: placement.groupId,
+        turnId: placement.turnId
+      }));
+  }
+
+  // Compatibilidad con modelo anterior
+  const groupId =
+    assignment?.groupId || '';
+
+  const turnIds =
+    Array.isArray(
+      assignment?.turnIds
+    )
+      ? assignment.turnIds
+      : [];
+
+  if (!groupId) {
+    return [];
+  }
+
+  return turnIds.map(turnId => ({
+    groupId,
+    turnId
+  }));
+};
+
+const normalizeStudentAssignment =
+  assignment => {
+    if (!assignment) {
+      return null;
+    }
+
+    const placements =
+      normalizePlacements(
+        assignment
+      );
+
+    return {
+      ...assignment,
+
+      placements,
+
+      // Compatibilidad con código existente
+      groupId:
+        assignment.groupId ||
+        placements[0]?.groupId ||
+        '',
+
+      turnIds:
+        Array.isArray(
+          assignment.turnIds
+        ) &&
+        assignment.turnIds.length > 0
+          ? assignment.turnIds
+          : placements.map(
+              placement =>
+                placement.turnId
+            ),
+
+      scheduleType:
+        assignment.scheduleType ||
+        'simple'
+    };
+  };
+
+// ============================================================
 // ESTUDIANTE → GRUPO
 // ============================================================
 
@@ -30,23 +114,32 @@ export async function getStudentGroupAssignments(
   appId,
   studentId
 ) {
-  const ref = publicCollectionRef(
-    db,
-    appId,
-    COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS
-  );
+  const ref =
+    publicCollectionRef(
+      db,
+      appId,
+      COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS
+    );
 
-  const snapshot = await getDocs(
-    query(
-      ref,
-      where('studentId', '==', studentId)
-    )
-  );
+  const snapshot =
+    await getDocs(
+      query(
+        ref,
+        where(
+          'studentId',
+          '==',
+          studentId
+        )
+      )
+    );
 
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  return snapshot.docs.map(
+    item =>
+      normalizeStudentAssignment({
+        id: item.id,
+        ...item.data()
+      })
+  );
 }
 
 export async function getActiveStudentGroupAssignment(
@@ -64,7 +157,8 @@ export async function getActiveStudentGroupAssignment(
   return (
     assignments.find(
       item =>
-        item.status === ASSIGNMENT_STATUS.ACTIVE &&
+        item.status ===
+          ASSIGNMENT_STATUS.ACTIVE &&
         !item.validTo
     ) || null
   );
@@ -75,57 +169,157 @@ export async function getStudentGroupAssignmentsForGroup(
   appId,
   groupId
 ) {
-  const ref = publicCollectionRef(
-    db,
-    appId,
-    COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS
-  );
+  const ref =
+    publicCollectionRef(
+      db,
+      appId,
+      COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS
+    );
 
-  const snapshot = await getDocs(
-    query(
-      ref,
-      where('groupId', '==', groupId)
+  const snapshot =
+    await getDocs(ref);
+
+  return snapshot.docs
+    .map(item =>
+      normalizeStudentAssignment({
+        id: item.id,
+        ...item.data()
+      })
     )
-  );
+    .filter(assignment => {
+      if (
+        assignment.groupId ===
+        groupId
+      ) {
+        return true;
+      }
 
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+      return assignment.placements?.some(
+        placement =>
+          placement.groupId ===
+          groupId
+      );
+    });
 }
+
+// ============================================================
+// CREAR ASIGNACIÓN DE ESTUDIANTE
+// ============================================================
 
 export async function createStudentGroupAssignment(
   db,
   appId,
   data
 ) {
-  if (!data.studentId || !data.groupId) {
+  if (!data.studentId) {
     throw new Error(
-      'La asignación necesita estudiante y grupo.'
+      'La asignación necesita un estudiante.'
     );
   }
+
+  let placements = [];
+
+  // Modelo nuevo
+  if (
+    Array.isArray(
+      data.placements
+    )
+  ) {
+    placements =
+      data.placements
+        .filter(
+          placement =>
+            placement?.groupId &&
+            placement?.turnId
+        )
+        .map(placement => ({
+          groupId:
+            placement.groupId,
+          turnId:
+            placement.turnId
+        }));
+  }
+
+  // Compatibilidad con llamada antigua
+  if (
+    placements.length === 0 &&
+    data.groupId
+  ) {
+    const turnIds =
+      Array.isArray(
+        data.turnIds
+      )
+        ? data.turnIds
+        : [];
+
+    placements =
+      turnIds.map(turnId => ({
+        groupId:
+          data.groupId,
+        turnId
+      }));
+  }
+
+  // Puede existir una asignación sin grupo,
+  // pero no la creamos vacía.
+  if (
+    placements.length === 0
+  ) {
+    throw new Error(
+      'La asignación necesita al menos un grupo y un turno.'
+    );
+  }
+
+  const normalizedTurnIds = [
+    ...new Set(
+      placements.map(
+        placement =>
+          placement.turnId
+      )
+    )
+  ];
+
+  // Primer grupo para compatibilidad
+  const firstGroupId =
+    placements[0]?.groupId ||
+    '';
 
   return createPublicDocument(
     db,
     appId,
     COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS,
     {
-      studentId: data.studentId,
+      studentId:
+        data.studentId,
 
-      groupId: data.groupId,
+      // --------------------------------------------------------
+      // MODELO NUEVO
+      // --------------------------------------------------------
 
-      turnIds: Array.isArray(data.turnIds)
-        ? data.turnIds
-        : [],
+      placements,
+
+      // --------------------------------------------------------
+      // COMPATIBILIDAD CON EL MODELO ANTERIOR
+      // --------------------------------------------------------
+
+      groupId:
+        data.groupId ||
+        firstGroupId,
+
+      turnIds:
+        normalizedTurnIds,
 
       scheduleType:
-        data.scheduleType || 'simple',
+        data.scheduleType ||
+        'simple',
 
       validFrom:
-        data.validFrom || todayISO(),
+        data.validFrom ||
+        todayISO(),
 
       validTo:
-        data.validTo || null,
+        data.validTo ||
+        null,
 
       status:
         data.status ||
@@ -156,7 +350,8 @@ export async function closeStudentGroupAssignment(
         ASSIGNMENT_STATUS.CLOSED,
 
       validTo:
-        validTo || todayISO(),
+        validTo ||
+        todayISO(),
 
       updatedAt:
         new Date().toISOString()
@@ -173,23 +368,31 @@ export async function getStaffGroupAssignments(
   appId,
   staffId
 ) {
-  const ref = publicCollectionRef(
-    db,
-    appId,
-    COLLECTIONS.STAFF_GROUP_ASSIGNMENTS
-  );
+  const ref =
+    publicCollectionRef(
+      db,
+      appId,
+      COLLECTIONS.STAFF_GROUP_ASSIGNMENTS
+    );
 
-  const snapshot = await getDocs(
-    query(
-      ref,
-      where('staffId', '==', staffId)
-    )
-  );
+  const snapshot =
+    await getDocs(
+      query(
+        ref,
+        where(
+          'staffId',
+          '==',
+          staffId
+        )
+      )
+    );
 
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  return snapshot.docs.map(
+    doc => ({
+      id: doc.id,
+      ...doc.data()
+    })
+  );
 }
 
 export async function getActiveStaffGroupAssignments(
@@ -217,23 +420,31 @@ export async function getStaffGroupAssignmentsForGroup(
   appId,
   groupId
 ) {
-  const ref = publicCollectionRef(
-    db,
-    appId,
-    COLLECTIONS.STAFF_GROUP_ASSIGNMENTS
-  );
+  const ref =
+    publicCollectionRef(
+      db,
+      appId,
+      COLLECTIONS.STAFF_GROUP_ASSIGNMENTS
+    );
 
-  const snapshot = await getDocs(
-    query(
-      ref,
-      where('groupId', '==', groupId)
-    )
-  );
+  const snapshot =
+    await getDocs(
+      query(
+        ref,
+        where(
+          'groupId',
+          '==',
+          groupId
+        )
+      )
+    );
 
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  return snapshot.docs.map(
+    doc => ({
+      id: doc.id,
+      ...doc.data()
+    })
+  );
 }
 
 export async function createStaffGroupAssignment(
@@ -256,21 +467,29 @@ export async function createStaffGroupAssignment(
     appId,
     COLLECTIONS.STAFF_GROUP_ASSIGNMENTS,
     {
-      staffId: data.staffId,
+      staffId:
+        data.staffId,
 
-      groupId: data.groupId,
+      groupId:
+        data.groupId,
 
-      roleId: data.roleId,
+      roleId:
+        data.roleId,
 
-      turnIds: Array.isArray(data.turnIds)
-        ? data.turnIds
-        : [],
+      turnIds:
+        Array.isArray(
+          data.turnIds
+        )
+          ? data.turnIds
+          : [],
 
       validFrom:
-        data.validFrom || todayISO(),
+        data.validFrom ||
+        todayISO(),
 
       validTo:
-        data.validTo || null,
+        data.validTo ||
+        null,
 
       status:
         data.status ||
@@ -301,7 +520,8 @@ export async function closeStaffGroupAssignment(
         ASSIGNMENT_STATUS.CLOSED,
 
       validTo:
-        validTo || todayISO(),
+        validTo ||
+        todayISO(),
 
       updatedAt:
         new Date().toISOString()
