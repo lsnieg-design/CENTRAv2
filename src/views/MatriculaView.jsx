@@ -4330,7 +4330,7 @@ function StudentFormModal({
   onSave,
   saving
 }) {
- const currentAssignment =
+const currentAssignment =
   getCurrentAssignment(
     student
   );
@@ -4352,6 +4352,7 @@ const morningTurn =
         turn.name
       ).includes('manana')
   ) ||
+  turns[0] ||
   null;
 
 const afternoonTurn =
@@ -4361,16 +4362,8 @@ const afternoonTurn =
         turn.name
       ).includes('tarde')
   ) ||
+  turns[1] ||
   null;
-
-const otherTurns =
-  turns.filter(
-    turn =>
-      turn.id !==
-        morningTurn?.id &&
-      turn.id !==
-        afternoonTurn?.id
-  );
 
 const currentMorning =
   currentPlacements.find(
@@ -4384,17 +4377,6 @@ const currentAfternoon =
     placement =>
       placement.turnId ===
       afternoonTurn?.id
-  );
-
-const currentOther =
-  currentPlacements.find(
-    placement =>
-      ![
-        morningTurn?.id,
-        afternoonTurn?.id
-      ].includes(
-        placement.turnId
-      )
   );
 
 const currentJourneyName =
@@ -4414,62 +4396,14 @@ const currentIsDouble =
   ).includes('completa');
 
 const currentSimplePlacement =
-  currentPlacements[0] || null;
+  currentPlacements[0] ||
+  null;
 
 const currentSimpleTurnId =
   currentSimplePlacement?.turnId ||
   morningTurn?.id ||
   turns[0]?.id ||
   '';
-
-const morningTurn =
-  turns.find(
-    turn =>
-      normalizeText(
-        turn.name
-      ).includes('manana')
-  ) ||
-  turns[0];
-
-const afternoonTurn =
-  turns.find(
-    turn =>
-      normalizeText(
-        turn.name
-      ).includes('tarde')
-  ) ||
-  turns[1] ||
-  turns[0];
-
-const currentMorning =
-  currentPlacements.find(
-    placement =>
-      placement.turnId ===
-      morningTurn?.id
-  );
-
-const currentAfternoon =
-  currentPlacements.find(
-    placement =>
-      placement.turnId ===
-      afternoonTurn?.id
-  );
-
-const selectedJourneyName =
-  journeys.find(
-    journey =>
-      journey.id ===
-      currentJourney
-  )?.name ||
-  '';
-
-const currentIsDouble =
-  normalizeText(
-    selectedJourneyName
-  ).includes('doble') ||
-  normalizeText(
-    selectedJourneyName
-  ).includes('completa');
 
   return (
     <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
