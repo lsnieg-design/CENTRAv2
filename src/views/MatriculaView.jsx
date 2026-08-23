@@ -119,7 +119,12 @@ const calculateAge = birthDate => {
     return null;
   }
 };
-
+export function MatriculaView({
+  user,
+  db,
+  appId,
+  initStudentId
+}) {
 const getCurrentAssignment = student =>
   student?.groupAssignments?.find(
     assignment =>
@@ -246,6 +251,395 @@ const isDoubleJourney =
       name.includes('completa')
     );
   };
+  // ============================================================
+  // DATOS
+  // ============================================================
+
+  const [students, setStudents] =
+    useState([]);
+
+  const [groups, setGroups] =
+    useState([]);
+
+  const [
+    institutionConfig,
+    setInstitutionConfig
+  ] = useState({});
+
+  const [loading, setLoading] =
+    useState(true);
+
+  // ============================================================
+  // INTERFAZ
+  // ============================================================
+
+  const [search, setSearch] =
+    useState('');
+
+  const [showFilters, setShowFilters] =
+    useState(false);
+
+  const [showStats, setShowStats] =
+    useState(false);
+
+  const [filters, setFilters] =
+    useState({
+      status: 'active',
+      level: 'all',
+      group: 'all',
+      turn: 'all',
+      journey: 'all',
+      gender: 'all'
+    });
+
+  const [
+    viewingStudent,
+    setViewingStudent
+  ] = useState(null);
+
+  const [
+    showBitacora,
+    setShowBitacora
+  ] = useState(false);
+
+  const [
+    bitacoraEntries,
+    setBitacoraEntries
+  ] = useState([]);
+
+  const [
+    loadingBitacora,
+    setLoadingBitacora
+  ] = useState(false);
+
+  const [
+    editingStudent,
+    setEditingStudent
+  ] = useState(null);
+
+  const [
+    showForm,
+    setShowForm
+  ] = useState(false);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  // ============================================================
+  // CARGA DE FIREBASE
+  // ============================================================
+
+  useEffect(() => {
+    if (!db || !appId) {
+      return;
+    }
+
+    setLoading(true);
+
+    let people = [];
+    let profiles = [];
+    let assignments = [];
+
+    const rebuildStudents = () => {
+      const peopleById =
+        new Map(
+          people.map(person => [
+            person.id,
+            person
+          ])
+        );
+
+      const result =
+        profiles
+          .map(profile => {
+            const person =
+              peopleById.get(
+                profile.personId
+              ) || {};
+
+            const studentId =
+              profile.personId ||
+              person.id;
+
+            const currentAssignments =
+              assignments.filter(
+                item =>
+                  item.studentId ===
+                    studentId &&
+                  item.status ===
+                    'active' &&
+                  !item.validTo
+              );
+
+            return {
+              ...person,
+              ...profile,
+
+              id: studentId,
+              personId: studentId,
+
+              firstName:
+                profile.firstName ||
+                person.firstName ||
+                '',
+
+              lastName:
+                profile.lastName ||
+                person.lastName ||
+                '',
+
+              fullName:
+                profile.fullName ||
+                person.fullName ||
+                `${person.firstName || ''} ${
+                  person.lastName || ''
+                }`.trim(),
+
+              groupAssignments:
+                currentAssignments
+            };
+          })
+          .sort((a, b) =>
+            `${a.lastName} ${a.firstName}`
+              .localeCompare(
+                `${b.lastName} ${b.firstName}`,
+                'es'
+              )
+          );
+
+      setStudents(result);
+      setLoading(false);
+    };
+
+    const unsubPeople =
+      onSnapshot(
+        query(
+          BASE(
+            db,
+            appId,
+            COLLECTIONS.PEOPLE
+          ),
+          where(
+            'type',
+            '==',
+            'student'
+          )
+        ),
+        snapshot => {
+          people =
+            snapshot.docs.map(
+              item => ({
+                id: item.id,
+                ...item.data()
+              })
+            );
+
+          rebuildStudents();
+        }
+      );
+
+    const unsubProfiles =
+      onSnapshot(
+        BASE(
+          db,
+          appId,
+          COLLECTIONS.STUDENT_PROFILES
+        ),
+        snapshot => {
+          profiles =
+            snapshot.docs.map(
+              item => ({
+                id: item.id,
+                ...item.data()
+              })
+            );
+
+          rebuildStudents();
+        }
+      );
+
+    const unsubAssignments =
+      onSnapshot(
+        BASE(
+          db,
+          appId,
+          COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS
+        ),
+        snapshot => {
+          assignments =
+            snapshot.docs.map(
+              item => ({
+                id: item.id,
+                ...item.data()
+              })
+            );
+
+          rebuildStudents();
+        }
+      );
+
+    const unsubGroups =
+      onSnapshot(
+        BASE(
+          db,
+          appId,
+          COLLECTIONS.GROUPS
+        ),
+        snapshot => {
+          setGroups(
+            snapshot.docs
+              .map(item => ({
+                id: item.id,
+                ...item.data()
+              }))
+              .filter(
+                group =>
+                  group.active !== false
+              )
+              .sort((a, b) =>
+                (a.name || '').localeCompare(
+                  b.name || '',
+                  'es'
+                )
+              )
+          );
+        }
+      );
+
+    const unsubConfig =
+      onSnapshot(
+        DOC(
+          db,
+          appId,
+          'config',
+          'institution'
+        ),
+        snapshot => {
+          if (
+            snapshot.exists()
+          ) {
+            setInstitutionConfig(
+              snapshot.data()
+            );
+          }
+        }
+      );
+
+    return () => {
+      unsubPeople();
+      unsubProfiles();
+      unsubAssignments();
+      unsubGroups();
+      unsubConfig();
+    };
+  }, [db, appId]);
+
+  // ============================================================
+  // CONFIGURACIÓN
+  // ============================================================
+
+  const levels = useMemo(() => {
+    if (
+      !Array.isArray(
+        institutionConfig?.levels
+      )
+    ) {
+      return [];
+    }
+
+    return institutionConfig.levels.map(
+      (level, index) =>
+        typeof level === 'string'
+          ? {
+              id: level
+                .toLowerCase()
+                .replace(
+                  /[^a-z0-9]+/g,
+                  '_'
+                ),
+              name: level
+            }
+          : {
+              id:
+                level?.id ||
+                `nivel_${index + 1}`,
+
+              name:
+                level?.name ||
+                level?.label ||
+                `Nivel ${index + 1}`
+            }
+    );
+  }, [institutionConfig]);
+
+  const turns = useMemo(() => {
+    if (
+      !Array.isArray(
+        institutionConfig?.turns
+      )
+    ) {
+      return [];
+    }
+
+    return institutionConfig.turns.map(
+      (turn, index) =>
+        typeof turn === 'string'
+          ? {
+              id: turn
+                .toLowerCase()
+                .replace(
+                  /[^a-z0-9]+/g,
+                  '_'
+                ),
+              name: turn
+            }
+          : {
+              id:
+                turn?.id ||
+                `turno_${index + 1}`,
+
+              name:
+                turn?.name ||
+                turn?.label ||
+                `Turno ${index + 1}`
+            }
+    );
+  }, [institutionConfig]);
+
+  const journeys =
+    useMemo(() => {
+      if (
+        !Array.isArray(
+          institutionConfig?.scheduleTypes
+        )
+      ) {
+        return [];
+      }
+
+      return institutionConfig.scheduleTypes.map(
+        (item, index) =>
+          typeof item === 'string'
+            ? {
+                id: item
+                  .toLowerCase()
+                  .replace(
+                    /[^a-z0-9]+/g,
+                    '_'
+                  ),
+                name: item
+              }
+            : {
+                id:
+                  item?.id ||
+                  `jornada_${index + 1}`,
+
+                name:
+                  item?.name ||
+                  item?.label ||
+                  `Jornada ${index + 1}`
+              }
+      );
+    }, [institutionConfig]);
 
   // ============================================================
   // FILTROS
