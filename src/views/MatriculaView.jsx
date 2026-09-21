@@ -3697,7 +3697,7 @@ function StudentDetailModal({
   levels,
   onBitacora
 }) {
-  cconst assignment =
+ const assignment =
   student?.groupAssignments?.find(
     item =>
       item.status === 'active' &&
