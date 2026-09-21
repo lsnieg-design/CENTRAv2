@@ -4730,9 +4730,11 @@ function StudentFormModal({
   saving
 }) {
 const currentAssignment =
-  getCurrentAssignment(
-    student
-  );
+  student?.groupAssignments?.find(
+    item =>
+      item.status === 'active' &&
+      !item.validTo
+  ) || null;
 
 const currentPlacements =
   getPlacements(
