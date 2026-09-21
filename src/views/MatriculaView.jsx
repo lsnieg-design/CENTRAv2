@@ -3697,10 +3697,12 @@ function StudentDetailModal({
   levels,
   onBitacora
 }) {
-  const assignment =
-    getCurrentAssignment(
-      student
-    );
+  cconst assignment =
+  student?.groupAssignments?.find(
+    item =>
+      item.status === 'active' &&
+      !item.validTo
+  ) || null;
 
   const group = assignment
     ? groups.find(
