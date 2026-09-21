@@ -4737,9 +4737,24 @@ const currentAssignment =
   ) || null;
 
 const currentPlacements =
-  getPlacements(
-    currentAssignment
-  );
+  Array.isArray(
+    currentAssignment?.placements
+  ) &&
+  currentAssignment.placements.length > 0
+    ? currentAssignment.placements
+    : currentAssignment?.groupId
+      ? (
+          Array.isArray(
+            currentAssignment?.turnIds
+          )
+            ? currentAssignment.turnIds
+            : []
+        ).map(turnId => ({
+          groupId:
+            currentAssignment.groupId,
+          turnId
+        }))
+      : [];
 
 const currentJourney =
   currentAssignment?.scheduleType ||
