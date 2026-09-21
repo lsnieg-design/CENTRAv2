@@ -1071,8 +1071,7 @@ await setDoc(
     type: 'student',
 
     active:
-      editingStudent?.active !== false,
-
+  data.active !== 'false',
     updatedAt: now,
 
     ...(editingStudent?.isNew
@@ -1093,11 +1092,91 @@ console.log(
 // ----------------------------------------
 // PERFIL DE ESTUDIANTE
 // ----------------------------------------
-      // ----------------------------------------
-      // PERFIL DE ESTUDIANTE
-      // ----------------------------------------
 
-     COLLECTIONS.STUDENT_PROFILES
+await setDoc(
+  DOC(
+    db,
+    appId,
+    COLLECTIONS.STUDENT_PROFILES,
+    personId
+  ),
+  {
+    personId,
+
+    firstName,
+    lastName,
+
+    fullName:
+      `${firstName} ${lastName}`.trim(),
+
+    dni:
+      data.dni || '',
+
+    birthDate:
+      data.birthDate || '',
+
+    gender:
+      data.gender || '',
+
+    level:
+      data.level || '',
+
+    address:
+      data.address || '',
+
+    city:
+      data.city || '',
+
+    phone:
+      data.phone || '',
+
+    email:
+      data.email || '',
+
+    motherName:
+      data.motherName || '',
+
+    motherContact:
+      data.motherContact || '',
+
+    fatherName:
+      data.fatherName || '',
+
+    fatherContact:
+      data.fatherContact || '',
+
+    emergencyContact:
+      data.emergencyContact || '',
+
+    healthInsurance:
+      data.healthInsurance || '',
+
+    cudNumber:
+      data.cudNumber || '',
+
+    cudExpiration:
+      data.cudExpiration || '',
+
+    photoUrl:
+      data.photoUrl || '',
+
+    updatedAt:
+      now,
+
+    ...(editingStudent?.isNew
+      ? {
+          createdAt: now
+        }
+      : {})
+  },
+  {
+    merge: true
+  }
+);
+
+console.log(
+  'CENTRA → perfil de estudiante guardado correctamente'
+);
 
       // ----------------------------------------
       // ASIGNACIÓN
@@ -1133,6 +1212,26 @@ const isDouble =
   selectedJourneyName.includes(
     'completa'
   );
+
+const morningTurn =
+  turns.find(
+    turn =>
+      normalizeText(
+        turn.name
+      ).includes('manana')
+  ) ||
+  turns[0] ||
+  null;
+
+const afternoonTurn =
+  turns.find(
+    turn =>
+      normalizeText(
+        turn.name
+      ).includes('tarde')
+  ) ||
+  turns[1] ||
+  null;
 
 let placements = [];
 
