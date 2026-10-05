@@ -1011,457 +1011,460 @@ useEffect(() => {
   // GUARDAR ESTUDIANTE
   // ============================================================
 
-  const handleSave = async event => { console.log('CENTRA → CLICK EN GUARDAR');
-    event.preventDefault();
+ const handleSave = async event => {
+  console.log('CENTRA → CLICK EN GUARDAR');
 
-    const form =
-      new FormData(event.currentTarget);
+  event.preventDefault();
 
-    const firstName =
-  String(
+  const form = new FormData(event.currentTarget);
+
+  const data = Object.fromEntries(
+    form.entries()
+  );
+
+  console.log(
+    'CENTRA → datos del formulario:',
+    data
+  );
+
+  const firstName = String(
     data.firstName || ''
   ).trim();
-    console.log(
-  'CENTRA → datos del formulario:',
-  data
-);
-// ----------------------------------------
-// FOTO → FIREBASE STORAGE
-// ----------------------------------------
 
-const photoFile =
-  form.get('photoFile');
+  const lastName = String(
+    data.lastName || ''
+  ).trim();
 
-if (
-  photoFile &&
-  photoFile instanceof File &&
-  photoFile.size > 0
-) {
+  if (!firstName || !lastName) {
+    alert(
+      'Necesitamos nombre y apellido.'
+    );
+
+    return;
+  }
+
+  setSaving(true);
+
   try {
     console.log(
-      'CENTRA → subiendo foto...'
+      'CENTRA → iniciando guardado de estudiante'
     );
-
-    const storage =
-      getStorage();
-
-    const photoRef =
-      ref(
-        storage,
-        `students/${editingStudent?.personId || crypto.randomUUID()}/profile.${photoFile.name.split('.').pop()}`
-      );
-
-    const snapshot =
-      await uploadBytes(
-        photoRef,
-        photoFile
-      );
-
-    const photoUrl =
-      await getDownloadURL(
-        snapshot.ref
-      );
-
-    data.photoUrl =
-      photoUrl;
-
-    console.log(
-      'CENTRA → foto subida correctamente'
-    );
-
-  
-    const firstName =
-      String(
-        data.firstName || ''
-      ).trim();
-
-    const lastName =
-      String(
-        data.lastName || ''
-      ).trim();
-
-    if (!firstName || !lastName) {
-      alert(
-        'Necesitamos nombre y apellido.'
-      );
-
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      console.log('CENTRA → iniciando guardado de estudiante');
-
-      let personId =
-        editingStudent?.personId;
-
-      if (!personId) {
-        personId = crypto.randomUUID();
-      }
-
-      console.log(
-        'CENTRA → personId:',
-        personId
-      );
-
-      const now = serverTimestamp();
 
     // ----------------------------------------
-// PERSONA
-// ----------------------------------------
+    // ID DE PERSONA
+    // ----------------------------------------
 
-await setDoc(
-  DOC(
-    db,
-    appId,
-    COLLECTIONS.PEOPLE,
-    personId
-  ),
-  {
-    firstName,
-    lastName,
-    fullName:
-      `${firstName} ${lastName}`.trim(),
+    let personId =
+      editingStudent?.personId;
 
-    type: 'student',
+    if (!personId) {
+      personId = crypto.randomUUID();
+    }
 
-    active:
-  data.active !== 'false',
-    updatedAt: now,
-
-    ...(editingStudent?.isNew
-      ? {
-          createdAt: now
-        }
-      : {})
-  },
-  {
-    merge: true
-  }
-);
-
-console.log(
-  'CENTRA → people guardado correctamente'
-);
-
-// ----------------------------------------
-// PERFIL DE ESTUDIANTE
-// ----------------------------------------
-
-await setDoc(
-  DOC(
-    db,
-    appId,
-    COLLECTIONS.STUDENT_PROFILES,
-    personId
-  ),
-  {
-    personId,
-
-    firstName,
-    lastName,
-
-    fullName:
-      `${firstName} ${lastName}`.trim(),
-
-    dni:
-      data.dni || '',
-
-    birthDate:
-      data.birthDate || '',
-
-    gender:
-      data.gender || '',
-
-    level:
-      data.level || '',
-
-    address:
-      data.address || '',
-
-    city:
-      data.city || '',
-
-    phone:
-      data.phone || '',
-
-    email:
-      data.email || '',
-
-    motherName:
-      data.motherName || '',
-
-    motherContact:
-      data.motherContact || '',
-
-    fatherName:
-      data.fatherName || '',
-
-    fatherContact:
-      data.fatherContact || '',
-
-    emergencyContact:
-      data.emergencyContact || '',
-
-    healthInsurance:
-      data.healthInsurance || '',
-
-    cudNumber:
-      data.cudNumber || '',
-
-    cudExpiration:
-      data.cudExpiration || '',
-
-    photoUrl:
-      data.photoUrl || '',
-
-    updatedAt:
-      now,
-
-    ...(editingStudent?.isNew
-      ? {
-          createdAt: now
-        }
-      : {})
-  },
-  {
-    merge: true
-  }
-);
-
-console.log(
-  'CENTRA → perfil de estudiante guardado correctamente'
-);
-
-      // ----------------------------------------
-      // ASIGNACIÓN
-      // ----------------------------------------
-
-  const oldAssignment =
-  editingStudent?.isNew
-    ? null
-    : getCurrentAssignment(
-        editingStudent
-      );
-
-const scheduleType =
-  data.scheduleType || '';
-
-const selectedJourney =
-  journeys.find(
-    journey =>
-      journey.id ===
-      scheduleType
-  );
-
-const selectedJourneyName =
-  normalizeText(
-    selectedJourney?.name ||
-      ''
-  );
-
-const isDouble =
-  selectedJourneyName.includes(
-    'doble'
-  ) ||
-  selectedJourneyName.includes(
-    'completa'
-  );
-
-const morningTurn =
-  turns.find(
-    turn =>
-      normalizeText(
-        turn.name
-      ).includes('manana')
-  ) ||
-  turns[0] ||
-  null;
-
-const afternoonTurn =
-  turns.find(
-    turn =>
-      normalizeText(
-        turn.name
-      ).includes('tarde')
-  ) ||
-  turns[1] ||
-  null;
-
-let placements = [];
-
-/*
- * ------------------------------------------------------------
- * JORNADA DOBLE
- * ------------------------------------------------------------
- */
-
-if (isDouble) {
-
-  if (
-    data.morningGroupId &&
-    morningTurn
-  ) {
-    placements.push({
-      groupId:
-        data.morningGroupId,
-
-      turnId:
-        morningTurn.id
-    });
-  }
-
-  if (
-    data.afternoonGroupId &&
-    afternoonTurn
-  ) {
-    placements.push({
-      groupId:
-        data.afternoonGroupId,
-
-      turnId:
-        afternoonTurn.id
-    });
-  }
-
-}
-
-/*
- * ------------------------------------------------------------
- * JORNADA SIMPLE
- * ------------------------------------------------------------
- */
-
-else {
-
-  if (
-    data.simpleGroupId &&
-    data.simpleTurnId
-  ) {
-
-    placements.push({
-      groupId:
-        data.simpleGroupId,
-
-      turnId:
-        data.simpleTurnId
-    });
-
-  }
-
-}
-
-/*
- * ------------------------------------------------------------
- * COMPARACIÓN
- * ------------------------------------------------------------
- */
-
-const normalizePlacementsForCompare =
-  value =>
-    [...(value || [])]
-      .map(
-        placement => ({
-          groupId:
-            placement.groupId,
-
-          turnId:
-            placement.turnId
-        })
-      )
-      .sort((a, b) =>
-        `${a.turnId}-${a.groupId}`.localeCompare(
-          `${b.turnId}-${b.groupId}`
-        )
-      );
-
-const oldPlacements =
-  getPlacements(
-    oldAssignment
-  );
-
-const changedAssignment =
-  oldAssignment?.scheduleType !==
-    scheduleType ||
-  JSON.stringify(
-    normalizePlacementsForCompare(
-      oldPlacements
-    )
-  ) !==
-    JSON.stringify(
-      normalizePlacementsForCompare(
-        placements
-      )
+    console.log(
+      'CENTRA → personId:',
+      personId
     );
 
-/*
- * ------------------------------------------------------------
- * GUARDAR
- * ------------------------------------------------------------
- */
+    // ----------------------------------------
+    // FOTO
+    // ----------------------------------------
 
-if (
-  changedAssignment
-) {
+    const photoFile =
+      form.get('photoFile');
 
-  if (oldAssignment) {
+    if (
+      photoFile &&
+      photoFile instanceof File &&
+      photoFile.size > 0
+    ) {
+      console.log(
+        'CENTRA → subiendo foto...'
+      );
 
-    await closeStudentGroupAssignment(
-      db,
-      appId,
-      oldAssignment.id
-    );
+      const storage =
+        getStorage();
 
-  }
+      const extension =
+        photoFile.name
+          .split('.')
+          .pop();
 
-  if (
-    placements.length > 0
-  ) {
+      const photoRef = ref(
+        storage,
+        `students/${personId}/profile.${extension}`
+      );
 
-    await createStudentGroupAssignment(
-      db,
-      appId,
+      const snapshot =
+        await uploadBytes(
+          photoRef,
+          photoFile
+        );
+
+      const photoUrl =
+        await getDownloadURL(
+          snapshot.ref
+        );
+
+      data.photoUrl =
+        photoUrl;
+
+      console.log(
+        'CENTRA → foto subida correctamente'
+      );
+    }
+
+    // ----------------------------------------
+    // TIMESTAMP
+    // ----------------------------------------
+
+    const now =
+      serverTimestamp();
+
+    // ----------------------------------------
+    // PERSONA
+    // ----------------------------------------
+
+    await setDoc(
+      DOC(
+        db,
+        appId,
+        COLLECTIONS.PEOPLE,
+        personId
+      ),
       {
-        studentId:
-          personId,
+        firstName,
+        lastName,
 
-        placements,
+        fullName:
+          `${firstName} ${lastName}`.trim(),
 
-        scheduleType
+        type: 'student',
+
+        active:
+          data.active !== 'false',
+
+        updatedAt: now,
+
+        ...(editingStudent?.isNew
+          ? {
+              createdAt: now
+            }
+          : {})
+      },
+      {
+        merge: true
       }
     );
 
-  }
+    console.log(
+      'CENTRA → people guardado correctamente'
+    );
 
-}
+    // ----------------------------------------
+    // PERFIL DE ESTUDIANTE
+    // ----------------------------------------
 
-      setShowForm(false);
-      setEditingStudent(null);
+    await setDoc(
+      DOC(
+        db,
+        appId,
+        COLLECTIONS.STUDENT_PROFILES,
+        personId
+      ),
+      {
+        personId,
 
-       } catch (error) {
-      console.error(
-        'CENTRA → ERROR AL GUARDAR ESTUDIANTE',
-        error
+        firstName,
+        lastName,
+
+        fullName:
+          `${firstName} ${lastName}`.trim(),
+
+        dni:
+          data.dni || '',
+
+        birthDate:
+          data.birthDate || '',
+
+        gender:
+          data.gender || '',
+
+        level:
+          data.level || '',
+
+        address:
+          data.address || '',
+
+        city:
+          data.city || '',
+
+        phone:
+          data.phone || '',
+
+        email:
+          data.email || '',
+
+        motherName:
+          data.motherName || '',
+
+        motherContact:
+          data.motherContact || '',
+
+        fatherName:
+          data.fatherName || '',
+
+        fatherContact:
+          data.fatherContact || '',
+
+        emergencyContact:
+          data.emergencyContact || '',
+
+        healthInsurance:
+          data.healthInsurance || '',
+
+        cudNumber:
+          data.cudNumber || '',
+
+        cudExpiration:
+          data.cudExpiration || '',
+
+        photoUrl:
+          data.photoUrl || '',
+
+        updatedAt: now,
+
+        ...(editingStudent?.isNew
+          ? {
+              createdAt: now
+            }
+          : {})
+      },
+      {
+        merge: true
+      }
+    );
+
+    console.log(
+      'CENTRA → perfil de estudiante guardado correctamente'
+    );
+
+    // ----------------------------------------
+    // ASIGNACIÓN
+    // ----------------------------------------
+
+    const oldAssignment =
+      editingStudent?.isNew
+        ? null
+        : getCurrentAssignment(
+            editingStudent
+          );
+
+    const scheduleType =
+      data.scheduleType || '';
+
+    const selectedJourney =
+      journeys.find(
+        journey =>
+          journey.id ===
+          scheduleType
       );
 
-      console.error(
-        'Código Firebase:',
-        error?.code
+    const selectedJourneyName =
+      normalizeText(
+        selectedJourney?.name || ''
       );
 
-      console.error(
-        'Mensaje Firebase:',
-        error?.message
+    const isDouble =
+      selectedJourneyName.includes(
+        'doble'
+      ) ||
+      selectedJourneyName.includes(
+        'completa'
       );
 
-      alert(
-        `No se pudo guardar el estudiante.\n\n${error?.code || ''}\n${error?.message || error}`
-      );
-     } finally {
-      setSaving(false);
+    const morningTurn =
+      turns.find(
+        turn =>
+          normalizeText(
+            turn.name
+          ).includes('manana')
+      ) ||
+      turns[0] ||
+      null;
+
+    const afternoonTurn =
+      turns.find(
+        turn =>
+          normalizeText(
+            turn.name
+          ).includes('tarde')
+      ) ||
+      turns[1] ||
+      null;
+
+    let placements = [];
+
+    // Jornada doble
+    if (isDouble) {
+
+      if (
+        data.morningGroupId &&
+        morningTurn
+      ) {
+        placements.push({
+          groupId:
+            data.morningGroupId,
+
+          turnId:
+            morningTurn.id
+        });
+      }
+
+      if (
+        data.afternoonGroupId &&
+        afternoonTurn
+      ) {
+        placements.push({
+          groupId:
+            data.afternoonGroupId,
+
+          turnId:
+            afternoonTurn.id
+        });
+      }
+
     }
-  };
+
+    // Jornada simple
+    else {
+
+      if (
+        data.simpleGroupId &&
+        data.simpleTurnId
+      ) {
+        placements.push({
+          groupId:
+            data.simpleGroupId,
+
+          turnId:
+            data.simpleTurnId
+        });
+      }
+
+    }
+
+    // ----------------------------------------
+    // COMPARACIÓN DE ASIGNACIONES
+    // ----------------------------------------
+
+    const normalizePlacementsForCompare =
+      value =>
+        [...(value || [])]
+          .map(
+            placement => ({
+              groupId:
+                placement.groupId,
+
+              turnId:
+                placement.turnId
+            })
+          )
+          .sort((a, b) =>
+            `${a.turnId}-${a.groupId}`.localeCompare(
+              `${b.turnId}-${b.groupId}`
+            )
+          );
+
+    const oldPlacements =
+      getPlacements(
+        oldAssignment
+      );
+
+    const changedAssignment =
+      oldAssignment?.scheduleType !==
+        scheduleType ||
+      JSON.stringify(
+        normalizePlacementsForCompare(
+          oldPlacements
+        )
+      ) !==
+        JSON.stringify(
+          normalizePlacementsForCompare(
+            placements
+          )
+        );
+
+    // ----------------------------------------
+    // GUARDAR ASIGNACIÓN
+    // ----------------------------------------
+
+    if (changedAssignment) {
+
+      if (oldAssignment) {
+        await closeStudentGroupAssignment(
+          db,
+          appId,
+          oldAssignment.id
+        );
+      }
+
+      if (
+        placements.length > 0
+      ) {
+        await createStudentGroupAssignment(
+          db,
+          appId,
+          {
+            studentId:
+              personId,
+
+            placements,
+
+            scheduleType
+          }
+        );
+      }
+    }
+
+    console.log(
+      'CENTRA → estudiante guardado correctamente'
+    );
+
+    setShowForm(false);
+    setEditingStudent(null);
+
+  } catch (error) {
+
+    console.error(
+      'CENTRA → ERROR AL GUARDAR ESTUDIANTE',
+      error
+    );
+
+    console.error(
+      'Código Firebase:',
+      error?.code
+    );
+
+    console.error(
+      'Mensaje Firebase:',
+      error?.message
+    );
+
+    alert(
+      `No se pudo guardar el estudiante.\n\n${
+        error?.code || ''
+      }\n${
+        error?.message || error
+      }`
+    );
+
+  } finally {
+
+    setSaving(false);
+
+  }
+};
 
   // ============================================================
   // ESTADO
