@@ -275,6 +275,73 @@ export function ConfiguracionView({ db, appId, auth }) {
             <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
               <div><h3 className="text-lg font-black">Identidad de la institución</h3><p className="text-sm text-slate-500">Estos datos se usan en la app, comunicaciones y documentos.</p></div>
               <div className="grid md:grid-cols-2 gap-4">
+               <div className="md:col-span-2">
+  <span className="text-xs font-black uppercase text-slate-500">
+    Modo de funcionamiento
+  </span>
+
+  <p className="text-sm text-slate-500 mt-1 mb-3">
+    Define cómo se organiza y cómo habla CENTRA en esta institución.
+  </p>
+
+  <div className="grid md:grid-cols-3 gap-3">
+
+    <button
+      type="button"
+      onClick={() => update('institutionMode', 'school')}
+      className={`text-left p-4 rounded-2xl border-2 transition ${
+        (config.institutionMode || 'school') === 'school'
+          ? 'border-violet-600 bg-violet-50 ring-2 ring-violet-100'
+          : 'border-slate-200 bg-white hover:border-slate-300'
+      }`}
+    >
+      <div className="text-2xl mb-2">🏫</div>
+      <div className="font-black text-slate-800">
+        Escuela
+      </div>
+      <div className="text-xs text-slate-500 mt-1">
+        Estudiantes, niveles, escolaridad y grupos.
+      </div>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => update('institutionMode', 'day_center')}
+      className={`text-left p-4 rounded-2xl border-2 transition ${
+        config.institutionMode === 'day_center'
+          ? 'border-violet-600 bg-violet-50 ring-2 ring-violet-100'
+          : 'border-slate-200 bg-white hover:border-slate-300'
+      }`}
+    >
+      <div className="text-2xl mb-2">🧩</div>
+      <div className="font-black text-slate-800">
+        Centro de día
+      </div>
+      <div className="text-xs text-slate-500 mt-1">
+        Concurrentes, jornadas y talleres.
+      </div>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => update('institutionMode', 'clinic')}
+      className={`text-left p-4 rounded-2xl border-2 transition ${
+        config.institutionMode === 'clinic'
+          ? 'border-violet-600 bg-violet-50 ring-2 ring-violet-100'
+          : 'border-slate-200 bg-white hover:border-slate-300'
+      }`}
+    >
+      <div className="text-2xl mb-2">🩺</div>
+      <div className="font-black text-slate-800">
+        Consultorios
+      </div>
+      <div className="text-xs text-slate-500 mt-1">
+        Pacientes, profesionales y espacios de atención.
+      </div>
+    </button>
+
+  </div>
+</div>
                 <label><span className="text-xs font-black uppercase text-slate-500">Tipo de institución</span><select value={config.institutionType || 'Otro'} onChange={e=>update('institutionType',e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white">{INSTITUTION_TYPES.map(type=><option key={type}>{type}</option>)}</select></label>
                 <label><span className="text-xs font-black uppercase text-slate-500">Año lectivo</span><input type="number" value={config.schoolYear} onChange={e=>update('schoolYear',Number(e.target.value))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>
                 {[['institutionName','Nombre completo'],['institutionShortName','Nombre corto'],['portalTitle','Título del portal'],['appName','Nombre del sistema'],['email','Correo institucional'],['phone','Teléfono'],['address','Domicilio'],['city','Localidad'],['province','Provincia'],['country','País'],['website','Sitio web']].map(([key,label]) => <label key={key}><span className="text-xs font-black uppercase text-slate-500">{label}</span><input value={config[key] || ''} onChange={e=>update(key,e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-violet-200" /></label>)}
