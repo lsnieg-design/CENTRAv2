@@ -1065,49 +1065,48 @@ useEffect(() => {
     // FOTO
     // ----------------------------------------
 
-    const photoFile =
-      form.get('photoFile');
+  // ----------------------------------------
+// FOTO → BASE64 COMPRIMIDA
+// ----------------------------------------
 
-    if (
-      photoFile &&
-      photoFile instanceof File &&
-      photoFile.size > 0
-    ) {
-      console.log(
-        'CENTRA → subiendo foto...'
-      );
+const photoFile =
+  form.get('photoFile');
 
-      const storage =
-        getStorage();
+if (
+  photoFile &&
+  photoFile instanceof File &&
+  photoFile.size > 0
+) {
+  console.log(
+    'CENTRA → procesando foto...'
+  );
 
-      const extension =
-        photoFile.name
-          .split('.')
-          .pop();
+  const photoDataUrl =
+    await new Promise(
+      (resolve, reject) => {
+        const reader =
+          new FileReader();
 
-      const photoRef = ref(
-        storage,
-        `students/${personId}/profile.${extension}`
-      );
+        reader.onload = () =>
+          resolve(
+            reader.result
+          );
 
-      const snapshot =
-        await uploadBytes(
-          photoRef,
+        reader.onerror = reject;
+
+        reader.readAsDataURL(
           photoFile
         );
+      }
+    );
 
-      const photoUrl =
-        await getDownloadURL(
-          snapshot.ref
-        );
+  data.photoUrl =
+    photoDataUrl;
 
-      data.photoUrl =
-        photoUrl;
-
-      console.log(
-        'CENTRA → foto subida correctamente'
-      );
-    }
+  console.log(
+    'CENTRA → foto convertida correctamente'
+  );
+}
 
     // ----------------------------------------
     // TIMESTAMP
