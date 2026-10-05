@@ -9,7 +9,7 @@ export const DEFAULT_APP_CONFIG = {
   appName: 'Gestión Institucional',
 
   institutionType: 'Otro',
-  institutionMode: INSTITUTION_MODES.SCHOOL,
+institutionMode: 'school',
   institutionDescription: '',
 
   logoUrl: '/icon-192.png',
