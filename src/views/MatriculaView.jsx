@@ -37,7 +37,7 @@ import {
   Save,
   Printer,
 BookOpen,
-  camera,
+  Camera,
   UserRound,
   Clock3
 } from 'lucide-react';
