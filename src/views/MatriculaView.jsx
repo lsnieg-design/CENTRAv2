@@ -1020,7 +1020,69 @@ useEffect(() => {
     const data = Object.fromEntries(
       form.entries()
     );
+// ----------------------------------------
+// FOTO → FIREBASE STORAGE
+// ----------------------------------------
 
+const photoFile =
+  form.get('photoFile');
+
+if (
+  photoFile &&
+  photoFile instanceof File &&
+  photoFile.size > 0
+) {
+  try {
+    console.log(
+      'CENTRA → subiendo foto...'
+    );
+
+    const storage =
+      getStorage();
+
+    const photoRef =
+      ref(
+        storage,
+        `students/${editingStudent?.personId || crypto.randomUUID()}/profile.${photoFile.name.split('.').pop()}`
+      );
+
+    const snapshot =
+      await uploadBytes(
+        photoRef,
+        photoFile
+      );
+
+    const photoUrl =
+      await getDownloadURL(
+        snapshot.ref
+      );
+
+    data.photoUrl =
+      photoUrl;
+
+    console.log(
+      'CENTRA → foto subida correctamente'
+    );
+
+  } catch (photoError) {
+
+    console.error(
+      'CENTRA → error subiendo foto:',
+      photoError
+    );
+
+    alert(
+      `No se pudo subir la foto.\n\n${
+        photoError?.message ||
+        photoError
+      }`
+    );
+
+    setSaving(false);
+
+    return;
+  }
+}
     const firstName =
       String(
         data.firstName || ''
@@ -5197,10 +5259,11 @@ const currentSimpleTurnId =
         Elegir foto
 
         <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-        />
+  type="file"
+  name="photoFile"
+  accept="image/*"
+  className="hidden"
+/>
       </label>
 
       <p className="text-xs text-slate-400 mt-2">
