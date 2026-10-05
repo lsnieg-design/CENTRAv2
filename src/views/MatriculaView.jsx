@@ -1017,9 +1017,10 @@ useEffect(() => {
     const form =
       new FormData(event.currentTarget);
 
-    const data = Object.fromEntries(
-      form.entries()
-    );
+    const firstName =
+  String(
+    data.firstName || ''
+  ).trim();
     console.log(
   'CENTRA → datos del formulario:',
   data
@@ -1068,25 +1069,7 @@ if (
       'CENTRA → foto subida correctamente'
     );
 
-  } catch (photoError) {
-
-    console.error(
-      'CENTRA → error subiendo foto:',
-      photoError
-    );
-
-    alert(
-      `No se pudo subir la foto.\n\n${
-        photoError?.message ||
-        photoError
-      }`
-    );
-
-    setSaving(false);
-
-    return;
-  }
-}
+  
     const firstName =
       String(
         data.firstName || ''
