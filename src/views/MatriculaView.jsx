@@ -1020,6 +1020,10 @@ useEffect(() => {
     const data = Object.fromEntries(
       form.entries()
     );
+    console.log(
+  'CENTRA → datos del formulario:',
+  data
+);
 // ----------------------------------------
 // FOTO → FIREBASE STORAGE
 // ----------------------------------------
