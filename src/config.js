@@ -9,6 +9,7 @@ export const DEFAULT_APP_CONFIG = {
   appName: 'Gestión Institucional',
 
   institutionType: 'Otro',
+  institutionMode: INSTITUTION_MODES.SCHOOL,
   institutionDescription: '',
 
   logoUrl: '/icon-192.png',
@@ -390,7 +391,57 @@ export const INSTITUTION_TYPES = [
   'Organización social',
   'Otro'
 ];
+// ============================================================
+// MODO DE FUNCIONAMIENTO DE CENTRA
+// ============================================================
 
+export const INSTITUTION_MODES = {
+  SCHOOL: 'school',
+  DAY_CENTER: 'day_center',
+  CLINIC: 'clinic'
+};
+
+// ============================================================
+// TEXTOS SEGÚN EL TIPO DE INSTITUCIÓN
+// ============================================================
+
+export const INSTITUTION_MODE_LABELS = {
+  [INSTITUTION_MODES.SCHOOL]: {
+    person: 'Estudiante',
+    people: 'Estudiantes',
+    group: 'Grupo',
+    groups: 'Grupos',
+    schooling: 'Escolaridad',
+    level: 'Nivel',
+    levels: 'Niveles',
+    shift: 'Turno',
+    shifts: 'Turnos'
+  },
+
+  [INSTITUTION_MODES.DAY_CENTER]: {
+    person: 'Concurrente',
+    people: 'Concurrentes',
+    group: 'Taller',
+    groups: 'Talleres',
+    schooling: null,
+    level: null,
+    levels: null,
+    shift: 'Tipo de jornada',
+    shifts: 'Tipos de jornada'
+  },
+
+  [INSTITUTION_MODES.CLINIC]: {
+    person: 'Paciente',
+    people: 'Pacientes',
+    group: 'Espacio',
+    groups: 'Espacios',
+    schooling: null,
+    level: null,
+    levels: null,
+    shift: null,
+    shifts: null
+  }
+};
 
 // =============================================================
 // PLANES
