@@ -5193,7 +5193,7 @@ const currentSimpleTurnId =
 
     <div>
       <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-bold cursor-pointer hover:bg-violet-700 transition">
-        <Camera size={18} />
+        <span>📷</span>
         Elegir foto
 
         <input
