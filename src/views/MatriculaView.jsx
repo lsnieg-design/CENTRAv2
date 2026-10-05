@@ -5172,13 +5172,42 @@ const currentSimpleTurnId =
                 }
               />
 
-              <Input
-                name="photoUrl"
-                label="URL de foto"
-                defaultValue={
-                  student.photoUrl
-                }
-              />
+              <div className="space-y-2">
+  <label className="text-xs font-black uppercase text-slate-500">
+    Foto
+  </label>
+
+  <div className="flex items-center gap-4">
+    {student.photoUrl ? (
+      <img
+        src={student.photoUrl}
+        alt="Foto actual"
+        className="w-20 h-20 rounded-2xl object-cover border border-slate-200"
+      />
+    ) : (
+      <div className="w-20 h-20 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+        <Camera size={24} />
+      </div>
+    )}
+
+    <div>
+      <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-bold cursor-pointer hover:bg-violet-700 transition">
+        <Camera size={18} />
+        Elegir foto
+
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+        />
+      </label>
+
+      <p className="text-xs text-slate-400 mt-2">
+        JPG, PNG o WEBP
+      </p>
+    </div>
+  </div>
+</div>
 
             </div>
 
