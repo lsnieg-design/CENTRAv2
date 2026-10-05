@@ -4897,6 +4897,20 @@ function StudentFormModal({
   onSave,
   saving
 }) {
+    const [photoPreview, setPhotoPreview] =
+    useState(student?.photoUrl || '');
+
+  const handlePhotoChange = event => {
+    const file =
+      event.target.files?.[0];
+
+    if (!file) return;
+
+    const previewUrl =
+      URL.createObjectURL(file);
+
+    setPhotoPreview(previewUrl);
+  };
 const currentAssignment =
   student?.groupAssignments?.find(
     item =>
@@ -5241,17 +5255,17 @@ const currentSimpleTurnId =
   </label>
 
   <div className="flex items-center gap-4">
-    {student.photoUrl ? (
-      <img
-        src={student.photoUrl}
-        alt="Foto actual"
-        className="w-20 h-20 rounded-2xl object-cover border border-slate-200"
-      />
-    ) : (
-      <div className="w-20 h-20 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
-        <Camera size={24} />
-      </div>
-    )}
+    {photoPreview ? (
+  <img
+    src={photoPreview}
+    alt="Vista previa"
+    className="w-20 h-20 rounded-2xl object-cover border border-slate-200"
+  />
+) : (
+  <div className="w-20 h-20 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+    <Camera size={24} />
+  </div>
+)}
 
     <div>
       <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-bold cursor-pointer hover:bg-violet-700 transition">
@@ -5263,6 +5277,7 @@ const currentSimpleTurnId =
   name="photoFile"
   accept="image/*"
   className="hidden"
+  onChange={handlePhotoChange}
 />
       </label>
 
