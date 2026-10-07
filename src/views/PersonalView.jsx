@@ -20,7 +20,22 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
   const [staffList, setStaffList] = useState([]);
   const [students, setStudents] = useState([]);
   const [users, setUsers] = useState([]);
-  const uniqueTurns = TURNS_LIST;
+  const turnOptions = (Array.isArray(TURNS_LIST) ? TURNS_LIST : [])
+    .map((turn, index) => {
+      if (typeof turn === 'string') return { id: turn, name: turn };
+      return {
+        id: turn?.name || turn?.shortName || turn?.id || `turno_${index + 1}`,
+        name: turn?.shortName || turn?.name || turn?.label || `Turno ${index + 1}`
+      };
+    })
+    .filter(turn => turn.name);
+
+  const roleOptions = (Array.isArray(VALID_ROLES_OFFICIAL) ? VALID_ROLES_OFFICIAL : [])
+    .map((role, index) => {
+      if (typeof role === 'string') return role;
+      return role?.name || role?.shortName || role?.label || role?.id || `Rol ${index + 1}`;
+    })
+    .filter(Boolean);
   
   const [staffFilterText, setStaffFilterText] = useState('');
   const [filters, setFilters] = useState({ modality: 'all', roles: [], turn: 'all', subsidized: 'all' });
@@ -56,7 +71,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
   const canAccess = ['admin', 'super-admin', 'Administración', 'Equipo Directivo'].includes(user.role) || user.rol === 'admin';
 
-  const VALID_ROLES = [
+  const VALID_ROLES = roleOptions.length ? roleOptions : [
       "Docente", "Preceptora", "Auxiliar", "Profe Especial", "Equipo Técnico", "Equipo Directivo",
       "Dirección Inclusión", "Equipo Técnico Inclusión", "DAI",
       "Cocina", "Limpieza", "Mantenimiento", "Administración"
@@ -863,8 +878,8 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
                 <select value={filters.turn} onChange={e=>setFilters({...filters, turn: e.target.value})} className="bg-white text-gray-700 text-xs p-2 rounded-lg font-bold min-w-[120px] border border-gray-200 shadow-sm outline-none">
                     <option value="all">Turno: Todos</option>
-                    {(typeof TURNS_LIST !== 'undefined' ? TURNS_LIST : []).map(t => (
-                        <option key={t} value={t}>{t}</option>
+                    {turnOptions.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                 </select>
 
@@ -1288,7 +1303,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                           required
                         >
                           <option value="">Seleccionar Rol...</option>
-                          {(typeof VALID_ROLES_OFFICIAL !== 'undefined' ? VALID_ROLES_OFFICIAL : []).map(r => (
+                          {roleOptions.map(r => (
                             <option key={r} value={r}>{r}</option>
                           ))}
                         </select>
