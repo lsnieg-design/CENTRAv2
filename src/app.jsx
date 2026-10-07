@@ -976,7 +976,7 @@ function MainApp({ user: initialUser, onLogout }) {
         {activeTab === 'resources' && hasModule('resources') && <ResourcesView resources={resources} canEdit={canManageContent} db={db} appId={appId} user={user} />}
         {activeTab === 'social' && hasModule('social') && canAccessSocial && <SocialView user={user} db={db} appId={appId} />}
         {activeTab === 'profile' && <SelfProfileView user={user} db={db} appId={appId} onUpdated={setUser} />}
-        {activeTab === 'proyecto' && hasModule('proyecto') && <ProyectoView user={user} db={db} appId={appId} />}
+        
         {activeTab === 'evaluations' && hasModule('evaluations') && isTechTeamRole && <EvaluationsView user={user} db={db} appId={appId} />}
         {activeTab === 'notifications' && <NotificationsView notifications={allNotifications} user={user} />}
         {activeTab === 'users' && isSuperAdmin && hasModule('users') && db && <UsersAdminView db={db} appId={appId} />}
@@ -1000,7 +1000,7 @@ function MainApp({ user: initialUser, onLogout }) {
             {showMoreMenu && <div className="absolute bottom-16 right-0 bg-white rounded-3xl shadow-2xl border border-gray-100 p-2 w-72 animate-in slide-in-from-bottom-5 zoom-in-95 origin-bottom-right z-[100] max-h-[75vh] overflow-y-auto custom-scrollbar">
               {hasModule('matricula') && <button onClick={() => navigate('matricula')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><GraduationCap size={18} className="text-violet-500"/> Legajos</button>}
               {hasModule('resources') && <button onClick={() => navigate('resources')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><LinkIcon size={18} className="text-green-500"/> Recursos</button>}
-              {hasModule('proyecto') && <button onClick={() => navigate('proyecto')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><PieChart size={18} className="text-orange-500"/> Proyecto institucional</button>}
+              
               {hasModule('informes') && <button onClick={() => navigate('informes')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><ClipboardCheck size={18} className="text-violet-500"/> Informes pedagógicos</button>}
               {showPrivateMenu && <div className="mt-2 pt-2 border-t border-gray-100 space-y-1"><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 mb-1">Gestión</p>
                 {isAdminRole && hasModule('admin') && <button onClick={() => navigate('admin')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><FileText size={18} className="text-blue-500"/> Administración</button>}
