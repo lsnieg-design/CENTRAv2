@@ -5053,6 +5053,13 @@ const personLabel =
     ? 'paciente'
     : 'estudiante';
 
+const personLabelPlural =
+  institutionMode === 'day_center'
+    ? 'concurrentes'
+    : institutionMode === 'clinic'
+    ? 'pacientes'
+    : 'estudiantes';
+
 const formSubtitle =
   institutionMode === 'day_center'
     ? 'Datos personales y participación'
