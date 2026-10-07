@@ -223,9 +223,20 @@ export function ConfiguracionView({ db, appId, auth }) {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {
-      console.error(error);
-      alert('No se pudo guardar la configuración. Revisá la conexión y los permisos de Firestore.');
-    } finally {
+  console.error('ERROR REAL AL GUARDAR CONFIGURACIÓN:', {
+    code: error?.code,
+    message: error?.message,
+    authUid: auth?.currentUser?.uid || null,
+    isAnonymous: auth?.currentUser?.isAnonymous ?? null
+  });
+
+  alert(
+    `Error de Firebase:\n\n` +
+    `Código: ${error?.code || 'sin código'}\n` +
+    `Mensaje: ${error?.message || 'sin mensaje'}\n\n` +
+    `Usuario Firebase: ${auth?.currentUser?.uid || 'NINGUNO'}`
+  );
+} finally {
       setSaving(false);
     }
   };
