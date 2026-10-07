@@ -5068,7 +5068,12 @@ function StudentFormModal({
       : institutionMode === 'clinic'
       ? 'Datos personales y atención'
       : 'Datos personales y escolaridad';
-
+const recordSectionTitle =
+  institutionMode === 'day_center'
+    ? 'Participación y jornada'
+    : institutionMode === 'clinic'
+    ? 'Atención'
+    : 'Escolaridad';
   const handlePhotoChange = event => {
     const file =
       event.target.files?.[0];
@@ -5527,9 +5532,9 @@ function StudentFormModal({
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-            <SectionTitle>
-              Escolaridad
-            </SectionTitle>
+  <SectionTitle>
+    {recordSectionTitle}
+  </SectionTitle>
 
             <div className="grid md:grid-cols-2 gap-3">
 
