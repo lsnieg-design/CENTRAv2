@@ -267,9 +267,44 @@ const isDoubleJourney =
     institutionConfig,
     setInstitutionConfig
   ] = useState({});
+const institutionMode =
+  institutionConfig?.institutionMode || 'school';
 
+const personLabel =
+  institutionMode === 'day_center'
+    ? 'concurrente'
+    : institutionMode === 'clinic'
+    ? 'paciente'
+    : 'estudiante';
+
+const personLabelPlural =
+  institutionMode === 'day_center'
+    ? 'concurrentes'
+    : institutionMode === 'clinic'
+    ? 'pacientes'
+    : 'estudiantes';
+  const personLabelCapitalized =
+  personLabel.charAt(0).toUpperCase() +
+  personLabel.slice(1);
+
+const personLabelPluralCapitalized =
+  personLabelPlural.charAt(0).toUpperCase() +
+  personLabelPlural.slice(1);
   const [loading, setLoading] =
     useState(true);
+  const personSectionSubtitle =
+  institutionMode === 'day_center'
+    ? 'Legajos y seguimiento'
+    : institutionMode === 'clinic'
+    ? 'Legajos y atención'
+    : 'Legajos y matrícula';
+
+const formSubtitle =
+  institutionMode === 'day_center'
+    ? 'Datos personales y participación'
+    : institutionMode === 'clinic'
+    ? 'Datos personales y atención'
+    : 'Datos personales y escolaridad';
 
   // ============================================================
   // INTERFAZ
@@ -1533,13 +1568,12 @@ if (
     );
 
     alert(
-      `No se pudo guardar el estudiante.\n\n${
-        error?.code || ''
-      }\n${
-        error?.message || error
-      }`
-    );
-
+  `No se pudo guardar el ${personLabel}.\n\n${
+    error?.code || ''
+  }\n${
+    error?.message || error
+  }`
+);
   } finally {
 
     setSaving(false);
@@ -1676,13 +1710,13 @@ const toggleActive = async student => {
               </div>
 
               <div>
-                <h2 className="text-xl md:text-2xl font-black text-slate-900">
-                  Estudiantes
-                </h2>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900">
+  {personLabelPluralCapitalized}
+</h2>
 
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                  Legajos y matrícula
-                </p>
+  {personSectionSubtitle}
+</p>
               </div>
 
             </div>
@@ -1712,8 +1746,8 @@ const toggleActive = async student => {
               onClick={openNew}
               className="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-violet-200 transition"
             >
-              <Plus size={18} />
-              Nuevo estudiante
+             <Plus size={18} />
+Nuevo {personLabel}
             </button>
 
           </div>
@@ -2011,7 +2045,7 @@ const toggleActive = async student => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
             <StatCard
-              label="Estudiantes activos"
+              label={`${personLabelPluralCapitalized} activos`}
               value={stats.total}
               icon={<Users size={18} />}
             />
@@ -2074,7 +2108,7 @@ const toggleActive = async student => {
               <div className="w-12 h-12 rounded-full border-4 border-violet-100 border-t-violet-600 animate-spin mx-auto" />
 
               <p className="mt-4 text-xs font-black uppercase tracking-widest text-slate-400">
-                Cargando estudiantes...
+                Cargando {personLabelPlural}...
               </p>
 
             </div>
@@ -2091,7 +2125,7 @@ const toggleActive = async student => {
               </div>
 
               <h3 className="mt-5 text-xl font-black text-slate-800">
-                No encontramos estudiantes
+                No encontramos {personLabelPlural}
               </h3>
 
               <p className="mt-2 text-sm text-slate-400 font-medium">
@@ -2420,6 +2454,7 @@ const turnNamesForStudent =
              levels={levels}
             turns={turns}
             journeys={journeys}
+              institutionConfig={institutionConfig}
             onClose={() => {
               setShowForm(false);
               setEditingStudent(null);
@@ -2527,6 +2562,19 @@ function printStudentFile(
   levelName,
   institutionConfig
 ) {
+  const institutionMode =
+  institutionConfig?.institutionMode || 'school';
+
+const personLabel =
+  institutionMode === 'day_center'
+    ? 'concurrente'
+    : institutionMode === 'clinic'
+    ? 'paciente'
+    : 'estudiante';
+
+const personLabelCapitalized =
+  personLabel.charAt(0).toUpperCase() +
+  personLabel.slice(1);
   const escapeHtml = value =>
     String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -3190,7 +3238,7 @@ function printStudentFile(
                 ${escapeHtml(
                   institutionName
                 )}
-                · Legajo del estudiante
+                · Legajo del ${personLabel}
               </div>
 
               <div class="student-name">
@@ -3233,7 +3281,7 @@ function printStudentFile(
                     src="${escapeHtml(
                       student.photoUrl
                     )}"
-                    alt="Foto del estudiante"
+                    alt="Foto del ${personLabel}"
                     class="student-photo"
                   />
                 `
@@ -3942,7 +3990,22 @@ function StudentDetailModal({
       item.status === 'active' &&
       !item.validTo
   ) || null;
+const institutionMode =
+  institutionConfig?.institutionMode || 'school';
 
+const personLabel =
+  institutionMode === 'day_center'
+    ? 'concurrente'
+    : institutionMode === 'clinic'
+    ? 'paciente'
+    : 'estudiante';
+
+const personLabelPlural =
+  institutionMode === 'day_center'
+    ? 'concurrentes'
+    : institutionMode === 'clinic'
+    ? 'pacientes'
+    : 'estudiantes';
   const group = assignment
     ? groups.find(
         item =>
@@ -4014,7 +4077,7 @@ const handlePrint = () => {
               </h3>
 
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Legajo del estudiante
+                Legajo del {personLabel}
               </p>
             </div>
 
@@ -4159,7 +4222,7 @@ const handlePrint = () => {
                 <AlertCircle
                   size={17}
                 />
-                El estudiante no tiene una asignación actual.
+                El {personLabel} no tiene una asignación actual.
               </div>
             )}
 
@@ -4230,7 +4293,7 @@ const handlePrint = () => {
             }`}
           >
             {student.active === false
-              ? 'Reactivar estudiante'
+              ? `Reactivar ${personLabel}`
               : 'Marcar como inactivo'}
           </button>
 
@@ -4324,6 +4387,15 @@ const printBitacora = (
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  const institutionMode =
+  institutionConfig?.institutionMode || 'school';
+
+const personLabel =
+  institutionMode === 'day_center'
+    ? 'concurrente'
+    : institutionMode === 'clinic'
+    ? 'paciente'
+    : 'estudiante';
 
   const primary =
     institutionConfig?.primaryColor ||
@@ -4631,7 +4703,7 @@ const printBitacora = (
         </div>
 
         <div class="student">
-          Legajo del estudiante ·
+          Legajo del ${personLabel} ·
           ${escapeHtml(
             student.lastName
           )},
@@ -4964,13 +5036,29 @@ function StudentFormModal({
   levels,
   turns,
   journeys,
+    institutionConfig,
   onClose,
   onSave,
   saving
 }) {
     const [photoPreview, setPhotoPreview] =
     useState(student?.photoUrl || '');
+const institutionMode =
+  institutionConfig?.institutionMode || 'school';
 
+const personLabel =
+  institutionMode === 'day_center'
+    ? 'concurrente'
+    : institutionMode === 'clinic'
+    ? 'paciente'
+    : 'estudiante';
+
+const formSubtitle =
+  institutionMode === 'day_center'
+    ? 'Datos personales y participación'
+    : institutionMode === 'clinic'
+    ? 'Datos personales y atención'
+    : 'Datos personales y escolaridad';
   const handlePhotoChange = event => {
     const file =
       event.target.files?.[0];
@@ -5087,12 +5175,12 @@ const currentSimpleTurnId =
           <div>
             <h3 className="text-xl font-black text-slate-900">
               {student.isNew
-                ? 'Nuevo estudiante'
-                : 'Editar estudiante'}
+  ? `Nuevo ${personLabel}`
+  : `Editar ${personLabel}`}
             </h3>
 
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
-              Datos personales y escolaridad
+              {formSubtitle}
             </p>
           </div>
 
@@ -5507,7 +5595,7 @@ const currentSimpleTurnId =
           </p>
 
           <p className="text-xs font-bold text-slate-500">
-            Para estudiantes con doble jornada
+            Para {personLabelPlural} con doble jornada
           </p>
         </div>
 
@@ -5606,8 +5694,8 @@ const currentSimpleTurnId =
           >
             <Save size={16} />
             {saving
-              ? 'Guardando...'
-              : 'Guardar estudiante'}
+  ? 'Guardando...'
+  : `Guardar ${personLabel}`}
           </button>
 
         </div>
