@@ -1,367 +1,1493 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Calendar as CalendarIcon, CheckSquare, Settings, User, FileText, CheckCircle, 
-  Download, RefreshCw, Plus, Trash2, Users, AlertCircle, LogOut, Briefcase, 
-  Lock, List, Grid, ChevronLeft, ChevronRight, Bell, Check, HelpCircle, Mail, Camera, MapPin, 
-  Send, Key, Filter, LayoutDashboard, Link as LinkIcon, ExternalLink, Zap,
-  AlertTriangle, Clock, Shield, Crown, Activity, Share, PlusSquare, 
-  Smartphone, GraduationCap, Search, X, UploadCloud, PieChart, Eye, Edit3, Trophy,
-  Folder, MessageSquare, Globe, BookOpen, Lightbulb, ChevronDown, PlusCircle, Printer,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify, Phone, CheckCircle2, Clock3, UserCheck,
-  ChevronUp // <--- ESTE ES EL QUE FALTABA
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Plus,
+  Trash2,
+  Users,
+  Search,
+  X,
+  UploadCloud,
+  Edit3,
+  Shield,
+  Link as LinkIcon,
+  Unlink,
+  UserCheck,
+  UserX,
+  Mail,
+  Clock3,
+  AlertCircle
 } from 'lucide-react';
-import { 
-  collection, query, orderBy, onSnapshot, doc, 
-  updateDoc, addDoc, deleteDoc, where, getDocs, 
-  serverTimestamp 
+
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  doc,
+  updateDoc,
+  addDoc,
+  deleteDoc,
+  where,
+  getDocs,
+  serverTimestamp,
+  deleteField
 } from 'firebase/firestore';
+
+
+const ROLE_OPTIONS = [
+  'Docente',
+  'Equipo Directivo',
+  'Equipo Técnico',
+  'Auxiliar/Preceptor',
+  'Inclusión',
+  'Profes Especiales',
+  'Administración',
+  'Médico',
+  'Dirección Inclusión',
+  'Equipo Técnico Inclusión',
+  'DAI',
+  'Cocina',
+  'Limpieza',
+  'Mantenimiento'
+];
+
+const EMPTY_FORM = {
+  firstName: '',
+  lastName: '',
+  username: '',
+  email: '',
+  password: '',
+  role: 'Docente',
+  isAdmin: false,
+  staffId: ''
+};
+
+const cleanText = (value) => String(value || '').trim();
+
+const normalizeName = (value) =>
+  cleanText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const makeUsername = (firstName, lastName) => {
+  const first = normalizeName(firstName).replace(/[^a-z0-9]/g, '');
+  const last = normalizeName(lastName).replace(/[^a-z0-9]/g, '');
+  return first && last ? `${first}.${last}` : first || last;
+};
+
+const getDateMillis = (value) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (value.seconds) return value.seconds * 1000;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatLastLogin = (timestamp) => {
+  const millis = getDateMillis(timestamp);
+  if (!millis) return 'Nunca ingresó';
+
+  return new Date(millis).toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 
 
 export function UsersAdminView({ db, appId }) {
   const [users, setUsers] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+
   const [showModal, setShowModal] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [showRenamer, setShowRenamer] = useState(false);
-  const [editingUser, setEditingUser] = useState(null); 
+  const [showPendingStaff, setShowPendingStaff] = useState(false);
+
+  const [editingUser, setEditingUser] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
   const [csvContent, setCsvContent] = useState('');
   const [processing, setProcessing] = useState(false);
-  
-  // ESTADOS PARA AUDITORÍA
-  const [staffList, setStaffList] = useState([]); // <--- EL QUE FALTABA
-  const [showMissingUsers, setShowMissingUsers] = useState(false);
-  const [missingUsersList, setMissingUsersList] = useState([]); 
-  const [missingLegajosList, setMissingLegajosList] = useState([]);
-  const [manualLinks, setManualLinks] = useState({});
-
-  
+  const [savingLink, setSavingLink] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), orderBy('fullName', 'asc'));
-    const unsub = onSnapshot(q, snap => setUsers(snap.docs.map(d => ({id: d.id, ...d.data()}))));
-    const qStaff = query(collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'), orderBy('lastName', 'asc'));
-    const unsubStaff = onSnapshot(qStaff, snap => setStaffList(snap.docs.map(d => ({id: d.id, ...d.data()}))));
-    return () => unsub();
-  }, []);
+    if (!db || !appId) return undefined;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const data = {
-        firstName: fd.get('firstName'), lastName: fd.get('lastName'), fullName: `${fd.get('firstName')} ${fd.get('lastName')}`,
-        username: fd.get('username').toLowerCase(), password: fd.get('password'), role: fd.get('role'),
-        rol: fd.get('isAdmin') === 'on' ? 'admin' : 'user'
+    const base = `artifacts/${appId}/public/data`;
+
+    const usersQuery = query(
+      collection(db, `${base}/users`),
+      orderBy('fullName', 'asc')
+    );
+
+    const staffQuery = query(
+      collection(db, `${base}/staff_records`),
+      orderBy('lastName', 'asc')
+    );
+
+    const unsubUsers = onSnapshot(
+      usersQuery,
+      snap => {
+        setUsers(
+          snap.docs.map(item => ({
+            id: item.id,
+            ...item.data()
+          }))
+        );
+      },
+      error => {
+        console.error('No se pudieron cargar los usuarios:', error);
+      }
+    );
+
+    const unsubStaff = onSnapshot(
+      staffQuery,
+      snap => {
+        setStaffList(
+          snap.docs.map(item => ({
+            id: item.id,
+            ...item.data()
+          }))
+        );
+      },
+      error => {
+        console.error('No se pudo cargar Personal:', error);
+      }
+    );
+
+    return () => {
+      unsubUsers();
+      unsubStaff();
     };
-    try {
-        if (editingUser) {
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', editingUser.id), data);
-        } else {
-            const qCheck = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('username', '==', data.username));
-            const check = await getDocs(qCheck);
-            if (!check.empty) return alert("El usuario ya existe.");
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), { ...data, createdAt: serverTimestamp() });
+  }, [db, appId]);
+
+  const linkedStaffMap = useMemo(() => {
+    const map = new Map();
+
+    staffList.forEach(staff => {
+      if (staff.userId) {
+        map.set(staff.userId, staff.id);
+      }
+    });
+
+    users.forEach(user => {
+      if (user.legajoId && !map.has(user.id)) {
+        map.set(user.id, user.legajoId);
+      }
+    });
+
+    return map;
+  }, [users, staffList]);
+
+  const staffById = useMemo(
+    () => new Map(staffList.map(staff => [staff.id, staff])),
+    [staffList]
+  );
+
+  const getLinkedStaffId = (user) =>
+    linkedStaffMap.get(user.id) || user.legajoId || '';
+
+  const getLinkedStaff = (user) => {
+    const staffId = getLinkedStaffId(user);
+    return staffById.get(staffId) || null;
+  };
+
+  const pendingStaff = useMemo(() => {
+    return staffList.filter(staff => {
+      const linkedByStaff = Boolean(staff.userId);
+      const linkedByUser = users.some(user => user.legajoId === staff.id);
+      return !linkedByStaff && !linkedByUser;
+    });
+  }, [staffList, users]);
+
+  const linkedUsersCount = useMemo(
+    () => users.filter(user => Boolean(getLinkedStaffId(user))).length,
+    [users, linkedStaffMap]
+  );
+
+  const externalUsersCount = Math.max(users.length - linkedUsersCount, 0);
+
+  const filteredUsers = useMemo(() => {
+    const needle = normalizeName(searchTerm);
+
+    return users
+      .filter(user => {
+        const linkedStaff = getLinkedStaff(user);
+
+        const haystack = [
+          user.firstName,
+          user.lastName,
+          user.fullName,
+          user.username,
+          user.email,
+          user.role,
+          linkedStaff?.firstName,
+          linkedStaff?.lastName,
+          linkedStaff?.dni
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        const matchesSearch =
+          !needle || normalizeName(haystack).includes(needle);
+
+        if (!matchesSearch) return false;
+
+        if (statusFilter === 'linked') {
+          return Boolean(linkedStaff);
         }
-        setShowModal(false); setEditingUser(null);
-    } catch(e) { alert("Error: " + e.message); }
+
+        if (statusFilter === 'external') {
+          return !linkedStaff;
+        }
+
+        if (statusFilter === 'admin') {
+          return user.rol === 'admin';
+        }
+
+        return true;
+      })
+      .sort((a, b) =>
+        `${a.lastName || ''} ${a.firstName || ''}`.localeCompare(
+          `${b.lastName || ''} ${b.firstName || ''}`,
+          'es'
+        )
+      );
+  }, [users, staffById, linkedStaffMap, searchTerm, statusFilter]);
+
+  const availableStaff = useMemo(() => {
+    const currentStaffId = editingUser
+      ? getLinkedStaffId(editingUser)
+      : '';
+
+    return staffList
+      .filter(staff => {
+        if (staff.id === currentStaffId) return true;
+
+        const occupiedByUser = staff.userId;
+        if (!occupiedByUser) {
+          const legacyUser = users.find(user => user.legajoId === staff.id);
+          return !legacyUser;
+        }
+
+        return occupiedByUser === editingUser?.id;
+      })
+      .sort((a, b) =>
+        `${a.lastName || ''} ${a.firstName || ''}`.localeCompare(
+          `${b.lastName || ''} ${b.firstName || ''}`,
+          'es'
+        )
+      );
+  }, [staffList, users, editingUser, linkedStaffMap]);
+
+  const openCreate = () => {
+    setEditingUser(null);
+    setForm(EMPTY_FORM);
+    setShowModal(true);
   };
 
-  // --- 1. DETECTAR QUIÉN FALTA (BIDIRECCIONAL INTELIGENTE) ---
-  const checkMissingData = async () => {
-      setProcessing(true);
-      setManualLinks({}); // Resetear links manuales al auditar
-      try {
-          const legajosSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'));
-          const legajos = legajosSnap.docs.map(d => ({id: d.id, ...d.data()}));
-          
-          const faltanCuentas = [];
-          const faltanLegajos = [];
+  const openEdit = (user) => {
+    const linkedStaff = getLinkedStaff(user);
 
-          const getWords = (str) => {
-              if (!str) return [];
-              return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().match(/\w+/g) || [];
-          };
+    setEditingUser(user);
+    setForm({
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      username: user.username || '',
+      email: user.email || '',
+      password: user.password || '',
+      role: user.role || 'Docente',
+      isAdmin: user.rol === 'admin',
+      staffId: linkedStaff?.id || getLinkedStaffId(user) || ''
+    });
+    setShowModal(true);
+  };
 
-          const isSamePerson = (legajo, userAcc) => {
-              if (legajo.dni && legajo.dni.length > 5 && (userAcc.password === legajo.dni || userAcc.username.includes(legajo.dni))) return true;
-              const l_names = getWords(legajo.firstName);
-              const l_lasts = getWords(legajo.lastName);
-              const u_all = [...getWords(userAcc.firstName), ...getWords(userAcc.lastName)];
-              return l_names.some(name => u_all.includes(name)) && l_lasts.some(last => u_all.includes(last));
-          };
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingUser(null);
+    setForm(EMPTY_FORM);
+  };
 
-          legajos.forEach(legajo => {
-              // Buscar primero si ya hay coincidencia automática
-              const existe = users.find(u => isSamePerson(legajo, u));
-              // Y descartamos también si ya lo vinculó manualmente la escuela antes (revisando si el usuario guardó su DNI)
-              const yaVinculado = users.find(u => u.legajoId === legajo.id);
-              
-              if (!existe && !yaVinculado && legajo.firstName && legajo.lastName) {
-                  faltanCuentas.push(legajo);
-              }
-          });
+  const setField = (field, value) => {
+    setForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
-          users.forEach(u => {
-              if (u.username === 'admin') return; 
-              const existe = legajos.find(legajo => isSamePerson(legajo, u) || u.legajoId === legajo.id);
-              if (!existe && u.firstName && u.lastName) faltanLegajos.push(u);
-          });
+  const linkStaffToUser = async (userId, staffId) => {
+    if (!db || !appId || !userId || !staffId) return;
 
-          if (faltanCuentas.length === 0 && faltanLegajos.length === 0) {
-              alert("✅ ¡Todo en orden! Base de datos 100% sincronizada.");
-          } else {
-              setMissingUsersList(faltanCuentas);
-              setMissingLegajosList(faltanLegajos);
-              setShowMissingUsers(true);
+    const targetStaff = staffById.get(staffId);
+    if (!targetStaff) {
+      throw new Error('No se encontró el registro de Personal.');
+    }
+
+    const alreadyLinkedTo = targetStaff.userId;
+
+    if (alreadyLinkedTo && alreadyLinkedTo !== userId) {
+      throw new Error(
+        'Ese registro de Personal ya está vinculado a otro usuario.'
+      );
+    }
+
+    const userWithSameLegacyLink = users.find(
+      item =>
+        item.id !== userId &&
+        item.legajoId === staffId
+    );
+
+    if (userWithSameLegacyLink) {
+      throw new Error(
+        'Ese registro de Personal ya está vinculado a otro usuario.'
+      );
+    }
+
+    await updateDoc(
+      doc(
+        db,
+        'artifacts',
+        appId,
+        'public',
+        'data',
+        'users',
+        userId
+      ),
+      {
+        legajoId: staffId
+      }
+    );
+
+    await updateDoc(
+      doc(
+        db,
+        'artifacts',
+        appId,
+        'public',
+        'data',
+        'staff_records',
+        staffId
+      ),
+      {
+        userId
+      }
+    );
+  };
+
+  const unlinkStaffFromUser = async (userId) => {
+    const currentStaffId = linkedStaffMap.get(userId);
+
+    if (!currentStaffId || !db || !appId) return;
+
+    await updateDoc(
+      doc(
+        db,
+        'artifacts',
+        appId,
+        'public',
+        'data',
+        'users',
+        userId
+      ),
+      {
+        legajoId: deleteField()
+      }
+    );
+
+    const staff = staffById.get(currentStaffId);
+
+    if (staff?.userId === userId) {
+      await updateDoc(
+        doc(
+          db,
+          'artifacts',
+          appId,
+          'public',
+          'data',
+          'staff_records',
+          currentStaffId
+        ),
+        {
+          userId: deleteField()
+        }
+      );
+    }
+  };
+
+  const handleLinkChange = async (nextStaffId) => {
+    if (!editingUser) {
+      setField('staffId', nextStaffId);
+      return;
+    }
+
+    const currentStaffId = getLinkedStaffId(editingUser);
+
+    if (nextStaffId === currentStaffId) {
+      setField('staffId', nextStaffId);
+      return;
+    }
+
+    setSavingLink(true);
+
+    try {
+      if (currentStaffId) {
+        const currentStaff = staffById.get(currentStaffId);
+
+        await updateDoc(
+          doc(
+            db,
+            'artifacts',
+            appId,
+            'public',
+            'data',
+            'users',
+            editingUser.id
+          ),
+          {
+            legajoId: deleteField()
           }
-      } catch(e) { alert("Error: " + e.message); }
+        );
+
+        if (currentStaff?.userId === editingUser.id) {
+          await updateDoc(
+            doc(
+              db,
+              'artifacts',
+              appId,
+              'public',
+              'data',
+              'staff_records',
+              currentStaffId
+            ),
+            {
+              userId: deleteField()
+            }
+          );
+        }
+      }
+
+      if (nextStaffId) {
+        await linkStaffToUser(editingUser.id, nextStaffId);
+      }
+
+      setEditingUser(prev =>
+        prev
+          ? {
+              ...prev,
+              legajoId: nextStaffId || undefined
+            }
+          : prev
+      );
+
+      setField('staffId', nextStaffId);
+
+      alert(
+        nextStaffId
+          ? 'Usuario y Personal vinculados.'
+          : 'Vínculo con Personal eliminado.'
+      );
+    } catch (error) {
+      console.error(error);
+      alert(`No se pudo actualizar el vínculo: ${error.message}`);
+      setField('staffId', currentStaffId || '');
+    } finally {
+      setSavingLink(false);
+    }
+  };
+
+  const handleSubmit = async event => {
+    event.preventDefault();
+
+    if (!db || !appId) {
+      alert('No se encontró la conexión con Firebase.');
+      return;
+    }
+
+    const firstName = cleanText(form.firstName);
+    const lastName = cleanText(form.lastName);
+    const username = cleanText(form.username || makeUsername(firstName, lastName)).toLowerCase();
+    const email = cleanText(form.email).toLowerCase();
+
+    if (!firstName || !lastName || !username) {
+      alert('Completá nombre, apellido y usuario.');
+      return;
+    }
+
+    if (!editingUser && !cleanText(form.password)) {
+      alert('Para crear un usuario necesitás indicar una contraseña.');
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      const usernameQuery = query(
+        collection(
+          db,
+          'artifacts',
+          appId,
+          'public',
+          'data',
+          'users'
+        ),
+        where('username', '==', username)
+      );
+
+      const usernameSnap = await getDocs(usernameQuery);
+
+      const duplicateUsername = usernameSnap.docs.find(
+        item => item.id !== editingUser?.id
+      );
+
+      if (duplicateUsername) {
+        alert('Ya existe otro usuario con ese nombre de usuario.');
+        return;
+      }
+
+      if (form.staffId) {
+        const targetStaff = staffById.get(form.staffId);
+
+        if (!targetStaff) {
+          alert('El registro de Personal seleccionado ya no existe.');
+          return;
+        }
+
+        const occupiedBy = targetStaff.userId;
+
+        if (
+          occupiedBy &&
+          occupiedBy !== editingUser?.id
+        ) {
+          alert('Ese registro de Personal ya está vinculado a otro usuario.');
+          return;
+        }
+
+        const legacyLinked = users.find(
+          item =>
+            item.id !== editingUser?.id &&
+            item.legajoId === form.staffId
+        );
+
+        if (legacyLinked) {
+          alert('Ese registro de Personal ya está vinculado a otro usuario.');
+          return;
+        }
+      }
+
+      const data = {
+        firstName,
+        lastName,
+        fullName: `${firstName} ${lastName}`.trim(),
+        username,
+        email,
+        role: cleanText(form.role) || 'Docente',
+        rol: form.isAdmin ? 'admin' : 'user',
+        ...(cleanText(form.password)
+          ? { password: cleanText(form.password) }
+          : {})
+      };
+
+      if (editingUser) {
+        await updateDoc(
+          doc(
+            db,
+            'artifacts',
+            appId,
+            'public',
+            'data',
+            'users',
+            editingUser.id
+          ),
+          data
+        );
+
+        const oldStaffId = getLinkedStaffId(editingUser);
+        const newStaffId = form.staffId || '';
+
+        if (oldStaffId !== newStaffId) {
+          if (oldStaffId) {
+            const oldStaff = staffById.get(oldStaffId);
+
+            if (oldStaff?.userId === editingUser.id) {
+              await updateDoc(
+                doc(
+                  db,
+                  'artifacts',
+                  appId,
+                  'public',
+                  'data',
+                  'staff_records',
+                  oldStaffId
+                ),
+                {
+                  userId: deleteField()
+                }
+              );
+            }
+
+            await updateDoc(
+              doc(
+                db,
+                'artifacts',
+                appId,
+                'public',
+                'data',
+                'users',
+                editingUser.id
+              ),
+              {
+                legajoId: deleteField()
+              }
+            );
+          }
+
+          if (newStaffId) {
+            await linkStaffToUser(editingUser.id, newStaffId);
+          }
+        } else if (newStaffId) {
+          await linkStaffToUser(editingUser.id, newStaffId);
+        }
+      } else {
+        const userRef = await addDoc(
+          collection(
+            db,
+            'artifacts',
+            appId,
+            'public',
+            'data',
+            'users'
+          ),
+          {
+            ...data,
+            ...(form.staffId ? { legajoId: form.staffId } : {}),
+            createdAt: serverTimestamp()
+          }
+        );
+
+        if (form.staffId) {
+          await updateDoc(
+            doc(
+              db,
+              'artifacts',
+              appId,
+              'public',
+              'data',
+              'staff_records',
+              form.staffId
+            ),
+            {
+              userId: userRef.id
+            }
+          );
+        }
+      }
+
+      alert(
+        editingUser
+          ? 'Usuario actualizado correctamente.'
+          : 'Usuario creado correctamente.'
+      );
+
+      closeModal();
+    } catch (error) {
+      console.error('Error al guardar usuario:', error);
+      alert(`Error al guardar el usuario: ${error.message}`);
+    } finally {
       setProcessing(false);
+    }
   };
 
-  // --- 2. VINCULACIÓN MANUAL (EL TINDER DE CUENTAS) ---
-  const handleLinkManual = async (legajoId, userId) => {
-      if(!userId) return;
-      if(!confirm("¿Vincular este legajo con el usuario seleccionado?")) return;
-      try {
-          // Guardamos el ID del legajo dentro del usuario para que queden casados para siempre
-          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userId), { legajoId: legajoId });
-          
-          // Lo sacamos de ambas listas de faltantes
-          setMissingUsersList(prev => prev.filter(m => m.id !== legajoId));
-          setMissingLegajosList(prev => prev.filter(m => m.id !== userId));
-          alert("🔗 ¡Cuentas vinculadas exitosamente!");
-      } catch (e) { alert("Error al vincular: " + e.message); }
+  const handleDeleteUser = async user => {
+    if (!db || !appId) return;
+
+    if (user.username === 'admin') {
+      alert('La cuenta admin principal no se puede eliminar desde acá.');
+      return;
+    }
+
+    const linkedStaff = getLinkedStaff(user);
+
+    const message = linkedStaff
+      ? `¿Eliminar el usuario ${user.fullName}? El registro de Personal de ${linkedStaff.lastName}, ${linkedStaff.firstName} se conservará, pero quedará sin usuario.`
+      : `¿Eliminar el usuario ${user.fullName}?`;
+
+    if (!window.confirm(message)) return;
+
+    setProcessing(true);
+
+    try {
+      if (linkedStaff?.userId === user.id) {
+        await updateDoc(
+          doc(
+            db,
+            'artifacts',
+            appId,
+            'public',
+            'data',
+            'staff_records',
+            linkedStaff.id
+          ),
+          {
+            userId: deleteField()
+          }
+        );
+      }
+
+      await deleteDoc(
+        doc(
+          db,
+          'artifacts',
+          appId,
+          'public',
+          'data',
+          'users',
+          user.id
+        )
+      );
+    } catch (error) {
+      console.error(error);
+      alert(`No se pudo eliminar el usuario: ${error.message}`);
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  // --- 3. CREACIÓN INDIVIDUAL (A DEMANDA) ---
-  const handleCreateSingleUser = async (legajo) => {
-      if(!confirm(`¿Crear un usuario NUEVO para ${legajo.firstName} ${legajo.lastName}?`)) return;
-      
-      const cleanName = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, '');
-      const newUsername = `${cleanName(legajo.firstName)}.${cleanName(legajo.lastName)}`;
-      const newPassword = legajo.dni || '123456';
+  const handleQuickUnlink = async user => {
+    if (!window.confirm(`¿Desvincular a ${user.fullName} de Personal?`)) {
+      return;
+    }
 
-      try {
-          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'users'), {
-              firstName: legajo.firstName, lastName: legajo.lastName, fullName: `${legajo.firstName} ${legajo.lastName}`,
-              username: newUsername, password: newPassword, role: legajo.role || 'Docente', rol: 'user', 
-              legajoId: legajo.id, // Queda vinculado desde el nacimiento
-              createdAt: serverTimestamp()
-          });
-          setMissingUsersList(prev => prev.filter(m => m.id !== legajo.id));
-      } catch (e) { alert("Error: " + e.message); }
+    setSavingLink(true);
+
+    try {
+      await unlinkStaffFromUser(user.id);
+      alert('Vínculo eliminado.');
+    } catch (error) {
+      console.error(error);
+      alert(`No se pudo desvincular: ${error.message}`);
+    } finally {
+      setSavingLink(false);
+    }
   };
 
-  const handleCreateSingleLegajo = async (userAcc) => {
-      if(!confirm(`¿Crear legajo oficial en blanco para el usuario ${userAcc.firstName} ${userAcc.lastName}?`)) return;
-      try {
-          const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'), {
-              firstName: userAcc.firstName, lastName: userAcc.lastName, 
-              dni: userAcc.password !== '123456' ? userAcc.password : '', 
-              role: userAcc.role || 'Docente', modality: 'Sede', isSubsidized: 'false', createdAt: serverTimestamp()
-          });
-          // Lo vinculamos
-          await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userAcc.id), { legajoId: docRef.id });
-          setMissingLegajosList(prev => prev.filter(m => m.id !== userAcc.id));
-      } catch (e) { alert("Error: " + e.message); }
+  const processBulkImport = async () => {
+    if (!db || !appId) return;
+
+    const rows = csvContent
+      .split(/\r?\n/)
+      .map(row => row.trim())
+      .filter(Boolean);
+
+    if (!rows.length) {
+      alert('Pegá al menos una fila de usuarios.');
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      let created = 0;
+      let skipped = 0;
+
+      for (const row of rows) {
+        const separator = row.includes(';') ? ';' : ',';
+        const columns = row
+          .split(separator)
+          .map(value => value.trim());
+
+        if (
+          columns.length < 5 ||
+          normalizeName(columns[0]) === 'nombre'
+        ) {
+          skipped += 1;
+          continue;
+        }
+
+        const [
+          firstName,
+          lastName,
+          username,
+          password,
+          role,
+          email
+        ] = columns;
+
+        const finalUsername =
+          cleanText(username) ||
+          makeUsername(firstName, lastName);
+
+        const duplicateQuery = query(
+          collection(
+            db,
+            'artifacts',
+            appId,
+            'public',
+            'data',
+            'users'
+          ),
+          where('username', '==', finalUsername.toLowerCase())
+        );
+
+        const duplicateSnap = await getDocs(duplicateQuery);
+
+        if (!duplicateSnap.empty) {
+          skipped += 1;
+          continue;
+        }
+
+        await addDoc(
+          collection(
+            db,
+            'artifacts',
+            appId,
+            'public',
+            'data',
+            'users'
+          ),
+          {
+            firstName: cleanText(firstName),
+            lastName: cleanText(lastName),
+            fullName: `${cleanText(firstName)} ${cleanText(lastName)}`.trim(),
+            username: finalUsername.toLowerCase(),
+            password: cleanText(password),
+            email: cleanText(email).toLowerCase(),
+            role: cleanText(role) || 'Docente',
+            rol: 'user',
+            createdAt: serverTimestamp()
+          }
+        );
+
+        created += 1;
+      }
+
+      alert(
+        `Importación finalizada.\n\nCreados: ${created}\nOmitidos por duplicado o formato: ${skipped}`
+      );
+
+      setCsvContent('');
+      setShowImport(false);
+    } catch (error) {
+      console.error(error);
+      alert(`Error durante la importación: ${error.message}`);
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  const deleteUser = async (id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', id)); };
-  const openEdit = (u) => { setEditingUser(u); setShowModal(true); };
-  const analizarConflictos = () => alert("Función Detective: Próximamente buscará duplicados.");
-  const filteredUsers = users.filter(u => (u.fullName||'').toLowerCase().includes(searchTerm.toLowerCase()));
-  const formatLastLogin = (timestamp) => { if (!timestamp) return 'Nunca'; const date = new Date(timestamp.seconds * 1000); return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); };
+  if (!db || !appId) {
+    return (
+      <div className="p-10 text-center text-slate-400 font-bold">
+        No se pudo conectar con la base de datos.
+      </div>
+    );
+  }
 
   return (
-   <div className="flex flex-col h-full bg-slate-50 p-4 rounded-3xl overflow-hidden animate-in fade-in">
-    <div className="flex flex-col gap-3 mb-4 shrink-0">
-        <div className="flex justify-between items-center">
-            <h3 className="text-violet-900 font-black text-lg uppercase tracking-tighter italic">Gestión de Personal</h3>
-            <div className="flex gap-2">
-               {/* BOTÓN AUDITOR */}
-               <button onClick={checkMissingData} disabled={processing} className="p-2 bg-blue-500 text-white rounded-xl shadow hover:bg-blue-600 transition flex items-center justify-center" title="Sincronizar Legajos y Usuarios">
-                   {processing ? <RefreshCw className="animate-spin" size={20}/> : <Users size={20}/>}
-               </button>
-               <button onClick={()=>setShowImport(true)} className="p-2 bg-emerald-500 text-white rounded-xl shadow hover:bg-emerald-600 transition" title="Carga Masiva"><UploadCloud size={20}/></button>
-               <button onClick={()=>{setEditingUser(null); setShowModal(true);}} className="p-2 bg-orange-500 text-white rounded-xl shadow hover:bg-orange-600 transition" title="Nuevo Usuario"><Plus size={20}/></button>
-            </div>
-        </div>
-        <div className="bg-white p-3 rounded-xl flex items-center gap-2 border border-violet-100 shadow-sm"><Search className="text-gray-400 ml-1" size={18} /><input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar por nombre..." className="bg-transparent border-none outline-none text-gray-700 text-sm w-full font-bold" /></div>
-        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar"><button onClick={analizarConflictos} className="whitespace-nowrap px-4 py-2 bg-violet-100 text-violet-700 rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-violet-200 transition">🕵️ Detective</button><button onClick={()=>setShowRenamer(true)} className="whitespace-nowrap px-4 py-2 bg-blue-100 text-blue-700 rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-blue-200 transition">🔄 Reemplazar</button></div>
-    </div>
+    <div className="flex flex-col h-full bg-slate-50 p-4 md:p-6 rounded-3xl overflow-hidden animate-in fade-in">
 
-    <div className="flex-1 overflow-y-auto space-y-2 pb-10">
-      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{filteredUsers.length} Usuarios Encontrados</h3>
-    {/* BUSCA ESTE BLOQUE EN UsersAdminView Y REEMPLAZALO */}
-{filteredUsers.map(u => (
-  <div key={u.id} className="bg-white p-3 rounded-xl flex items-center justify-between group shadow-sm border border-gray-100">
-    <div className="flex items-center gap-3 overflow-hidden">
-      <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center font-black text-sm shrink-0 relative">
-          {u.firstName?.[0]}
-          {u.rol === 'admin' && <div className="absolute -top-1 -right-1 bg-orange-500 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center"><Shield size={8} className="text-white"/></div>}
-      </div>
-      <div className="min-w-0">
-          <p className="font-bold text-sm text-gray-800 truncate">{u.fullName}</p>
-          <div className="flex flex-wrap gap-2 items-center mt-0.5">
-              <span className="text-[9px] text-white bg-violet-400 px-1.5 py-0.5 rounded font-bold uppercase">{u.role}</span>
-              {/* ESTO ES LO NUEVO: MUESTRA EL ID PARA COPIAR */}
-              <span className="text-[8px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono border border-blue-100 select-all" title="Hacé triple clic para copiar el ID">
-                ID: {u.id}
-              </span>
+      <div className="shrink-0 space-y-4 mb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl md:text-2xl font-black text-violet-900 uppercase tracking-tight">
+              Gestión de Usuarios
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Administrá las cuentas que pueden ingresar a CENTRA y su vínculo con Personal.
+            </p>
           </div>
-          <p className="text-[9px] font-bold text-gray-400 mt-1 italic">
-            User: <span className="text-slate-600">{u.username}</span> | Legajo: {u.legajoId ? <span className="text-green-600">✅ VINCULADO</span> : <span className="text-red-400">❌ NO VINCULADO</span>}
+
+          <div className="flex items-center gap-2">
+            {pendingStaff.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowPendingStaff(true)}
+                className="px-3 py-2 rounded-xl bg-amber-100 text-amber-800 border border-amber-200 text-xs font-black flex items-center gap-2 hover:bg-amber-200 transition"
+              >
+                <UserX size={16} />
+                {pendingStaff.length} sin usuario
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowImport(true)}
+              className="p-2.5 bg-emerald-500 text-white rounded-xl shadow-sm hover:bg-emerald-600 transition"
+              title="Importar usuarios"
+            >
+              <UploadCloud size={19} />
+            </button>
+
+            <button
+              type="button"
+              onClick={openCreate}
+              className="p-2.5 bg-violet-600 text-white rounded-xl shadow-sm hover:bg-violet-700 transition"
+              title="Nuevo usuario"
+            >
+              <Plus size={19} />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="bg-white rounded-2xl border border-slate-200 p-3">
+            <p className="text-[9px] uppercase font-black text-slate-400">Usuarios</p>
+            <p className="text-xl font-black text-slate-800 mt-1">{users.length}</p>
+          </div>
+
+          <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-3">
+            <p className="text-[9px] uppercase font-black text-emerald-600">Vinculados a Personal</p>
+            <p className="text-xl font-black text-emerald-800 mt-1">{linkedUsersCount}</p>
+          </div>
+
+          <div className="bg-blue-50 rounded-2xl border border-blue-100 p-3">
+            <p className="text-[9px] uppercase font-black text-blue-600">Usuarios externos</p>
+            <p className="text-xl font-black text-blue-800 mt-1">{externalUsersCount}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => pendingStaff.length > 0 && setShowPendingStaff(true)}
+            className={`text-left rounded-2xl border p-3 transition ${
+              pendingStaff.length
+                ? 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+                : 'bg-slate-100 border-slate-200'
+            }`}
+          >
+            <p className="text-[9px] uppercase font-black text-slate-500">Personal sin usuario</p>
+            <p className="text-xl font-black text-slate-800 mt-1">{pendingStaff.length}</p>
+          </button>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-2">
+          <div className="bg-white p-3 rounded-2xl flex items-center gap-2 border border-violet-100 shadow-sm flex-1">
+            <Search className="text-slate-400 ml-1" size={18} />
+            <input
+              value={searchTerm}
+              onChange={event => setSearchTerm(event.target.value)}
+              placeholder="Buscar por nombre, usuario, mail o Personal..."
+              className="bg-transparent border-none outline-none text-slate-700 text-sm w-full font-semibold"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-1 bg-white border border-slate-200 rounded-2xl p-1">
+            {[
+              ['all', 'Todos'],
+              ['linked', 'Con Personal'],
+              ['external', 'Externos'],
+              ['admin', 'Admins']
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStatusFilter(value)}
+                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition ${
+                  statusFilter === value
+                    ? 'bg-violet-600 text-white'
+                    : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-2 pb-10">
+        <div className="flex items-center justify-between px-1 mb-2">
+          <p className="text-[10px] uppercase tracking-widest font-black text-slate-400">
+            {filteredUsers.length} {filteredUsers.length === 1 ? 'usuario' : 'usuarios'}
           </p>
-      </div>
-    </div>
-    <div className="flex gap-2 shrink-0">
-        <button onClick={() => openEdit(u)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Edit3 size={16}/></button>
-        {u.username !== 'admin' && <button onClick={() => deleteUser(u.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={16}/></button>}
-    </div>
-  </div>
-))}
-    </div>
+          <p className="text-[10px] text-slate-400">
+            {linkedUsersCount} vinculados · {externalUsersCount} externos
+          </p>
+        </div>
 
-    {/* MODAL AUDITORÍA BIDIRECCIONAL A DEMANDA */}
-    {showMissingUsers && (
-        <div className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-[40px] w-full max-w-4xl p-6 md:p-8 shadow-2xl flex flex-col max-h-[90vh] border-t-8 border-blue-500">
-                <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                    <div>
-                        <h3 className="text-2xl font-black text-blue-600 uppercase italic flex items-center gap-2"><RefreshCw size={28}/> Auditoría de Personal</h3>
-                        <p className="text-xs text-gray-500 font-bold mt-1">Vinculá cuentas existentes o creá las que faltan.</p>
+        {filteredUsers.length === 0 ? (
+          <div className="bg-white border border-dashed border-slate-300 rounded-3xl p-10 text-center">
+            <Users className="mx-auto text-slate-300" size={34} />
+            <p className="text-sm font-black text-slate-500 mt-3">
+              No encontramos usuarios con esos criterios.
+            </p>
+          </div>
+        ) : (
+          filteredUsers.map(user => {
+            const linkedStaff = getLinkedStaff(user);
+            const isAdmin = user.rol === 'admin';
+
+            return (
+              <div
+                key={user.id}
+                className="bg-white p-3 md:p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center font-black shrink-0 relative overflow-hidden">
+                      {user.photoUrl ? (
+                        <img
+                          src={user.photoUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        (user.firstName?.[0] || user.lastName?.[0] || 'U').toUpperCase()
+                      )}
+
+                      {isAdmin && (
+                        <div className="absolute top-0 right-0 w-4 h-4 bg-orange-500 rounded-bl-lg flex items-center justify-center">
+                          <Shield size={9} className="text-white" />
+                        </div>
+                      )}
                     </div>
-                    <button onClick={() => setShowMissingUsers(false)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200"><X size={20}/></button>
-                </div>
 
-                <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6 pr-2 mb-6">
-                  {/* COLUMNA 1: TIENEN LEGAJO, NO SABEMOS SU CUENTA */}
-                    <div>
-                        <h4 className="font-black text-orange-600 uppercase text-xs tracking-widest mb-3 flex items-center gap-1"><FileText size={16}/> Legajos sin Usuario App ({missingUsersList.length})</h4>
-                        {missingUsersList.length === 0 ? <p className="text-xs text-gray-400 italic">Todos tienen cuenta asignada.</p> : (
-                            <div className="space-y-3">
-                                {missingUsersList.map((m, i) => (
-                                    <div key={i} className="bg-orange-50 p-4 rounded-2xl border border-orange-200 flex flex-col gap-3">
-                                        <div>
-                                            <p className="font-bold text-sm text-gray-800 leading-tight">{m.lastName}, {m.firstName}</p>
-                                            <p className="text-[10px] text-orange-600 font-bold uppercase mt-0.5">{m.role || 'Docente'}</p>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <div className="flex-1 flex gap-1">
-                                                <select 
-                                                    onChange={(e) => setManualLinks({...manualLinks, [m.id]: e.target.value})} 
-                                                    className="w-full text-[10px] p-2 rounded-lg border border-orange-300 outline-none bg-white font-bold text-gray-600"
-                                                >
-                                                    <option value="">¿Ya tiene cuenta?</option>
-                                                    {missingLegajosList.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}
-                                                </select>
-                                                {manualLinks[m.id] && (
-                                                    <button onClick={() => handleLinkManual(m.id, manualLinks[m.id])} className="bg-orange-500 text-white px-2 rounded-lg font-bold">OK</button>
-                                                )}
-                                            </div>
-                                            <button onClick={() => handleCreateSingleUser(m)} className="bg-white border-2 border-orange-300 text-orange-700 px-3 py-2 rounded-lg font-black text-[10px] uppercase shadow-sm hover:bg-orange-100 transition whitespace-nowrap">
-                                                Crear Nueva
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-black text-sm md:text-base text-slate-800 truncate">
+                          {user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Sin nombre'}
+                        </p>
+
+                        {isAdmin && (
+                          <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[8px] font-black uppercase">
+                            Administrador
+                          </span>
                         )}
-                    </div>
+                      </div>
 
-                    {/* COLUMNA 2: TIENEN CUENTA APP, PERO NO TIENEN EL LEGAJO VINCULADO */}
-                    <div>
-                        <h4 className="font-black text-violet-600 uppercase text-xs tracking-widest mb-3 flex items-center gap-1">
-                            <Smartphone size={16}/> Usuarios por Vincular ({missingLegajosList.length})
-                        </h4>
-                        {missingLegajosList.length === 0 ? (
-                            <p className="text-xs text-gray-400 italic">Todos los usuarios tienen su legajo conectado.</p>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        <span className="px-2 py-1 rounded-lg bg-violet-50 text-violet-700 text-[9px] font-black uppercase">
+                          {user.role || 'Usuario'}
+                        </span>
+
+                        {linkedStaff ? (
+                          <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[9px] font-black flex items-center gap-1">
+                            <UserCheck size={11} />
+                            Personal: {linkedStaff.lastName}, {linkedStaff.firstName}
+                          </span>
                         ) : (
-                            <div className="space-y-3">
-                                {missingLegajosList.map((u, i) => (
-                                    <div key={i} className="bg-violet-50 p-4 rounded-2xl border border-violet-200 flex flex-col gap-3">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="font-bold text-sm text-gray-800 leading-tight">{u.fullName}</p>
-                                                <p className="text-[10px] text-violet-600 font-bold uppercase mt-0.5">{u.role || 'Usuario'}</p>
-                                            </div>
-                                            <span className="text-[8px] bg-white px-2 py-1 rounded border border-violet-200 font-mono">ID: {u.id.substring(0,6)}...</span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <div className="flex-1 flex gap-1">
-                                                <select 
-                                                    onChange={(e) => setManualLinks({...manualLinks, [u.id]: e.target.value})}
-                                                    className="w-full text-[10px] p-2 rounded-lg border border-violet-300 outline-none bg-white font-bold text-gray-600"
-                                                >
-                                                    <option value="">Vincular a Legajo...</option>
-                                                    {staffList.map(staff => (
-                                                        <option key={staff.id} value={staff.id}>{staff.lastName}, {staff.firstName} ({staff.dni || 'S/D'})</option>
-                                                    ))}
-                                                </select>
-                                                {manualLinks[u.id] && (
-                                                    <button 
-                                                        onClick={async () => {
-                                                            if(confirm("¿Vincular?")) {
-                                                                try {
-                                                                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', u.id), { legajoId: manualLinks[u.id] });
-                                                                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'staff_records', manualLinks[u.id]), { userId: u.id });
-                                                                    alert("🔗 Vinculado");
-                                                                    checkMissingData(); 
-                                                                } catch(e) { alert(e.message); }
-                                                            }
-                                                        }}
-                                                        className="bg-violet-600 text-white px-3 rounded-lg font-black text-[10px]"
-                                                    >UNIR</button>
-                                                )}
-                                            </div>
-                                            <button onClick={() => handleCreateSingleLegajo(u)} className="bg-white border border-violet-300 text-violet-700 px-2 py-2 rounded-lg font-black text-[9px] uppercase hover:bg-violet-100 transition">NUEVO LEGAJO</button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                          <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-[9px] font-black">
+                            Usuario sin Personal
+                          </span>
                         )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[9px] text-slate-400 font-semibold">
+                        <span>Usuario: <strong className="text-slate-600">{user.username || '-'}</strong></span>
+
+                        {user.email && (
+                          <span className="flex items-center gap-1">
+                            <Mail size={10} />
+                            {user.email}
+                          </span>
+                        )}
+
+                        <span className="flex items-center gap-1">
+                          <Clock3 size={10} />
+                          {formatLastLogin(user.lastLogin)}
+                        </span>
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="flex gap-1.5 shrink-0">
+                    {linkedStaff && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickUnlink(user)}
+                        disabled={savingLink}
+                        className="p-2 bg-amber-50 text-amber-700 rounded-xl hover:bg-amber-100 transition"
+                        title="Desvincular de Personal"
+                      >
+                        <Unlink size={16} />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => openEdit(user)}
+                      className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition"
+                      title="Editar usuario"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+
+                    {user.username !== 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(user)}
+                        disabled={processing}
+                        className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition"
+                        title="Eliminar usuario"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-            </div>
-        </div>
-    )}
-
-    {showModal && (
-      <div className="fixed inset-0 bg-black/80 z-[300] flex items-center justify-center p-4">
-        <form onSubmit={handleSubmit} className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
-            <h3 className="font-bold text-violet-900 text-xl">{editingUser ? 'Editar' : 'Nuevo'} Usuario</h3>
-            <div className="grid grid-cols-2 gap-2">
-                <input name="firstName" defaultValue={editingUser?.firstName} placeholder="Nombre" className="p-3 bg-gray-50 rounded-xl text-sm border outline-none" required/>
-                <input name="lastName" defaultValue={editingUser?.lastName} placeholder="Apellido" className="p-3 bg-gray-50 rounded-xl text-sm border outline-none" required/>
-            </div>
-            <input name="username" defaultValue={editingUser?.username} placeholder="Usuario" className="w-full p-3 bg-gray-50 rounded-xl text-sm border outline-none" required/>
-            <input name="password" defaultValue={editingUser?.password} placeholder="Contraseña" className="w-full p-3 bg-gray-50 rounded-xl text-sm border outline-none" required/>
-            <select name="role" defaultValue={editingUser?.role || 'Docente'} className="w-full p-3 bg-gray-50 rounded-xl text-sm border outline-none font-bold text-gray-600">
-                {['Docente', 'Equipo Directivo', 'Equipo Técnico', 'Auxiliar/Preceptor', 'Inclusión', 'Profes Especiales', 'Administración', 'Médico', 'Dirección Inclusión', 'Equipo Técnico Inclusión', 'DAI'].map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                <input type="checkbox" name="isAdmin" defaultChecked={editingUser?.rol === 'admin'} className="w-5 h-5 accent-violet-600"/>
-                <div><span className="text-sm font-bold text-gray-700 block">Permisos Administrador</span></div>
-            </div>
-            <div className="flex gap-2 pt-2">
-                <button type="button" onClick={()=>setShowModal(false)} className="flex-1 py-3 text-gray-400 text-xs font-bold uppercase">Cancelar</button>
-                <button type="submit" className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold text-xs uppercase shadow-lg">Guardar</button>
-            </div>
-        </form>
+              </div>
+            );
+          })
+        )}
       </div>
-    )}
 
-    {showImport && (
-      <div className="fixed inset-0 bg-black/80 z-[300] flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <h3 className="font-bold text-emerald-600 text-xl">Importación Masiva</h3>
-            <textarea value={csvContent} onChange={e=>setCsvContent(e.target.value)} className="w-full h-40 p-3 border rounded-xl text-xs font-mono" placeholder="Juan,Perez,jperez,1234,Docente"/>
-            <div className="flex gap-2">
-                <button onClick={()=>setShowImport(false)} className="flex-1 py-3 text-gray-500 font-bold text-xs uppercase">Cancelar</button>
-                <button onClick={processBulkImport} disabled={processing} className="flex-1 py-3 bg-emerald-500 text-white font-bold text-xs uppercase rounded-xl shadow-lg">Procesar</button>
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 z-[300] flex items-center justify-center p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden"
+          >
+            <div className="bg-violet-700 text-white p-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tight">
+                  {editingUser ? 'Editar usuario' : 'Nuevo usuario'}
+                </h3>
+                <p className="text-[10px] font-semibold text-white/70 mt-1">
+                  La cuenta puede existir con o sin Personal asociado.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeModal}
+                className="bg-white/15 p-2 rounded-full hover:bg-white/25 transition"
+              >
+                <X size={18} />
+              </button>
             </div>
+
+            <div className="p-5 space-y-4 max-h-[78vh] overflow-y-auto">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-400">
+                    Nombre
+                  </label>
+                  <input
+                    value={form.firstName}
+                    onChange={event => setField('firstName', event.target.value)}
+                    className="mt-1 w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-violet-200 font-semibold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-400">
+                    Apellido
+                  </label>
+                  <input
+                    value={form.lastName}
+                    onChange={event => setField('lastName', event.target.value)}
+                    className="mt-1 w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-violet-200 font-semibold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-400">
+                    Usuario
+                  </label>
+                  <input
+                    value={form.username}
+                    onChange={event => setField('username', event.target.value)}
+                    placeholder={makeUsername(form.firstName, form.lastName) || 'nombre.apellido'}
+                    className="mt-1 w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-violet-200 font-semibold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-400">
+                    Correo
+                  </label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={event => setField('email', event.target.value)}
+                    placeholder="correo@institucion.com"
+                    className="mt-1 w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-violet-200 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-400">
+                  Contraseña
+                </label>
+                <input
+                  type="text"
+                  value={form.password}
+                  onChange={event => setField('password', event.target.value)}
+                  placeholder={editingUser ? 'Dejar vacío para conservar la actual' : 'Contraseña'}
+                  className="mt-1 w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 ring-violet-200 font-semibold"
+                  required={!editingUser}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-400">
+                  Rol de acceso
+                </label>
+
+                <select
+                  value={form.role}
+                  onChange={event => setField('role', event.target.value)}
+                  className="mt-1 w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-700"
+                >
+                  {ROLE_OPTIONS.map(role => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-emerald-600 shrink-0">
+                    <LinkIcon size={17} />
+                  </div>
+
+                  <div className="flex-1">
+                    <p className="text-[11px] uppercase font-black text-emerald-800">
+                      Vincular con Personal
+                    </p>
+                    <p className="text-xs text-emerald-700 mt-1">
+                      No es obligatorio para una cuenta. Si la persona pertenece al Personal institucional, elegí su registro acá.
+                    </p>
+
+                    <select
+                      value={form.staffId}
+                      onChange={event => handleLinkChange(event.target.value)}
+                      disabled={savingLink}
+                      className="mt-3 w-full p-3 rounded-xl bg-white border border-emerald-200 outline-none font-semibold text-slate-700"
+                    >
+                      <option value="">Sin Personal asociado</option>
+
+                      {availableStaff.map(staff => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.lastName}, {staff.firstName}
+                          {staff.dni ? ` · DNI ${staff.dni}` : ''}
+                          {staff.cargo1_role ? ` · ${staff.cargo1_role}` : ''}
+                        </option>
+                      ))}
+                    </select>
+
+                    {editingUser && form.staffId && (
+                      <div className="mt-2 text-[10px] font-bold text-emerald-700 flex items-center gap-1">
+                        <UserCheck size={12} />
+                        Cuenta y Personal quedarán vinculados en ambos registros.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-3 p-4 rounded-2xl bg-orange-50 border border-orange-100 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.isAdmin}
+                  onChange={event => setField('isAdmin', event.target.checked)}
+                  className="w-5 h-5 accent-orange-500"
+                />
+                <div>
+                  <p className="text-sm font-black text-orange-800">
+                    Permisos de administrador
+                  </p>
+                  <p className="text-[10px] text-orange-700 mt-0.5">
+                    Permite acceder a funciones administrativas según la configuración de CENTRA.
+                  </p>
+                </div>
+              </label>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="flex-1 py-3 rounded-xl text-slate-500 font-black uppercase text-xs hover:bg-slate-50 transition"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={processing || savingLink}
+                  className="flex-[2] py-3 rounded-xl bg-violet-600 text-white font-black uppercase text-xs shadow-lg hover:bg-violet-700 transition disabled:opacity-60"
+                >
+                  {processing ? 'Guardando...' : 'Guardar usuario'}
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
-      </div>
-    )}
-  </div>
+      )}
+
+      {showImport && (
+        <div className="fixed inset-0 bg-black/70 z-[300] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden">
+            <div className="bg-emerald-600 text-white p-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-black uppercase">
+                  Importar usuarios
+                </h3>
+                <p className="text-[10px] text-white/75 mt-1">
+                  Esta importación crea cuentas, pero no las vincula automáticamente con Personal.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowImport(false)}
+                className="bg-white/15 p-2 rounded-full hover:bg-white/25 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                <p className="text-[10px] uppercase font-black text-slate-500">
+                  Formato
+                </p>
+                <p className="text-xs text-slate-600 mt-1">
+                  Nombre, Apellido, Usuario, Contraseña, Rol, Correo
+                </p>
+              </div>
+
+              <textarea
+                value={csvContent}
+                onChange={event => setCsvContent(event.target.value)}
+                className="w-full h-48 p-4 border border-slate-200 rounded-2xl text-xs font-mono outline-none focus:ring-2 ring-emerald-200"
+                placeholder={`Lucía,Snieg,lucia.snieg,123456,Equipo Directivo,lucia@institucion.com\nMaría,Pérez,maria.perez,123456,Docente,maria@institucion.com`}
+              />
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowImport(false)}
+                  className="flex-1 py-3 text-slate-500 font-black uppercase text-xs"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={processBulkImport}
+                  disabled={processing}
+                  className="flex-[2] py-3 bg-emerald-600 text-white rounded-xl font-black uppercase text-xs disabled:opacity-60"
+                >
+                  {processing ? 'Importando...' : 'Procesar importación'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPendingStaff && (
+        <div className="fixed inset-0 bg-black/70 z-[300] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden">
+            <div className="bg-amber-500 text-white p-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-black uppercase">
+                  Personal sin usuario
+                </h3>
+                <p className="text-[10px] text-white/80 mt-1">
+                  Toda persona registrada en Personal debería tener una cuenta de acceso.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPendingStaff(false)}
+                className="bg-white/15 p-2 rounded-full hover:bg-white/25 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 max-h-[70vh] overflow-y-auto space-y-2">
+              {pendingStaff.length === 0 ? (
+                <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-6 text-center">
+                  <UserCheck className="mx-auto text-emerald-600" size={34} />
+                  <p className="font-black text-emerald-800 mt-3">
+                    Todo el Personal tiene usuario.
+                  </p>
+                </div>
+              ) : (
+                pendingStaff.map(staff => (
+                  <div
+                    key={staff.id}
+                    className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div>
+                      <p className="font-black text-slate-800">
+                        {staff.lastName}, {staff.firstName}
+                      </p>
+
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {staff.dni && (
+                          <span className="text-[9px] bg-white border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-500">
+                            DNI {staff.dni}
+                          </span>
+                        )}
+
+                        {(staff.cargo1_role || staff.role) && (
+                          <span className="text-[9px] bg-violet-50 border border-violet-100 rounded-lg px-2 py-1 font-bold text-violet-700">
+                            {staff.cargo1_role || staff.role}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPendingStaff(false);
+                        setEditingUser(null);
+                        setForm({
+                          ...EMPTY_FORM,
+                          firstName: staff.firstName || '',
+                          lastName: staff.lastName || '',
+                          username: makeUsername(staff.firstName, staff.lastName),
+                          email: staff.email || '',
+                          role: staff.cargo1_role || staff.role || 'Docente',
+                          staffId: staff.id
+                        });
+                        setShowModal(true);
+                      }}
+                      className="px-4 py-2.5 bg-violet-600 text-white rounded-xl font-black text-xs uppercase"
+                    >
+                      Crear usuario
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(processing || savingLink) && (
+        <div className="fixed bottom-20 right-4 z-[500] bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl text-xs font-black flex items-center gap-2">
+          <AlertCircle size={15} />
+          Guardando cambios...
+        </div>
+      )}
+    </div>
   );
 }
