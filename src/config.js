@@ -9,7 +9,7 @@ export const DEFAULT_APP_CONFIG = {
   appName: 'Gestión Institucional',
 
   institutionType: 'Otro',
-institutionMode: 'school',
+  institutionMode: 'school',
   institutionDescription: '',
 
   logoUrl: '/icon-192.png',
@@ -34,26 +34,25 @@ institutionMode: 'school',
   // DOCUMENTOS
   // =========================================================
 
-  
-   document: {
-  header: '',
-  footer: '',
-  signatureName: '',
-  signatureRole: '',
-  showLogo: true,
+  document: {
+    header: '',
+    footer: '',
+    signatureName: '',
+    signatureRole: '',
+    showLogo: true,
 
-  studentFileActions: {
-    edit: true,
-    bitacora: true,
-    print: true,
-    toggleActive: true
+    studentFileActions: {
+      edit: true,
+      bitacora: true,
+      print: true,
+      toggleActive: true
+    },
+
+    bitacoraActions: {
+      add: true,
+      print: true
+    }
   },
-
-  bitacoraActions: {
-    add: true,
-    print: true
-  }
-},
 
   // =========================================================
   // NOMBRES / NOMENCLATURAS
@@ -115,11 +114,13 @@ institutionMode: 'school',
     'Vespertino',
     'Doble'
   ],
-scheduleTypes: [
-  'Jornada simple',
-  'Jornada completa',
-  'Doble jornada'
-],
+
+  scheduleTypes: [
+    'Jornada simple',
+    'Jornada completa',
+    'Doble jornada'
+  ],
+
   modalities: [
     'Sede',
     'Inclusión'
@@ -169,6 +170,14 @@ scheduleTypes: [
     }
   },
 
+  // =========================================================
+  // ROLES DE LA INSTITUCIÓN
+  // =========================================================
+  // Esta lista sigue siendo la lista oficial de roles.
+  // Cada institución podrá modificarla desde Configuración.
+  // No se limita a escuelas: también se usará en centros de día,
+  // consultorios y demás instituciones.
+
   roles: [
     'Docente',
     'Equipo Directivo',
@@ -189,6 +198,36 @@ scheduleTypes: [
   sections: [],
   areas: [],
   teams: [],
+
+  // =========================================================
+  // CONFIGURACIÓN DEL PERSONAL
+  // =========================================================
+  // Estas opciones indican qué información laboral corresponde
+  // mostrar según el modo de funcionamiento de la institución.
+  //
+  // Los roles NO se duplican acá: se administran desde config.roles.
+
+  staffSettings: {
+    showSchoolFields: true,
+    showModality: true,
+    showSchoolCargoFields: true,
+    showWorkDays: false,
+    showWeeklyHours: false,
+    showStartDate: true,
+    calculateSeniority: true
+  },
+
+  // Días disponibles para registrar los días de trabajo/asistencia
+  // del personal de centros de día, consultorios u otras instituciones.
+  staffWeekdays: [
+    'Lunes',
+    'Martes',
+    'Miércoles',
+    'Jueves',
+    'Viernes',
+    'Sábado',
+    'Domingo'
+  ],
 
   // =========================================================
   // MÓDULOS / FUNCIONALIDADES
@@ -391,6 +430,8 @@ export const INSTITUTION_TYPES = [
   'Organización social',
   'Otro'
 ];
+
+
 // ============================================================
 // MODO DE FUNCIONAMIENTO DE CENTRA
 // ============================================================
@@ -401,47 +442,150 @@ export const INSTITUTION_MODES = {
   CLINIC: 'clinic'
 };
 
+
+// ============================================================
+// CONFIGURACIÓN DEL PERSONAL SEGÚN EL MODO INSTITUCIONAL
+// ============================================================
+
+export const STAFF_MODE_DEFAULTS = {
+
+  [INSTITUTION_MODES.SCHOOL]: {
+    // Escuela: conserva la lógica laboral escolar actual.
+    showSchoolFields: true,
+    showModality: true,
+    showSchoolCargoFields: true,
+    showWorkDays: false,
+    showWeeklyHours: false,
+    showStartDate: true,
+    calculateSeniority: true
+  },
+
+  [INSTITUTION_MODES.DAY_CENTER]: {
+    // Centro de día: no usa Sede / Inclusión ni cargos escolares.
+    // Registra rol, días de trabajo, horas semanales y antigüedad.
+    showSchoolFields: false,
+    showModality: false,
+    showSchoolCargoFields: false,
+    showWorkDays: true,
+    showWeeklyHours: true,
+    showStartDate: true,
+    calculateSeniority: true
+  },
+
+  [INSTITUTION_MODES.CLINIC]: {
+    // Consultorio / centro terapéutico: misma lógica no escolar.
+    showSchoolFields: false,
+    showModality: false,
+    showSchoolCargoFields: false,
+    showWorkDays: true,
+    showWeeklyHours: true,
+    showStartDate: true,
+    calculateSeniority: true
+  }
+};
+
+
+// ============================================================
+// DÍAS DE LA SEMANA PARA PERSONAL
+// ============================================================
+
+export const STAFF_WEEKDAYS = [
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+  'Domingo'
+];
+
+
+// ============================================================
+// OBTENER CONFIGURACIÓN DEL PERSONAL SEGÚN EL MODO
+// ============================================================
+
+export function getStaffModeConfig(config = {}) {
+
+  const mode =
+    config?.institutionMode ||
+    INSTITUTION_MODES.SCHOOL;
+
+  return {
+
+    ...STAFF_MODE_DEFAULTS[INSTITUTION_MODES.SCHOOL],
+
+    ...(
+      STAFF_MODE_DEFAULTS[mode] ||
+      STAFF_MODE_DEFAULTS[INSTITUTION_MODES.SCHOOL]
+    )
+
+  };
+
+}
+
+
 // ============================================================
 // TEXTOS SEGÚN EL TIPO DE INSTITUCIÓN
 // ============================================================
 
 export const INSTITUTION_MODE_LABELS = {
+
   [INSTITUTION_MODES.SCHOOL]: {
+
     person: 'Estudiante',
     people: 'Estudiantes',
+
     group: 'Grupo',
     groups: 'Grupos',
+
     schooling: 'Escolaridad',
+
     level: 'Nivel',
     levels: 'Niveles',
+
     shift: 'Turno',
     shifts: 'Turnos'
+
   },
 
   [INSTITUTION_MODES.DAY_CENTER]: {
+
     person: 'Concurrente',
     people: 'Concurrentes',
+
     group: 'Taller',
     groups: 'Talleres',
+
     schooling: null,
+
     level: null,
     levels: null,
+
     shift: 'Tipo de jornada',
     shifts: 'Tipos de jornada'
+
   },
 
   [INSTITUTION_MODES.CLINIC]: {
+
     person: 'Paciente',
     people: 'Pacientes',
+
     group: 'Espacio',
     groups: 'Espacios',
+
     schooling: null,
+
     level: null,
     levels: null,
+
     shift: null,
     shifts: null
+
   }
+
 };
+
 
 // =============================================================
 // PLANES
@@ -491,7 +635,7 @@ export const MODULES = [
   ['groups', 'Mi Aula'],
 
   ['matricula', 'Legajos'],
-  
+
   ['studentFileActions', 'Acciones del legajo'],
 
   ['resources', 'Recursos'],
@@ -558,10 +702,10 @@ export const MODULE_CATALOG = {
   },
 
   studentFileActions: {
-  description:
-    'Acciones disponibles dentro del legajo del estudiante',
-  category: 'Personas'
-},
+    description:
+      'Acciones disponibles dentro del legajo del estudiante',
+    category: 'Personas'
+  },
 
   resources: {
     description: 'Recursos institucionales',
@@ -869,14 +1013,18 @@ export function canAccessModule(
       moduleId
     )
   ) {
+
     return false;
+
   }
 
   if (
     role === 'super-admin' ||
     role === 'admin'
   ) {
+
     return true;
+
   }
 
   return !!getRolePermissions(
@@ -901,20 +1049,20 @@ export function normalizeAppConfig(
 
     ...value,
 
-  document: {
-  ...DEFAULT_APP_CONFIG.document,
-  ...(value.document || {}),
+    document: {
+      ...DEFAULT_APP_CONFIG.document,
+      ...(value.document || {}),
 
-  studentFileActions: {
-    ...DEFAULT_APP_CONFIG.document.studentFileActions,
-    ...(value.document?.studentFileActions || {})
-  },
+      studentFileActions: {
+        ...DEFAULT_APP_CONFIG.document.studentFileActions,
+        ...(value.document?.studentFileActions || {})
+      },
 
-  bitacoraActions: {
-    ...DEFAULT_APP_CONFIG.document.bitacoraActions,
-    ...(value.document?.bitacoraActions || {})
-  }
-},
+      bitacoraActions: {
+        ...DEFAULT_APP_CONFIG.document.bitacoraActions,
+        ...(value.document?.bitacoraActions || {})
+      }
+    },
 
     labels: {
       ...DEFAULT_APP_CONFIG.labels,
@@ -936,7 +1084,7 @@ export function normalizeAppConfig(
       ...(value.installation || {})
     },
 
-     taskSettings: {
+    taskSettings: {
       ...DEFAULT_APP_CONFIG.taskSettings,
       ...(value.taskSettings || {})
     },
@@ -995,6 +1143,8 @@ export function normalizeAppConfig(
       DEFAULT_APP_CONFIG.taskSettings.types;
 
   }
+
+
   // ----------------------------------------------------------
   // TIPOS DE EVENTO
   // ----------------------------------------------------------
@@ -1017,27 +1167,37 @@ export function normalizeAppConfig(
     ...(merged.eventTypeSettings || {})
   };
 
+
   (merged.eventTypes || []).forEach(
     (type, index) => {
+
       const id = String(type);
 
       if (!normalizedEventTypeSettings[id]) {
+
         normalizedEventTypeSettings[id] = {
+
           name: id
             .toLowerCase()
             .replaceAll('_', ' ')
             .replace(/\b\w/g, char => char.toUpperCase()),
+
           color:
             defaultEventColors[
               index % defaultEventColors.length
             ]
+
         };
+
       }
+
     }
   );
 
+
   merged.eventTypeSettings =
     normalizedEventTypeSettings;
+
 
   // ----------------------------------------------------------
   // TIPOS DE ASIGNACIÓN
@@ -1066,12 +1226,14 @@ export function normalizeAppConfig(
       )
     );
 
+
   const hasExplicitModules =
     value &&
     Object.prototype.hasOwnProperty.call(
       value,
       'activeModules'
     );
+
 
   merged.activeModules = {
 
@@ -1134,16 +1296,35 @@ export function normalizeAppConfig(
 
 
   // ----------------------------------------------------------
+  // MODO INSTITUCIONAL
+  // ----------------------------------------------------------
+
+  if (
+    !Object.values(INSTITUTION_MODES)
+      .includes(merged.institutionMode)
+  ) {
+
+    merged.institutionMode =
+      DEFAULT_APP_CONFIG.institutionMode ||
+      INSTITUTION_MODES.SCHOOL;
+
+  }
+
+
+  // ----------------------------------------------------------
   // ROLES
   // ----------------------------------------------------------
 
   const allRoles =
     Array.from(
       new Set([
+
         ...(merged.roles || []),
+
         ...Object.keys(
           merged.rolePermissions || {}
         )
+
       ])
     );
 
@@ -1177,21 +1358,22 @@ export function normalizeAppConfig(
   // LISTAS
   // ----------------------------------------------------------
 
- [
-  'turns',
-  'scheduleTypes',
-  'modalities',
-  'eventTypes',
-  'roles',
-  'holidays',
-  'sites',
-  'levels',
-  'sections',
-  'areas',
-  'teams'
-]
-   
-   .forEach(
+  [
+    'turns',
+    'scheduleTypes',
+    'modalities',
+    'eventTypes',
+    'roles',
+    'holidays',
+    'sites',
+    'levels',
+    'sections',
+    'areas',
+    'teams',
+    'staffWeekdays'
+  ]
+
+  .forEach(
     key => {
 
       if (
@@ -1209,42 +1391,183 @@ export function normalizeAppConfig(
   );
 
 
+  // ----------------------------------------------------------
+  // CONFIGURACIÓN DEL PERSONAL
+  // ----------------------------------------------------------
+
+  if (
+    !Array.isArray(merged.staffWeekdays) ||
+    merged.staffWeekdays.length === 0
+  ) {
+
+    merged.staffWeekdays =
+      [...STAFF_WEEKDAYS];
+
+  } else {
+
+    merged.staffWeekdays =
+      merged.staffWeekdays
+
+        .map(
+          value =>
+            typeof value === 'string'
+              ? value.trim()
+              : ''
+        )
+
+        .filter(Boolean);
+
+
+    if (
+      merged.staffWeekdays.length === 0
+    ) {
+
+      merged.staffWeekdays =
+        [...STAFF_WEEKDAYS];
+
+    }
+
+  }
+
+
+  if (
+    !merged.staffSettings ||
+    typeof merged.staffSettings !== 'object' ||
+    Array.isArray(merged.staffSettings)
+  ) {
+
+    merged.staffSettings = {};
+
+  }
+
+
+  const staffModeDefaults =
+    getStaffModeConfig(
+      merged
+    );
+
+
+  merged.staffSettings = {
+
+    ...staffModeDefaults,
+
+    ...merged.staffSettings
+
+  };
+
+
   return merged;
+
 }
+
+
 // =============================================================
 // TIPOS DE EVENTO
 // =============================================================
 
-export function getEventTypeConfig(config, type) {
-  const normalized = normalizeAppConfig(config);
+export function getEventTypeConfig(
+  config,
+  type
+) {
 
-  const fallbackName = String(type || 'GENERAL')
-    .toLowerCase()
-    .replaceAll('_', ' ')
-    .replace(/\b\w/g, char => char.toUpperCase());
+  const normalized =
+    normalizeAppConfig(config);
+
+
+  const fallbackName =
+    String(
+      type ||
+      'GENERAL'
+    )
+
+      .toLowerCase()
+
+      .replaceAll(
+        '_',
+        ' '
+      )
+
+      .replace(
+        /\b\w/g,
+        char =>
+          char.toUpperCase()
+      );
+
 
   return (
-    normalized.eventTypeSettings?.[type] || {
+
+    normalized
+      .eventTypeSettings?.[type]
+
+    || {
+
       name: fallbackName,
+
       color: '#64748b'
+
     }
+
   );
+
 }
 
-export function getEventTypesConfig(config) {
-  const normalized = normalizeAppConfig(config);
 
-  return (normalized.eventTypes || []).map(type => ({
-    id: type,
-    ...(normalized.eventTypeSettings?.[type] || {
-      name: String(type)
-        .toLowerCase()
-        .replaceAll('_', ' ')
-        .replace(/\b\w/g, char => char.toUpperCase()),
-      color: '#64748b'
+// =============================================================
+// OBTENER CONFIGURACIÓN DE TIPOS DE EVENTO
+// =============================================================
+
+export function getEventTypesConfig(
+  config
+) {
+
+  const normalized =
+    normalizeAppConfig(
+      config
+    );
+
+
+  return (
+
+    normalized.eventTypes || []
+
+  ).map(
+
+    type => ({
+
+      id: type,
+
+      ...(normalized
+        .eventTypeSettings?.[type]
+
+        || {
+
+          name:
+            String(type)
+
+              .toLowerCase()
+
+              .replaceAll(
+                '_',
+                ' '
+              )
+
+              .replace(
+                /\b\w/g,
+                char =>
+                  char.toUpperCase()
+              ),
+
+          color:
+            '#64748b'
+
+        })
+
     })
-  }));
+
+  );
+
 }
+
 
 // =============================================================
 // CONFIGURACIÓN LOCAL
@@ -1259,10 +1582,13 @@ export function getCachedAppConfig() {
         APP_CONFIG_STORAGE_KEY
       );
 
+
     return saved
+
       ? normalizeAppConfig(
           JSON.parse(saved)
         )
+
       : DEFAULT_APP_CONFIG;
 
   } catch {
@@ -1287,18 +1613,24 @@ export function cacheAppConfig(
       config
     );
 
+
   try {
 
     localStorage.setItem(
+
       APP_CONFIG_STORAGE_KEY,
+
       JSON.stringify(
         normalized
       )
+
     );
 
   } catch {}
 
+
   return normalized;
+
 }
 
 
@@ -1315,6 +1647,7 @@ export function applyBranding(
       config
     );
 
+
   if (
     typeof document === 'undefined'
   ) {
@@ -1323,23 +1656,31 @@ export function applyBranding(
 
   }
 
+
   const root =
     document.documentElement;
 
+
   const palette =
-    PALETTES[c.palette] || null;
+    PALETTES[
+      c.palette
+    ] || null;
+
 
   const primary =
     palette?.primary ||
     c.primaryColor;
 
+
   const secondary =
     palette?.secondary ||
     c.secondaryColor;
 
+
   const background =
     palette?.background ||
     c.backgroundColor;
+
 
   const text =
     palette?.text ||
@@ -1351,25 +1692,30 @@ export function applyBranding(
     primary
   );
 
+
   root.style.setProperty(
     '--app-secondary',
     secondary
   );
+
 
   root.style.setProperty(
     '--app-background',
     background
   );
 
+
   root.style.setProperty(
     '--app-text',
     text
   );
 
+
   root.style.setProperty(
     '--app-primary-soft',
     `${primary}18`
   );
+
 
   root.style.setProperty(
     '--app-secondary-soft',
@@ -1505,9 +1851,12 @@ export function applyBranding(
 export function getInstitutionName() {
 
   return (
+
     getCachedAppConfig()
       .institutionName ||
+
     'Mi Institución'
+
   );
 
 }
