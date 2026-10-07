@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  InstitutionProvider,
-  useInstitution
-} from './context/InstitutionContext';
 import { GroupsView } from './views/GroupsView';
 import { PersonalView } from './views/PersonalView';
-import { initializeCENTRAInstallation } from './data/initializeCENTRA';
 import { DashboardView } from './views/DashboardView';
 import { ResourcesView } from './views/ResourcesView';
 import { TasksView } from './views/TasksView';
@@ -15,43 +10,38 @@ import { MatriculaView } from './views/MatriculaView';
 import { AdministracionView } from './views/AdministracionView';
 import { SocialView } from './views/SocialView';
 import { UsersAdminView } from './views/UsersAdminView';
-import { EquipoTecnicoView } from './views/EquipoTecnicoView';
 import { ProfileView } from './views/ProfileView';
-import { ActivityLogView } from './views/ActivityLogView';
 import { ProyectoView } from './views/ProyectoView';
 import { EvaluationsView } from './views/EvaluationsView';
 import { InformesView } from './views/InformesView';
 import { InformesExternosView } from './views/InformesExternosView';
-import { ConfiguracionView } from './views/ConfiguracionView';
-import { getCachedAppConfig, normalizeAppConfig, cacheAppConfig, applyBranding, DEFAULT_APP_CONFIG, canAccessModule, isModuleEnabled } from './config';
 
 import { 
   Calendar as CalendarIcon, CheckSquare, Settings, User, FileText, CheckCircle, 
-  RefreshCw, Plus, Trash2, Users, AlertCircle, LogOut, Briefcase, 
+  Download, RefreshCw, Plus, Trash2, Users, AlertCircle, LogOut, Briefcase, 
   Lock, List, Grid, ChevronLeft, ChevronRight, Bell, Check, HelpCircle, Mail, Camera, MapPin, 
   Send, Key, Filter, LayoutDashboard, Link as LinkIcon, ExternalLink, Zap,
-  AlertTriangle, Clock, Shield, Crown, Activity, 
-  GraduationCap, Search, X, UploadCloud, PieChart, Eye, Edit3, Trophy,
+  AlertTriangle, Clock, Shield, Crown, Activity, Share, PlusSquare, 
+  Smartphone, GraduationCap, Search, X, UploadCloud, PieChart, Eye, Edit3, Trophy,
   Folder, MessageSquare, Globe, BookOpen, Lightbulb, ChevronDown, PlusCircle, Printer,
   AlignLeft, AlignCenter, AlignRight, AlignJustify, Phone, CheckCircle2, Clock3, UserCheck,
   ChevronUp, ClipboardCheck
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut
-} from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken} from 'firebase/auth';
 import { 
   getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, 
-  updateDoc, deleteDoc, where, getDocs, getDoc, setDoc, serverTimestamp, arrayUnion, arrayRemove, limit,increment 
+  updateDoc, deleteDoc, where, getDocs, getDoc, serverTimestamp, arrayUnion, arrayRemove, limit,increment 
 } from 'firebase/firestore';
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-const LOGO_URL = () => getCachedAppConfig().logoUrl || '/icon-192.png';
+const VALID_ROLES_OFFICIAL = [
+  "Docente", "Preceptora", "Auxiliar", "Profe Especial", "Equipo Técnico", "Equipo Directivo",
+  "Dirección Inclusión", "Equipo Técnico Inclusión", "DAI",
+  "Cocina", "Limpieza", "Mantenimiento", "Administración"
+];
+const TURNS_LIST = ["Mañana", "Tarde", "Alternado", "Vespertino", "Doble"];
+ const LOGO_URL = "/icon-192.png";
 
 
 const triggerMobileNotification = (title, body) => {
@@ -59,52 +49,96 @@ const triggerMobileNotification = (title, body) => {
   if (Notification.permission === "granted") {
     if (navigator.serviceWorker && navigator.serviceWorker.ready) {
       navigator.serviceWorker.ready.then((registration) => {
-        registration.showNotification(title, { body: body, icon: LOGO_URL(), vibrate: [200, 100, 200] });
+        registration.showNotification(title, { body: body, icon: LOGO_URL, vibrate: [200, 100, 200] });
       });
     } else {
-      try { new Notification(title, { body, icon: LOGO_URL() }); } catch (e) { console.log("Notif error"); }
+      try { new Notification(title, { body, icon: LOGO_URL }); } catch (e) { console.log("Notif error"); }
     }
   }
 };
 
 const getFirebaseConfig = () => {
-  const config = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID
-  };
-
-  const requiredKeys = [
-    'apiKey',
-    'authDomain',
-    'projectId',
-    'storageBucket',
-    'messagingSenderId',
-    'appId'
-  ];
-
-  const configured = requiredKeys.every(
-    key => typeof config[key] === 'string' && config[key].trim() !== ''
-  );
-
-  return configured ? config : {};
+  try {
+    if (import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
+      return {
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID
+      };
+    }
+  } catch (e) {
+    console.log("Buscando config global...");
+  }
+  if (typeof __firebase_config !== 'undefined') {
+    return JSON.parse(__firebase_config);
+  }
+  return {};
 };
 
 const firebaseConfig = getFirebaseConfig();
-
-const app =
-  Object.keys(firebaseConfig).length > 0
-    ? initializeApp(firebaseConfig)
-    : null;
-
+const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfig) : null;
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'escuela-app-prod';
 
  
+const ROLES = [
+  'Docente', 
+  'Equipo Directivo', 
+  'Equipo Técnico', 
+  'Auxiliar/Preceptor', 
+  'Inclusión', 
+  'Profes Especiales', 
+  'Administración',
+  'Dirección Inclusión', 
+  'Equipo Técnico Inclusión',
+  'DAI'
+];
+const MODALIDADES = ['Sede', 'Inclusión'];
+const EVENT_TYPES = ['SALIDA EDUCATIVA', 'GENERAL', 'ADMINISTRATIVO', 'INFORMES', 'EVENTOS', 'ACTOS', 'EFEMÉRIDES', 'CUMPLEAÑOS', 'INCLUSIÓN' ];
+
+const calculateBusinessDaysLeft = (dateString) => {
+  if (!dateString) return 0;
+  
+  const FERIADOS_ARG_2026 = [
+    '2026-01-01', '2026-02-16', '2026-02-17', '2026-03-23', '2026-03-24', 
+    '2026-04-02', '2026-04-03', '2026-05-01', '2026-05-25', '2026-06-15', 
+    '2026-07-09', '2026-07-10', '2026-08-17', '2026-10-12', '2026-11-23', 
+    '2026-12-07', '2026-12-08', '2026-12-25'
+  ];
+
+  const targetDate = new Date(dateString + 'T00:00:00');
+  let currentDate = new Date();
+  currentDate.setHours(0,0,0,0);
+  targetDate.setHours(0,0,0,0);
+
+  if (targetDate <= currentDate) return 0;
+
+  let businessDays = 0;
+  let tempDate = new Date(currentDate);
+  
+  while (tempDate < targetDate) {
+    tempDate.setDate(tempDate.getDate() + 1);
+    const dayOfWeek = tempDate.getDay();
+    
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      const yyyy = tempDate.getFullYear();
+      const mm = String(tempDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(tempDate.getDate()).padStart(2, '0');
+      const formattedDate = `${yyyy}-${mm}-${dd}`;
+      
+      if (!FERIADOS_ARG_2026.includes(formattedDate)) {
+        businessDays++;
+      }
+    }
+  }
+
+  return businessDays;
+};
+
 const formatDate = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString + 'T00:00:00');
@@ -116,13 +150,13 @@ function SplashScreen() {
     <div className="fixed inset-0 bg-gradient-to-br from-violet-600 to-indigo-700 z-[9999] flex flex-col items-center justify-center animate-out fade-out duration-1000 fill-mode-forwards">
       <div className="bg-white p-6 rounded-[40px] shadow-2xl animate-bounce">
         <img 
-          src={getCachedAppConfig().logoUrl || '/icon-192.png'} 
+          src="https://static.wixstatic.com/media/1a42ff_3511de5c6129483cba538636cff31b1d~mv2.png/v1/crop/x_0,y_79,w_500,h_343/fill/w_143,h_98,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/logo%20sin%20fondo.png" 
           alt="Logo" 
           className="w-32 h-auto" 
         />
       </div>
       <h1 className="mt-8 text-3xl font-black text-white tracking-widest uppercase italic animate-pulse">
-        {getCachedAppConfig().institutionShortName || getCachedAppConfig().institutionName}
+        Juntos a la Par
       </h1>
       <p className="text-white/60 text-xs font-bold mt-2 uppercase tracking-[4px]">Cargando Sistema...</p>
     </div>
@@ -149,415 +183,50 @@ function NotificationsView({ notifications }) {
   );
 }
 
-
-
-function describeFirebaseError(error) {
-  const code = error?.code || '';
-  if (code.includes('permission-denied')) return 'Firebase está conectado, pero Firestore rechazó el acceso. Revisá las reglas de Firestore.';
-  if (code.includes('auth/operation-not-allowed')) return 'La conexión funciona, pero Email/Password no está habilitado en Firebase Authentication.';
-  if (code.includes('auth/invalid-api-key')) return 'La API Key de Firebase no es válida.';
-  if (code.includes('auth/invalid-project-id')) return 'El Project ID de Firebase no es válido.';
-  if (code.includes('auth/network-request-failed')) return 'No se pudo contactar con Firebase. Revisá la conexión a internet.';
-  if (code.includes('app/invalid-credential')) return 'La configuración de Firebase es inválida.';
-  return error?.message || 'No se pudo completar la operación.';
-}
-
-function InitialAdminScreen({ onCreated }) {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
-
-  const handleCreate = async (e) => {
-  e.preventDefault();
-  setError('');
-
-  if (!auth || !db) {
-    setError('CENTRA no está conectado con Firebase.');
-    return;
-  }
-
-  if (form.password.length < 6) {
-    setError('La contraseña debe tener al menos 6 caracteres.');
-    return;
-  }
-
-  if (form.password !== form.confirmPassword) {
-    setError('Las contraseñas no coinciden.');
-    return;
-  }
-
-  setSaving(true);
-
-  try {
-    const email = form.email.trim().toLowerCase();
-    let credential;
-
-    try {
-      credential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        form.password
-      );
-    } catch (createError) {
-      if (createError?.code === 'auth/email-already-in-use') {
-        credential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          form.password
-        );
-      } else {
-        throw createError;
-      }
-    }
-
-    const profile = {
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      fullName:
-        `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
-      email,
-      username: email,
-
-      role: 'Equipo Directivo',
-      rol: 'admin',
-      accessRoleId: 'admin',
-      isAdmin: true,
-
-      authUid: credential.user.uid,
-      personId: credential.user.uid,
-
-      createdAt: serverTimestamp(),
-      lastLogin: serverTimestamp()
-    };
-
-    // Inicializa la arquitectura de CENTRA.
-    const initialization =
-      await initializeCENTRAInstallation({
-        db,
-        appId,
-        authUser: credential.user,
-        adminProfile: profile
-      });
-
-    // IMPORTANTE:
-    // La instalación queda registrada en Firebase.
-    // Esto permite que cualquier dispositivo o navegador
-    // sepa que CENTRA ya fue instalado.
-    const institutionRef = doc(
-      db,
-      'artifacts',
-      appId,
-      'public',
-      'data',
-      'config',
-      'institution'
-    );
-
-    await setDoc(
-      institutionRef,
-      {
-        installationComplete: true,
-        installationCompletedAt: serverTimestamp(),
-        initialAdminUid: credential.user.uid
-      },
-      { merge: true }
-    );
-
-    const completeProfile = {
-      ...profile,
-      id: credential.user.uid,
-      personId: initialization.personId,
-      architectureVersion:
-        initialization.architectureVersion
-    };
-
-    // Esto queda solamente como caché local.
-    // NO determina si CENTRA está instalado.
-    localStorage.setItem(
-      'schoolApp_profile',
-      JSON.stringify(completeProfile)
-    );
-
-    onCreated(completeProfile);
-
-  } catch (error) {
-    console.error('Initial admin error:', error);
-
-    if (
-      error?.code === 'auth/invalid-credential' ||
-      error?.code === 'auth/wrong-password' ||
-      error?.code === 'auth/user-not-found'
-    ) {
-      setError(
-        'La cuenta ya existe, pero la contraseña no coincide. Usá la contraseña con la que se creó la cuenta en Firebase.'
-      );
-    } else {
-      setError(describeFirebaseError(error));
-    }
-  } finally {
-    setSaving(false);
-  }
-};
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-xl bg-white rounded-3xl shadow-xl border border-slate-200 p-8">
-        <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center font-black text-2xl">C</div>
-          <h1 className="text-3xl font-black text-slate-900 mt-4">Crear administrador inicial</h1>
-          <p className="text-slate-500 mt-2">Este será el usuario con acceso total a CENTRA.</p>
-        </div>
-
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <input required value={form.firstName} onChange={e => update('firstName', e.target.value)} placeholder="Nombre" className="w-full rounded-xl border border-slate-200 px-4 py-3" />
-            <input required value={form.lastName} onChange={e => update('lastName', e.target.value)} placeholder="Apellido" className="w-full rounded-xl border border-slate-200 px-4 py-3" />
-          </div>
-          <input required type="email" value={form.email} onChange={e => update('email', e.target.value)} placeholder="Correo electrónico" className="w-full rounded-xl border border-slate-200 px-4 py-3" />
-          <input required minLength={6} type="password" value={form.password} onChange={e => update('password', e.target.value)} placeholder="Contraseña" className="w-full rounded-xl border border-slate-200 px-4 py-3" />
-          <input required minLength={6} type="password" value={form.confirmPassword} onChange={e => update('confirmPassword', e.target.value)} placeholder="Repetí la contraseña" className="w-full rounded-xl border border-slate-200 px-4 py-3" />
-
-          {error && <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 p-4 text-sm font-semibold">{error}</div>}
-
-          <button disabled={saving} className="w-full rounded-xl bg-violet-600 hover:bg-violet-700 text-white py-3.5 font-black disabled:opacity-60">
-            {saving ? 'Creando administrador…' : 'Crear administrador y entrar'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-function ErrorBoundary({ children }) {
-  const [error, setError] = useState(null);
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-red-50 flex items-center justify-center p-6">
-        <div className="max-w-2xl w-full bg-white rounded-3xl shadow-xl border border-red-200 p-8">
-          <h1 className="text-2xl font-black text-red-700 mb-4">
-            Error al cargar CENTRA
-          </h1>
-
-          <p className="text-slate-600 mb-4">
-            CENTRA encontró un error al renderizar la aplicación.
-          </p>
-
-          <pre className="bg-slate-900 text-white rounded-xl p-4 text-xs overflow-auto whitespace-pre-wrap">
-            {error?.stack || error?.message || String(error)}
-          </pre>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <ErrorBoundaryInner onError={setError}>
-      {children}
-    </ErrorBoundaryInner>
-  );
-}
-
-class ErrorBoundaryInner extends React.Component {
-  componentDidCatch(error) {
-    this.props.onError(error);
-  }
-
-  render() {
-    return this.props.children;
-  }
-}
-function AppContent() {
-const [firebaseUser, setFirebaseUser] = useState(null);
-const [currentUserProfile, setCurrentUserProfile] = useState(null);
-const [loading, setLoading] = useState(true);
-const [minTimePassed, setMinTimePassed] = useState(false);
-const [installationComplete, setInstallationComplete] = useState(null);
+export default function App() {
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState(false);
+  const [minTimePassed, setMinTimePassed] = useState(false);
 
   useEffect(() => {
-  const timer = setTimeout(() => {
-    setMinTimePassed(true);
-  }, 700);
+    setTimeout(() => setMinTimePassed(true), 2500);
+    if (!auth) { setConfigError(true); setLoading(false); return; }
 
-  if (!db || !auth) {
-    setInstallationComplete(null);
-    setLoading(false);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }
-
-  let cancelled = false;
-
-  const loadInstallationState = async () => {
-    try {
-      const institutionRef = doc(
-        db,
-        'artifacts',
-        appId,
-        'public',
-        'data',
-        'config',
-        'institution'
-      );
-
-      const institutionSnap =
-        await getDoc(institutionRef);
-
-      if (cancelled) return;
-
-      if (!institutionSnap.exists()) {
-        // Firebase respondió correctamente y
-        // confirmó que todavía no existe la instalación.
-        setInstallationComplete(false);
-        return;
-      }
-
-      const data = institutionSnap.data();
-
-      setInstallationComplete(
-        data?.installationComplete === true
-      );
-
-    } catch (error) {
-      console.error(
-        'No se pudo consultar el estado de instalación:',
-        error
-      );
-
-      if (!cancelled) {
-        // IMPORTANTE:
-        // null significa "no pude comprobarlo".
-        // NO significa "no está instalado".
-        //
-        // Así evitamos mostrar accidentalmente
-        // el formulario de crear administrador.
-        setInstallationComplete(null);
-      }
-    }
-  };
-
-  loadInstallationState();
-
-  const unsubscribe = onAuthStateChanged(
-    auth,
-    async (user) => {
-      if (cancelled) return;
-
-      setFirebaseUser(user);
-
-      if (user?.uid) {
-        try {
-          const userDoc = await getDoc(
-            doc(
-              db,
-              'artifacts',
-              appId,
-              'public',
-              'data',
-              'users',
-              user.uid
-            )
-          );
-
-          if (userDoc.exists()) {
-            const profile = {
-              ...userDoc.data(),
-              id: userDoc.id
-            };
-
-            setCurrentUserProfile(profile);
-
-            localStorage.setItem(
-              'schoolApp_profile',
-              JSON.stringify(profile)
-            );
-          }
-        } catch (error) {
-          console.warn(
-            'No se pudo recuperar el perfil:',
-            error
-          );
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
-      } else {
-        setCurrentUserProfile(null);
-      }
+      } catch (error) { console.error("Auth error:", error); }
+    };
+    initAuth();
 
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user);
+      const savedProfile = localStorage.getItem('schoolApp_profile');
+      if (savedProfile) setCurrentUserProfile(JSON.parse(savedProfile));
       setLoading(false);
-    }
-  );
+    });
+    return () => unsubscribe();
+  }, []);
 
-  return () => {
-    cancelled = true;
-    clearTimeout(timer);
-    unsubscribe();
-  };
-}, []);
-  const handleLogin = (profileData) => {
-    setCurrentUserProfile(profileData);
-    localStorage.setItem('schoolApp_profile', JSON.stringify(profileData));
-  };
+  const handleLogin = (profileData) => { setCurrentUserProfile(profileData); localStorage.setItem('schoolApp_profile', JSON.stringify(profileData)); };
+  const handleLogout = () => { setCurrentUserProfile(null); localStorage.removeItem('schoolApp_profile'); };
 
-  const handleLogout = async () => {
-  try {
-    if (auth?.currentUser) {
-      await signOut(auth);
-    }
-  } catch (error) {
-    console.warn('Error al cerrar sesión:', error);
-  }
+  if (loading) return <div className="flex items-center justify-center h-screen bg-violet-50"><div className="animate-spin rounded-full h-12 w-12 border-b-4 border-violet-600"></div></div>;
+  if (configError) return <div className="flex flex-col items-center justify-center h-screen bg-red-50 p-6 text-center"><AlertCircle className="text-red-500 w-16 h-16 mb-4" /><h1 className="text-xl font-bold text-red-700">Error de Configuración</h1></div>;
+  if (!currentUserProfile) return <LoginScreen onLogin={handleLogin} />;
 
-  setFirebaseUser(null);
-  setCurrentUserProfile(null);
-
-  // Solo eliminamos la sesión/caché local.
-  // La instalación permanece registrada en Firebase.
-  localStorage.removeItem('schoolApp_profile');
-};
-
-  if (Object.keys(firebaseConfig).length === 0) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="max-w-lg w-full bg-white rounded-3xl border border-slate-200 shadow-xl p-8 text-center">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center font-black text-xl">C</div>
-          <h1 className="text-2xl font-black text-slate-900 mt-5">CENTRA no está configurado</h1>
-          <p className="text-slate-500 mt-2">Este deployment necesita las variables de Firebase configuradas en Vercel.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (installationComplete === null || loading || !minTimePassed) {
-  return (
-    <div className="flex items-center justify-center h-screen bg-violet-50">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-violet-600"></div>
-    </div>
-  );
-}
-
-  if (!installationComplete) {
-    return <InitialAdminScreen onCreated={(profile) => {
-      setInstallationComplete(true);
-      setCurrentUserProfile(profile);
-    }} />;
-  }
-
-
-if (!currentUserProfile) {
-  return <LoginScreen onLogin={handleLogin} />;
-}
-
-  return <MainApp user={currentUserProfile} onLogout={handleLogout} />;
+  
+ return <MainApp user={currentUserProfile} onLogout={handleLogout} />;
 }
 
 
 function LoginScreen({ onLogin }) {
-  const {
-  institution,
-  loadingInstitution
-} = useInstitution();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -565,142 +234,118 @@ function LoginScreen({ onLogin }) {
   const [showRecover, setShowRecover] = useState(false);
   const [recoverUser, setRecoverUser] = useState('');
   const [recoverStatus, setRecoverStatus] = useState('idle');
-  const institutionName =
-  institution?.institutionName ||
-  institution?.name ||
-  'CENTRA';
-
-const institutionShortName =
-  institution?.institutionShortName ||
-  institution?.shortName ||
-  institutionName;
-
-const institutionLogo =
-  institution?.logoUrl ||
-  null;
   
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setChecking(true);
+  const [showInstall, setShowInstall] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isIos, setIsIos] = useState(false);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 
-    try {
-      let email = username.trim().toLowerCase();
+  useEffect(() => {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIos(ios);
 
-      if (!email.includes('@')) {
-        const q = query(
-          collection(db, 'artifacts', appId, 'public', 'data', 'users'),
-          where('username', '==', email)
-        );
-        const snapshot = await getDocs(q);
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      if (!isStandalone) setShowInstall(true);
+    };
 
-        if (snapshot.empty) {
-          setError('No encontramos ese usuario.');
-          return;
-        }
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-        const userData = snapshot.docs[0].data();
-        if (!userData.email) {
-          setError('Este usuario pertenece al sistema anterior y no tiene correo asociado. Creá nuevamente su cuenta desde Gestión de Usuarios.');
-          return;
-        }
-        email = userData.email;
-      }
-
-      const credential = await signInWithEmailAndPassword(auth, email, password);
-
-      const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', credential.user.uid);
-      const profileSnap = await getDoc(profileRef);
-
-      if (!profileSnap.exists()) {
-        setError('La cuenta existe en Firebase, pero todavía no tiene un perfil institucional.');
-        await signOut(auth);
-        return;
-      }
-
-      const profile = { ...profileSnap.data(), id: profileSnap.id };
-      await updateDoc(profileRef, { lastLogin: serverTimestamp() }).catch(() => {});
-      onLogin(profile);
-    } catch (err) {
-      console.error('Login error:', err);
-      const code = err?.code || '';
-      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-        setError('Correo, usuario o contraseña incorrectos.');
-      } else {
-        setError(describeFirebaseError(err));
-      }
-    } finally {
-      setChecking(false);
+    if (ios && !isStandalone) {
+        setTimeout(() => setShowInstall(true), 2000);
     }
+
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, [isStandalone]);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') setShowInstall(false);
+      setDeferredPrompt(null);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setError(''); setChecking(true);
+    if (username === 'admin' && password === 'admin123') {
+      onLogin({ id: 'super-admin', firstName: 'Super', lastName: 'Admin', fullName: 'Super Admin', role: 'Equipo Directivo', rol: 'super-admin', isAdmin: true, username: 'admin' }); return;
+    }
+    try {
+      const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+      const q = query(usersRef, where('username', '==', username.toLowerCase()), where('password', '==', password));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0]; const userData = userDoc.data();
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userDoc.id), { lastLogin: serverTimestamp() });
+        const esAdmin = userData.rol === 'admin';
+        onLogin({ ...userData, id: userDoc.id, isAdmin: esAdmin });
+      } else { setError('Usuario o contraseña incorrectos.'); }
+    } catch (err) { setError('Error de conexión.'); } finally { setChecking(false); }
   };
 
   const handleRequestReset = async (e) => {
-    e.preventDefault();
-    if (!recoverUser.trim()) return;
-    setRecoverStatus('sending');
-
+    e.preventDefault(); if(!recoverUser.trim()) return; setRecoverStatus('sending');
     try {
-      const value = recoverUser.trim().toLowerCase();
-      let email = value;
-
-      if (!value.includes('@')) {
-        const q = query(
-          collection(db, 'artifacts', appId, 'public', 'data', 'users'),
-          where('username', '==', value)
-        );
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('username', '==', recoverUser));
         const snapshot = await getDocs(q);
-        if (snapshot.empty || !snapshot.docs[0].data().email) {
-          setRecoverStatus('error');
-          setTimeout(() => setRecoverStatus('idle'), 3000);
-          return;
-        }
-        email = snapshot.docs[0].data().email;
-      }
-
-      await sendPasswordResetEmail(auth, email);
-      setRecoverStatus('sent');
-    } catch (error) {
-      console.error('Reset error:', error);
-      setRecoverStatus('error');
-    }
+        if (snapshot.empty) { setRecoverStatus('error'); setTimeout(() => setRecoverStatus('idle'), 3000); return; }
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'requests'), { type: 'password_reset', username: recoverUser, status: 'pending', createdAt: serverTimestamp() });
+        setRecoverStatus('sent');
+    } catch (error) { setRecoverStatus('error'); }
   };
 
   return (
-   <div
-  className="min-h-screen flex items-center justify-center p-6 relative"
-  style={{
-    background: `linear-gradient(
-      135deg,
-      ${institution?.primaryColor || '#4c1d95'},
-      ${institution?.secondaryColor || '#86198f'}
-    )`
-  }}
->
+    <div className="min-h-screen bg-gradient-to-br from-violet-900 to-fuchsia-900 flex items-center justify-center p-6 relative">
       
-      <div   className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border-t-8 relative z-0"   style={{     borderTopColor: getCachedAppConfig().primaryColor || '#f97316'   }} >
+      {!isStandalone && showInstall && (
+         <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-500">
+             <div className="bg-white rounded-[35px] shadow-2xl p-6 w-full max-w-sm text-center mb-4 md:mb-0 border-t-8 border-violet-500 relative">
+                 <button onClick={() => setShowInstall(false)} className="absolute top-4 right-4 text-gray-300 hover:text-gray-500"><X size={24}/></button>
+                 
+                 <div className="flex justify-center mb-4">
+                    <div className="bg-violet-100 p-4 rounded-full animate-bounce">
+                        <Smartphone className="text-violet-600" size={40} />
+                    </div>
+                 </div>
+                 
+                 <h3 className="text-2xl font-black text-gray-800 mb-2 leading-tight">¡Instalá la App! 📲</h3>
+                 <p className="text-sm text-gray-500 mb-6 font-medium">Para tener acceso rápido y recibir notificaciones importantes, instalá la app en tu celular.</p>
+                 
+                 <div className="space-y-3">
+                     {!isIos ? (
+                         <button onClick={handleInstallClick} className="w-full bg-violet-600 text-white font-bold py-4 px-4 rounded-2xl shadow-xl hover:bg-violet-700 transition flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
+                             <Download size={20}/> Instalar Ahora
+                         </button>
+                     ) : (
+                         <div className="text-left bg-gray-50 p-4 rounded-2xl border border-gray-100 text-xs text-gray-600 space-y-3">
+                             <p className="font-bold text-violet-600 text-center uppercase tracking-wider mb-2">Cómo instalar en iPhone:</p>
+                             <div className="flex items-center gap-3">
+                                 <div className="bg-white p-2 rounded-lg shadow-sm text-blue-500"><Share size={18}/></div>
+                                 <span>1. Tocá el botón <b>Compartir</b> (abajo al medio).</span>
+                             </div>
+                             <div className="flex items-center gap-3">
+                                 <div className="bg-white p-2 rounded-lg shadow-sm text-gray-600"><PlusSquare size={18}/></div>
+                                 <span>2. Buscá y elegí <b>"Agregar a Inicio"</b>.</span>
+                             </div>
+                             <div className="flex items-center gap-3">
+                                 <div className="bg-white p-2 rounded-lg shadow-sm font-bold text-blue-500 text-[10px]">Add</div>
+                                 <span>3. Dale a <b>Agregar</b> (arriba derecha).</span>
+                             </div>
+                         </div>
+                     )}
+                     <button onClick={() => setShowInstall(false)} className="text-gray-400 font-bold text-xs uppercase hover:text-gray-600 mt-2">Usar navegador por ahora</button>
+                 </div>
+             </div>
+         </div>
+      )}
+
+      <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border-t-8 border-orange-500 relative z-0">
         <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-  {loadingInstitution ? (
-    <div className="h-24 w-24 rounded-2xl bg-violet-100 animate-pulse" />
-  ) : institutionLogo ? (
-    <img
-      src={institutionLogo}
-      alt={`Logo de ${institutionName}`}
-      className="h-24 w-auto max-w-[180px] object-contain drop-shadow-md"
-    />
-  ) : (
-    <div className="h-24 w-24 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center font-black text-3xl">
-      {institutionShortName.slice(0, 2).toUpperCase()}
-    </div>
-  )}
-</div>
-          <h1 className="text-2xl font-extrabold text-violet-900 tracking-tight uppercase">
-  {getCachedAppConfig().portalTitle || 'PORTAL INSTITUCIONAL'}
-  <br />
-  <span className="text-orange-500">
-    {institutionShortName}
-  </span>
-</h1>
+            <div className="flex justify-center mb-4"><img src="https://static.wixstatic.com/media/1a42ff_3511de5c6129483cba538636cff31b1d~mv2.png/v1/crop/x_0,y_79,w_500,h_343/fill/w_143,h_98,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/logo%20sin%20fondo.png" alt="Logo" className="h-24 w-auto object-contain drop-shadow-md" /></div>
+            <h1 className="text-2xl font-extrabold text-violet-900 tracking-tight uppercase">PORTAL INSTITUCIONAL<br/><span className="text-orange-500">JUNTOS A LA PAR</span></h1>
         </div>
 
         {!showRecover ? (
@@ -709,19 +354,19 @@ const institutionLogo =
             <div><label className="block text-xs font-bold text-violet-900 uppercase mb-2 ml-1">Contraseña</label><div className="relative group"><Lock className="absolute left-3 top-3.5 text-violet-300" size={18} /><input type="password" required className="w-full pl-10 pr-4 py-3 bg-violet-50 border border-violet-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-400" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} /></div></div>
             <div className="flex justify-end"><button type="button" onClick={() => setShowRecover(true)} className="text-xs font-bold text-violet-600 hover:text-orange-500 transition">¿Olvidaste tu contraseña?</button></div>
             {error && <div className="bg-red-50 text-red-600 text-sm p-4 rounded-xl flex items-center gap-3 border border-red-100">{error}</div>}
-            <button type="submit" disabled={checking} className="w-full bg-gradient-to-r from-violet-600 to-violet-800 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-500 hover:to-orange-600 transition duration-300 shadow-xl disabled:opacity-70 flex justify-center items-center">{checking ? <RefreshCw className="animate-spin" /> : 'Ingresar a CENTRA'}</button>
+            <button type="submit" disabled={checking} className="w-full bg-gradient-to-r from-violet-600 to-violet-800 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-500 hover:to-orange-600 transition duration-300 shadow-xl disabled:opacity-70 flex justify-center items-center">{checking ? <RefreshCw className="animate-spin" /> : 'Ingresar al Portal'}</button>
           </form>
         ) : (
           <div className="animate-in fade-in slide-in-from-right">
               <div className="bg-violet-50 p-6 rounded-2xl text-center mb-6 border border-violet-100">
                 <Key className="mx-auto text-violet-500 mb-2" size={40} />
-                <h3 className="font-bold text-violet-900 text-lg mb-2">Restablecer contraseña</h3>
-                <p className="text-sm text-gray-600 mb-4">Ingresá tu correo o usuario para recibir un enlace de recuperación.</p>
+                <h3 className="font-bold text-violet-900 text-lg mb-2">Solicitar Blanqueo</h3>
+                <p className="text-sm text-gray-600 mb-4">Ingresa tu usuario para notificar a administración.</p>
                 {recoverStatus === 'sent' ? (
                     <div className="bg-green-100 text-green-700 p-3 rounded-xl mb-4 text-sm font-bold flex items-center justify-center gap-2"><CheckCircle size={18} /> ¡Solicitud Enviada!</div>
                 ) : (
                     <form onSubmit={handleRequestReset} className="mb-4">
-                        <input className="w-full p-3 bg-white border border-violet-200 rounded-xl mb-3 text-center focus:ring-2 focus:ring-orange-400 outline-none" placeholder="Correo o usuario" value={recoverUser} onChange={(e) => setRecoverUser(e.target.value)} required />
+                        <input className="w-full p-3 bg-white border border-violet-200 rounded-xl mb-3 text-center focus:ring-2 focus:ring-orange-400 outline-none" placeholder="Tu Usuario" value={recoverUser} onChange={(e) => setRecoverUser(e.target.value)} required />
                         <button type="submit" disabled={recoverStatus === 'sending'} className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition flex items-center justify-center gap-2">{recoverStatus === 'sending' ? <RefreshCw className="animate-spin" size={18} /> : <><Send size={18} /> Enviar Solicitud</>}</button>
                         {recoverStatus === 'error' && <p className="text-xs text-red-500 mt-2 font-bold">Error de red o usuario incorrecto.</p>}
                     </form>
@@ -751,17 +396,19 @@ function NavButton({ active, onClick, icon, label }) {
 
 // --- APP PRINCIPAL ---
 function MainApp({ user, onLogout }) {
-  const { institution } = useInstitution();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const moreMenuRef = useRef(null);
+  const profileMenuRef = useRef(null);
+  const notifPanelRef = useRef(null);
   const [tasks, setTasks] = useState([]);
   const [events, setEvents] = useState([]);
   const [resources, setResources] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [students, setStudents] = useState([]);
-  const [appConfig, setAppConfig] = useState(() => getCachedAppConfig());
   
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -770,104 +417,312 @@ function MainApp({ user, onLogout }) {
   const [globalViewingStudent, setGlobalViewingStudent] = useState(null);
   
   // POPUPS Y PWA HEADER
+  const [showNotifRequest, setShowNotifRequest] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [showMaintenanceAlert, setShowMaintenanceAlert] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
   const prevNotifCount = useRef(0);
-  const currentRole = user?.role || user?.rol || '';
-  const isSuperAdmin = user?.rol === 'super-admin' || user?.rol === 'admin' || currentRole === 'super-admin' || currentRole === 'admin';
-  const hasModule = (moduleId) => isSuperAdmin ? (moduleId === 'configuracion' || isModuleEnabled(appConfig, moduleId)) : canAccessModule(appConfig, currentRole, moduleId);
-  const canManageContent = user?.rol === 'admin' || isSuperAdmin || currentRole === 'Equipo Directivo';
-  const isAdminRole = hasModule('admin');
-  const isTechTeamRole = hasModule('equipo');
-  const isMedicalRole = hasModule('medical');
-  const canAccessSocial = hasModule('social');
-  const canAccessInformesExternos = hasModule('informes_externos');
-  const showPrivateMenu = isAdminRole || isTechTeamRole || isMedicalRole || canAccessSocial || hasModule('informes_externos');
+  const isSuperAdmin = user.rol === 'super-admin' || user.rol === 'admin'; 
+  const canManageContent = user.rol === 'admin' || isSuperAdmin || user.role === 'Equipo Directivo';
+  
+  const isAdminRole = ['admin', 'super-admin', 'Administración', 'Equipo Directivo', 'Dirección Inclusión'].includes(user?.role) || user?.rol === 'admin';
+  const isTechTeamRole = ['admin', 'super-admin', 'Equipo Directivo', 'Dirección Inclusión', 'Equipo Técnico', 'Equipo Técnico Inclusión'].includes(user?.role) || user?.rol === 'admin';
+  const isMedicalRole = ['admin', 'super-admin', 'Equipo Directivo', 'Dirección Inclusión', 'Médico', 'Enfermería', 'Salud'].includes(user?.role) || user?.rol === 'admin';
+  const canAccessSocial = ['admin', 'super-admin', 'Docente', 'Auxiliar/Preceptor', 'Equipo Directivo', 'Equipo Técnico', 'Inclusión', 'DAI'].includes(user?.role) || user?.rol === 'admin';
+  const canAccessInformesExternos = ['Equipo Directivo', 'Equipo Técnico', 'Equipo Técnico Inclusión', 'Administración', 'admin', 'super-admin'].includes(user?.role) || user?.rol === 'admin';
+  const showPrivateMenu = isAdminRole || isTechTeamRole || isMedicalRole || canAccessSocial;
 
-  const isWideTab = ['groups', 'calendar', 'matricula', 'resources', 'users', 'admin', 'configuracion', 'personal'].includes(activeTab);
-
-  useEffect(() => {
-    applyBranding(appConfig);
-  }, [appConfig]);
+  const isWideTab = ['groups', 'calendar', 'matricula', 'resources', 'users', 'admin'].includes(activeTab);
 
   useEffect(() => {
-    const handleConfigUpdate = (event) => setAppConfig(normalizeAppConfig(event.detail));
-    window.addEventListener('institution-config-updated', handleConfigUpdate);
-    return () => window.removeEventListener('institution-config-updated', handleConfigUpdate);
-  }, []);
+    if (!db || !appId || !user?.id) return;
 
-  useEffect(() => {
-    if (!db || !appId) return;
-    const loadInstitutionConfig = async () => {
-      try {
-        const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'institution'));
-        if (snap.exists()) setAppConfig(cacheAppConfig(snap.data()));
-        else await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'institution'), { ...DEFAULT_APP_CONFIG }, { merge: true });
-      } catch (e) { console.warn('No se pudo cargar la configuración institucional', e); }
-    };
-    loadInstitutionConfig();
-  }, [db, appId]);
-
-  useEffect(() => {
-    if (!db || !appId || !user?.id) return; 
-
-    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), { 
-      lastLogin: serverTimestamp() 
+    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id), {
+      lastLogin: serverTimestamp()
     }).catch(() => {});
 
-    const unsubTasks = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), orderBy('dueDate', 'asc')), (snap) => setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubEvents = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'events'), orderBy('date', 'asc')), (snap) => setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubResources = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'resources'), orderBy('createdAt', 'desc')), (snap) => setResources(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubAnnounce = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'announcements'), orderBy('createdAt', 'desc')), (snap) => setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    
-    const unsubMaint = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'maintenance'), (doc) => { 
-        const isActive = doc.exists() ? doc.data().active : false;
-        setMaintenanceMode(isActive);
-        if(isActive && user.rol !== 'super-admin') setShowMaintenanceAlert(true);
-    });
-
-    const qNotifs = query(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), where('toUserId', '==', user.id));
-    const unsubNotifs = onSnapshot(qNotifs, (snap) => { 
-        const d = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
-        d.sort((a,b)=> (b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)); 
-        const unread = d.filter(n=>!n.read); 
-        setNotifications(unread);
-        
-        if (unread.length > prevNotifCount.current) { 
-          const latest = unread[0]; 
-          if (latest && "Notification" in window && Notification.permission === "granted") { 
-            new Notification(`🔔 ${latest.title}`, { body: latest.message, icon: LOGO_URL() }); 
-          } 
-        } 
-        prevNotifCount.current = unread.length;
-    });
-
-    return () => { 
-      unsubTasks(); unsubNotifs(); unsubEvents(); unsubResources(); unsubAnnounce(); unsubMaint();
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      if (!isStandalone) setIsInstallable(true);
     };
-  }, [user.id, db, appId]);
-  const handleGlobalSearch = async (text) => { 
-    setSearchQuery(text); 
-    if (text.length < 2 || !db || !appId) { setSearchResults([]); return; } 
-    
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    const unsubTasks = onSnapshot(
+      query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), orderBy('dueDate', 'asc')),
+      (snap) => setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+
+    const unsubEvents = onSnapshot(
+      query(collection(db, 'artifacts', appId, 'public', 'data', 'events'), orderBy('date', 'asc')),
+      (snap) => setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+
+    const unsubResources = onSnapshot(
+      query(collection(db, 'artifacts', appId, 'public', 'data', 'resources'), orderBy('createdAt', 'desc')),
+      (snap) => setResources(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+
+    const unsubAnnounce = onSnapshot(
+      query(collection(db, 'artifacts', appId, 'public', 'data', 'announcements'), orderBy('createdAt', 'desc')),
+      (snap) => setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    );
+
+    const unsubMaint = onSnapshot(
+      doc(db, 'artifacts', appId, 'public', 'data', 'config', 'maintenance'),
+      (maintenanceDoc) => {
+        const isActive = maintenanceDoc.exists() ? maintenanceDoc.data().active : false;
+        setMaintenanceMode(isActive);
+        if (isActive && user.rol !== 'super-admin') setShowMaintenanceAlert(true);
+      }
+    );
+
+    const qNotifs = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'notifications'),
+      where('toUserId', '==', user.id)
+    );
+
+    const unsubNotifs = onSnapshot(qNotifs, (snap) => {
+      const all = snap.docs.map(notificationDoc => ({
+        id: notificationDoc.id,
+        ...notificationDoc.data()
+      }));
+
+      all.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis?.() ?? (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const bTime = b.createdAt?.toMillis?.() ?? (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return bTime - aTime;
+      });
+
+      const unread = all.filter(n => !n.read);
+      setNotifications(all);
+
+      if (unread.length > prevNotifCount.current) {
+        const latest = unread[0];
+
+        if (latest && 'Notification' in window && Notification.permission === 'granted') {
+          try {
+            navigator.serviceWorker?.ready.then(registration => {
+              registration.showNotification(`🔔 ${latest.title}`, {
+                body: latest.message || '',
+                icon: LOGO_URL,
+                tag: `centra-${latest.id}`
+              });
+            });
+          } catch (error) {
+            console.warn('No se pudo mostrar la notificación del navegador:', error);
+          }
+        }
+      }
+
+      prevNotifCount.current = unread.length;
+    });
+
+    let notificationTimer = null;
+    if ('Notification' in window && Notification.permission === 'default') {
+      notificationTimer = setTimeout(() => setShowNotifRequest(true), 5000);
+    }
+
+    let unsubForegroundMessage = null;
+    if ('Notification' in window && Notification.permission === 'granted' && app) {
+      try {
+        const messaging = getMessaging(app);
+
+        unsubForegroundMessage = onMessage(messaging, (payload) => {
+          const title = payload?.notification?.title || payload?.data?.title || 'Nueva notificación';
+          const body = payload?.notification?.body || payload?.data?.body || '';
+
+          try {
+            navigator.serviceWorker?.ready.then(registration => {
+              registration.showNotification(`🔔 ${title}`, {
+                body,
+                icon: LOGO_URL,
+                tag: `centra-fcm-${Date.now()}`
+              });
+            });
+          } catch (error) {
+            console.warn('No se pudo mostrar el mensaje FCM:', error);
+          }
+        });
+      } catch (error) {
+        console.warn('Firebase Messaging todavía no está disponible:', error);
+      }
+    }
+
+    return () => {
+      unsubTasks();
+      unsubNotifs();
+      unsubEvents();
+      unsubResources();
+      unsubAnnounce();
+      unsubMaint();
+      unsubForegroundMessage?.();
+      if (notificationTimer) clearTimeout(notificationTimer);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, [user.id, db, appId, isStandalone]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (showMoreMenu && !moreMenuRef.current?.contains(event.target)) {
+        setShowMoreMenu(false);
+      }
+
+      if (showProfileMenu && !profileMenuRef.current?.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+
+      if (showNotifPanel && !notifPanelRef.current?.contains(event.target)) {
+        setShowNotifPanel(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowMoreMenu(false);
+        setShowProfileMenu(false);
+        setShowNotifPanel(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showMoreMenu, showProfileMenu, showNotifPanel]);
+
+const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      // Si el navegador ya tiene guardado el evento, se descarga de forma directa
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`Resultado: ${outcome}`);
+      if (outcome === 'accepted') {
+        setIsInstallable(false);
+      }
+      setDeferredPrompt(null);
+    } else {
+      // Si el navegador aún no liberó el evento directo, le damos instrucciones claras según el dispositivo
+      const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+      
+      if (isIOS) {
+        alert("Para instalar en iPhone: Toca el botón 'Compartir' (abajo en el navegador) y luego 'Agregar a la pantalla de inicio'.");
+      } else {
+        alert("Para instalar la app, toca los tres puntos (menú superior derecho de tu navegador) y selecciona 'Instalar aplicación' o 'Agregar a la pantalla principal'.");
+      }
+    }
+  };
+  const handleGlobalSearch = async (text) => {
+    setSearchQuery(text);
+
+    if (text.length < 2 || !db || !appId) {
+      setSearchResults([]);
+      return;
+    }
+
     try {
-      const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'students')); 
-      const s = await getDocs(q); 
-      const r = s.docs.map(d => ({ id: d.id, ...d.data() }))
-        .filter(s => (s.isActive === undefined || s.isActive) && 
-              (s.firstName.toLowerCase().includes(text.toLowerCase()) || 
-               s.lastName.toLowerCase().includes(text.toLowerCase()))); 
-      setSearchResults(r.slice(0, 5)); 
-    } catch (err) { console.error("Search error:", err); }
+      const base = `artifacts/${appId}/public/data`;
+
+      const [peopleSnap, profilesSnap] = await Promise.all([
+        getDocs(collection(db, `${base}/people`)),
+        getDocs(collection(db, `${base}/student_profiles`))
+      ]);
+
+      const profileMap = new Map(
+        profilesSnap.docs.map(profileDoc => [
+          profileDoc.id,
+          { id: profileDoc.id, ...profileDoc.data() }
+        ])
+      );
+
+      const needle = text.toLowerCase().trim();
+
+      const results = peopleSnap.docs
+        .map(personDoc => {
+          const person = { id: personDoc.id, ...personDoc.data() };
+          const profile = profileMap.get(person.id) || profileMap.get(person.personId) || {};
+
+          return {
+            ...person,
+            ...profile,
+            personId: person.id
+          };
+        })
+        .filter(person => person.active !== false)
+        .filter(person => {
+          const haystack = [
+            person.firstName,
+            person.lastName,
+            person.fullName,
+            person.dni,
+            person.email,
+            person.phone
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+          return haystack.includes(needle);
+        })
+        .sort((a, b) =>
+          `${a.lastName || ''} ${a.firstName || ''}`.localeCompare(
+            `${b.lastName || ''} ${b.firstName || ''}`,
+            'es'
+          )
+        );
+
+      setSearchResults(results.slice(0, 8));
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchResults([]);
+    }
   };
 
-  const handleNotificationClick = async (n) => { 
+  const unreadNotifications = notifications.filter(n => !n.read);
+  const unreadNotificationCount = unreadNotifications.length;
+
+  const handleNotificationClick = async (n) => {
     if (!db || !appId) return;
+
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id)); 
-      if (n.targetTab) setActiveTab(n.targetTab); 
-      setShowNotifPanel(false); 
-    } catch (err) { console.error(err); }
+      if (!n.read) {
+        await updateDoc(
+          doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id),
+          { read: true, readAt: serverTimestamp() }
+        );
+      }
+
+      if (n.targetTab) setActiveTab(n.targetTab);
+      setShowNotifPanel(false);
+    } catch (err) {
+      console.error('Error al abrir notificación:', err);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    if (!db || !appId || unreadNotifications.length === 0) return;
+
+    try {
+      await Promise.all(
+        unreadNotifications.map(n =>
+          updateDoc(
+            doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id),
+            { read: true, readAt: serverTimestamp() }
+          )
+        )
+      );
+    } catch (err) {
+      console.error('Error al marcar notificaciones como leídas:', err);
+    }
   };
 
   const calculateAge = (d) => { 
@@ -880,71 +735,229 @@ function MainApp({ user, onLogout }) {
     return a; 
   };
   
+  const enableNotifications = async () => {
+    if (!('Notification' in window)) {
+      alert('Este navegador no permite notificaciones.');
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+
+      if (permission !== 'granted') {
+        setShowNotifRequest(false);
+        return;
+      }
+
+      if (!app) throw new Error('Firebase no está inicializado.');
+
+      const messaging = getMessaging(app);
+      const registration = await navigator.serviceWorker?.ready;
+
+      const token = await getToken(messaging, {
+        vapidKey: 'BLtqtHLQvIIDs53Or78_JwxhFNKZaQM6S7rD4gbRoanfoh_YtYSbFbGHCWyHtZgXuL6Dm3rCvirHgW6fB_FUXrw',
+        ...(registration ? { serviceWorkerRegistration: registration } : {})
+      });
+
+      if (token && db && appId) {
+        await updateDoc(
+          doc(db, 'artifacts', appId, 'public', 'data', 'users', user.id),
+          {
+            fcmTokens: arrayUnion(token),
+            notificationsEnabled: true,
+            notificationsUpdatedAt: serverTimestamp()
+          }
+        );
+      }
+
+      alert('¡Listo! CENTRA ya puede avisarte de novedades.');
+    } catch (error) {
+      console.error('FCM Error:', error);
+      alert('No pudimos activar las notificaciones del dispositivo. Los avisos dentro de CENTRA seguirán funcionando.');
+    } finally {
+      setShowNotifRequest(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-gray-50 font-sans text-slate-800 overflow-hidden relative">
-      <header
-  className="text-white shadow-lg px-4 py-3 flex justify-between items-center z-50 sticky top-0 shrink-0"
-  style={{
-    backgroundColor:
-      appConfig.primaryColor || 'var(--app-primary)'
-  }}
->
-       <div className="flex items-center space-x-3">
-  {institution?.logoUrl ? (
-    <img
-      src={institution.logoUrl}
-      alt={`Logo de ${institution.institutionName || institution.name || 'la institución'}`}
-      className="w-10 h-8 object-contain"
-    />
-  ) : (
-    <div className="w-10 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-      <span className="text-xs font-black">
-        {(
-          institution?.institutionShortName ||
-          institution?.shortName ||
-          institution?.institutionName ||
-          institution?.name ||
-          'CE'
-        )
-          .slice(0, 2)
-          .toUpperCase()}
-      </span>
-    </div>
-  )}
-
-  <div>
-    <h1 className="font-bold text-sm leading-tight">
-      {institution?.institutionShortName ||
-        institution?.shortName ||
-        institution?.institutionName ||
-        institution?.name ||
-        'CENTRA'}
-    </h1>
-
-    <p className="text-[10px] text-orange-200 uppercase font-bold">
-      {user.firstName}
-    </p>
-  </div>
-</div>
+      <header className="bg-violet-800 text-white shadow-lg px-4 py-3 flex justify-between items-center z-50 sticky top-0 shrink-0">
+        <div className="flex items-center space-x-3">
+          <img src={LOGO_URL} alt="Logo" className="w-10 h-8 object-contain" />
+          <div>
+            <h1 className="font-bold text-sm leading-tight">Juntos a la Par</h1>
+            <p className="text-[10px] text-orange-200 uppercase font-bold">{user.firstName}</p>
+          </div>
+        </div>
         
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowSearch(true)} className="p-2 rounded-full bg-violet-900/50 hover:bg-orange-500 transition"><Search size={20} /></button>
-          
-          <div className="relative">
-            <button onClick={() => setShowNotifPanel(!showNotifPanel)} className={`p-2 rounded-full transition ${showNotifPanel ? 'bg-orange-500' : 'bg-violet-900/50'}`}>
+          <button
+            onClick={() => {
+              setShowSearch(true);
+              setShowNotifPanel(false);
+              setShowProfileMenu(false);
+              setShowMoreMenu(false);
+            }}
+            className="p-2 rounded-full bg-violet-900/50 hover:bg-orange-500 transition"
+            title="Buscar"
+          >
+            <Search size={20} />
+          </button>
+
+          <div ref={notifPanelRef} className="relative">
+            <button
+              onClick={() => {
+                setShowNotifPanel(value => !value);
+                setShowProfileMenu(false);
+                setShowMoreMenu(false);
+              }}
+              className={`p-2 rounded-full transition ${showNotifPanel ? 'bg-orange-500' : 'bg-violet-900/50'}`}
+              title="Notificaciones"
+            >
               <Bell size={20} />
-              {notifications.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full animate-pulse border border-white">{notifications.length}</span>}
+              {unreadNotificationCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center rounded-full animate-pulse border border-white">
+                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                </span>
+              )}
             </button>
+
             {showNotifPanel && (
-              <div className="absolute right-0 mt-3 w-72 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[100]">
-                <div className="p-4 bg-violet-50 border-b flex justify-between items-center"><h3 className="font-bold text-violet-900 text-sm">Avisos</h3><button onClick={() => setShowNotifPanel(false)}><X size={16} className="text-gray-400"/></button></div>
-                <div className="max-h-80 overflow-y-auto">{notifications.length===0?<div className="p-10 text-center text-gray-400"><p className="text-xs font-bold uppercase">Sin novedades</p></div>:notifications.map(n=>(<div key={n.id} onClick={()=>handleNotificationClick(n)} className="p-4 border-b hover:bg-gray-50 cursor-pointer"><p className="text-[10px] font-bold text-orange-600 mb-1 uppercase">{n.title}</p><p className="text-xs text-gray-700">{n.message}</p></div>))}</div>
+              <div className="absolute right-0 mt-3 w-[min(22rem,calc(100vw-1rem))] bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[100]">
+                <div className="p-4 bg-violet-50 border-b flex justify-between items-center gap-3">
+                  <div>
+                    <h3 className="font-bold text-violet-900 text-sm">Avisos</h3>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      {unreadNotificationCount ? `${unreadNotificationCount} sin leer` : 'Todo al día'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {unreadNotificationCount > 0 && (
+                      <button
+                        onClick={handleMarkAllNotificationsRead}
+                        className="text-[9px] font-black uppercase text-violet-600 hover:text-orange-500"
+                      >
+                        Marcar leídas
+                      </button>
+                    )}
+                    <button onClick={() => setShowNotifPanel(false)} title="Cerrar">
+                      <X size={16} className="text-gray-400"/>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-10 text-center text-gray-400">
+                      <Bell size={24} className="mx-auto mb-2 opacity-30"/>
+                      <p className="text-xs font-bold uppercase">Sin novedades</p>
+                    </div>
+                  ) : (
+                    notifications.slice(0, 20).map(n => (
+                      <button
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`w-full text-left p-4 border-b last:border-b-0 hover:bg-gray-50 transition ${n.read ? 'bg-white' : 'bg-orange-50/50'}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${n.read ? 'bg-gray-200' : 'bg-orange-500'}`}/>
+                          <div>
+                            <p className={`text-[10px] font-bold mb-1 uppercase ${n.read ? 'text-gray-400' : 'text-orange-600'}`}>{n.title}</p>
+                            <p className="text-xs text-gray-700 leading-relaxed">{n.message}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
-          
-          <div onClick={() => {setActiveTab('profile'); setShowNotifPanel(false);}} className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold border-2 border-orange-400 overflow-hidden cursor-pointer active:scale-95 transition">
-            {user.photoUrl ? <img src={user.photoUrl} className="w-full h-full object-cover" /> : user.firstName?.[0]}
+
+          <div ref={profileMenuRef} className="relative">
+            <button
+              onClick={() => {
+                setShowProfileMenu(value => !value);
+                setShowNotifPanel(false);
+                setShowMoreMenu(false);
+              }}
+              className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold border-2 border-orange-400 overflow-hidden cursor-pointer active:scale-95 transition shadow-sm"
+              title="Mi perfil"
+            >
+              {user.photoUrl ? (
+                <img src={user.photoUrl} className="w-full h-full object-cover" alt="Tu perfil" />
+              ) : (
+                user.firstName?.[0] || user.fullName?.[0] || 'U'
+              )}
+            </button>
+
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-3 w-72 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[110]">
+                <div className="p-4 bg-gradient-to-br from-violet-800 to-violet-700 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 overflow-hidden flex items-center justify-center font-black">
+                      {user.photoUrl ? (
+                        <img src={user.photoUrl} className="w-full h-full object-cover" alt="" />
+                      ) : (
+                        user.firstName?.[0] || user.fullName?.[0] || 'U'
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-black truncate">{user.fullName || `${user.firstName || ''} ${user.lastName || ''}`}</p>
+                      <p className="text-[10px] text-violet-200 uppercase font-bold mt-0.5 truncate">{user.role || user.rol || 'Usuario'}</p>
+                      {user.email && <p className="text-[10px] text-white/70 mt-1 truncate">{user.email}</p>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('profile');
+                      setShowProfileMenu(false);
+                    }}
+                    className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-700 transition"
+                  >
+                    <User size={18} className="text-violet-500"/> Mi perfil
+                  </button>
+
+                  {!isStandalone && (
+                    <button
+                      onClick={() => {
+                        handleInstallApp();
+                        setShowProfileMenu(false);
+                      }}
+                      className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-700 transition"
+                    >
+                      <Download size={18} className="text-green-500"/> Instalar CENTRA
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      enableNotifications();
+                    }}
+                    className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-700 transition"
+                  >
+                    <Bell size={18} className="text-blue-500"/> Configurar notificaciones
+                  </button>
+
+                  <div className="my-1 border-t border-gray-100"/>
+
+                  <button
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      onLogout();
+                    }}
+                    className="w-full text-left p-3 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-600 transition"
+                  >
+                    <LogOut size={18}/> Cerrar sesión
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -965,73 +978,78 @@ function MainApp({ user, onLogout }) {
           </div>
       )}
 
+      {/* --- POPUP NOTIFICACIONES --- */}
+      {showNotifRequest && (
+        <div className="fixed inset-0 z-[400] flex items-end md:items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
+             <div className="bg-white rounded-[30px] p-6 w-full max-w-sm shadow-2xl text-center border-t-8 border-orange-500 mb-20 md:mb-0">
+                  <Bell size={32} className="text-orange-500 mx-auto mb-4"/>
+                  <h3 className="text-xl font-black text-gray-800">¡No te pierdas nada!</h3>
+                  <p className="text-sm text-gray-500 mb-6">Activá los avisos urgentes.</p>
+                  <div className="flex flex-col gap-3">
+                      <button onClick={enableNotifications} className="w-full bg-violet-600 text-white font-bold py-3 rounded-xl">ACTIVAR AHORA</button>
+                      <button onClick={() => setShowNotifRequest(false)} className="text-gray-400 text-xs font-bold uppercase">Ahora no</button>
+                  </div>
+             </div>
+        </div>
+      )}
+
       <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : 'px-4 max-w-4xl'}`}>
         {activeTab === 'dashboard' && <DashboardView user={user} db={db} appId={appId} tasks={tasks} events={events} announcements={announcements} setActiveTab={setActiveTab} />}
-        {activeTab === 'calendar' && hasModule('calendar') && appConfig.features.calendar !== false && <CalendarView events={events} user={user} db={db} appId={appId} canEdit={canManageContent} />}
-        {activeTab === 'tasks' && hasModule('tasks') && appConfig.features.tasks !== false && <TasksView tasks={tasks} user={user} db={db} appId={appId} />}
-        {activeTab === 'matricula' && hasModule('matricula') && appConfig.features.studentFiles !== false && <MatriculaView user={user} db={db} appId={appId} initStudentId={selectedStudentId} />}
-        {activeTab === 'groups' && hasModule('groups') && <GroupsView user={user} db={db} appId={appId} setActiveTab={setActiveTab} onSelectStudent={setSelectedStudentId} />}
-        {activeTab === 'resources' && hasModule('resources') && appConfig.features.resources !== false && <ResourcesView resources={resources} canEdit={canManageContent} db={db} appId={appId} user={user} />}
-        {activeTab === 'social' && hasModule('social') && appConfig.features.social !== false && <SocialView user={user} db={db} appId={appId} />}
+        {activeTab === 'calendar' && <CalendarView events={events} user={user} db={db} appId={appId} canEdit={canManageContent} />}
+        {activeTab === 'tasks' && <TasksView tasks={tasks} user={user} db={db} appId={appId} />}
+        {activeTab === 'matricula' && <MatriculaView user={user} db={db} appId={appId} initStudentId={selectedStudentId} />}
+        {activeTab === 'groups' && <GroupsView user={user} db={db} appId={appId} setActiveTab={setActiveTab} onSelectStudent={setSelectedStudentId} />}
+        {activeTab === 'resources' && <ResourcesView resources={resources} canEdit={canManageContent} db={db} appId={appId} user={user} />}
+        {activeTab === 'social' && <SocialView user={user} db={db} appId={appId} />}
         {activeTab === 'profile' && <ProfileView user={user} tasks={tasks} onLogout={onLogout} isSuperAdmin={isSuperAdmin} db={db} appId={appId} />}
-        {activeTab === 'proyecto' && hasModule('proyecto') && <ProyectoView user={user} db={db} appId={appId} />}
-        {activeTab === 'evaluations' && hasModule('evaluations') && isTechTeamRole && appConfig.features.evaluations !== false && <EvaluationsView user={user} db={db} appId={appId} />}
+        {activeTab === 'proyecto' && <ProyectoView user={user} db={db} appId={appId} />}
+        {activeTab === 'evaluations' && isTechTeamRole && <EvaluationsView user={user} db={db} appId={appId} />}
         {activeTab === 'notifications' && <NotificationsView notifications={notifications} canEdit={isSuperAdmin} user={user} />}
 
-        {activeTab === 'users' && hasModule('users') && isSuperAdmin && db && <UsersAdminView db={db} appId={appId} />}
-        {activeTab === 'personal' && hasModule('personal') && isAdminRole && db && <PersonalView user={user} db={db} appId={appId} TURNS_LIST={appConfig.turns} VALID_ROLES_OFFICIAL={appConfig.roles} />}
-        {activeTab === 'admin' && hasModule('admin') && isAdminRole && db && <AdministracionView user={user} db={db} appId={appId} />}
-        {activeTab === 'equipo' && hasModule('equipo') && isTechTeamRole && db && <EquipoTecnicoView user={user} db={db} appId={appId} />}
-        {activeTab === 'medical' && hasModule('medical') && isMedicalRole && db && <MedicalView user={user} db={db} appId={appId} />}  
-        {activeTab === 'informes' && hasModule('informes') && appConfig.features.reports !== false && (<InformesView user={user} students={students} db={db} appId={appId} />)}
-        {activeTab === 'informes_externos' && hasModule('informes_externos') && appConfig.features.externalReports !== false && canAccessInformesExternos && (<InformesExternosView user={user} db={db} appId={appId} />)}
-        {activeTab === 'audit' && hasModule('audit') && isSuperAdmin && db && (<ActivityLogView db={db} appId={appId} />)}
-        {activeTab === 'configuracion' && hasModule('configuracion') && isSuperAdmin && db && (<ConfiguracionView db={db} appId={appId} auth={auth} />)}
+        {activeTab === 'users' && isSuperAdmin && db && <UsersAdminView db={db} appId={appId} />}
+        {activeTab === 'personal' && isAdminRole && db && <PersonalView user={user} db={db} appId={appId} TURNS_LIST={TURNS_LIST} VALID_ROLES_OFFICIAL={VALID_ROLES_OFFICIAL} />}
+        {activeTab === 'admin' && isAdminRole && db && <AdministracionView user={user} db={db} appId={appId} />}
+        {activeTab === 'medical' && isMedicalRole && db && <MedicalView user={user} db={db} appId={appId} />}
+  
+        {activeTab === 'informes' && (<InformesView user={user} students={students} db={db} appId={appId} />)}
+        {activeTab === 'informes_externos' && canAccessInformesExternos && (<InformesExternosView user={user} db={db} appId={appId} />)}
       </main>
-  <a
-      href="https://www.somosnomade.com.ar/"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="fixed bottom-[72px] right-3 z-20 text-[9px] font-semibold text-slate-400 hover:text-violet-600 transition bg-white/90 backdrop-blur-sm px-2.5 py-1.5 rounded-full border border-slate-200/70 shadow-sm"
-    >
-      Desarrollado por <span className="font-black">NOMADE</span> ↗
-    </a>
+
       <nav className="fixed bottom-0 w-full bg-white border-t border-violet-100 h-16 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-safe shrink-0 text-center">
         <div className="grid grid-cols-5 h-full max-w-3xl mx-auto px-2 relative">
           <NavButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={20} />} label="Inicio" />
-          {hasModule('tasks') && <NavButton active={activeTab === 'tasks'} onClick={() => setActiveTab('tasks')} icon={<CheckSquare size={20} />} label="Tareas" />}
+          <NavButton active={activeTab === 'tasks'} onClick={() => setActiveTab('tasks')} icon={<CheckSquare size={20} />} label="Tareas" />
           
-          {hasModule('groups') && <div className="relative -top-5 flex justify-center">
+          <div className="relative -top-5 flex justify-center">
             <button onClick={() => setActiveTab('groups')} className={`w-14 h-14 rounded-full flex flex-col items-center justify-center shadow-xl border-4 border-gray-50 transition-all transform active:scale-95 ${activeTab === 'groups' ? 'bg-orange-500 text-white scale-110' : 'bg-violet-600 text-white'}`}>
               <Grid size={24} />
             </button>
-            <span className="absolute -bottom-4 text-[9px] font-black text-violet-900 uppercase tracking-wide whitespace-nowrap">Mi Aula</span>
-          </div>}
+            <span className="absolute -bottom-4 text-[9px] font-black text-violet-900 uppercase tracking-wide whitespace-nowrap">Organización</span>
+          </div>
 
-          {hasModule('calendar') && <NavButton active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} icon={<CalendarIcon size={20} />} label="Agenda" />}
+          <NavButton active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} icon={<CalendarIcon size={20} />} label="Agenda" />
           
           <div className="relative">
-            <NavButton active={['matricula', 'resources', 'proyecto', 'admin', 'personal', 'medical', 'equipo', 'social', 'users', 'configuracion'].includes(activeTab)} onClick={() => setShowMoreMenu(!showMoreMenu)} icon={<List size={20} />} label="Más" />
+            <NavButton active={['matricula', 'resources', 'proyecto', 'admin', 'personal', 'medical', 'social', 'users', 'informes', 'informes_externos', 'evaluations'].includes(activeTab)} onClick={() => setShowMoreMenu(!showMoreMenu)} icon={<List size={20} />} label="Más" />
             
             {showMoreMenu && (
               <div className="absolute bottom-16 right-0 bg-white rounded-3xl shadow-2xl border border-gray-100 p-2 w-64 animate-in slide-in-from-bottom-5 zoom-in-95 origin-bottom-right z-[100] max-h-[70vh] overflow-y-auto custom-scrollbar">
-                {hasModule('matricula') && appConfig.features.studentFiles !== false && <button onClick={() => { setActiveTab('matricula'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition">
+                <button onClick={() => { setActiveTab('matricula'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition">
                   <GraduationCap size={18} className="text-violet-500"/> Legajos
-                </button>}
-                {hasModule('resources') && appConfig.features.resources !== false && <button onClick={() => { setActiveTab('resources'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition">
+                </button>
+                <button onClick={() => { setActiveTab('resources'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition">
                   <LinkIcon size={18} className="text-green-500"/> Recursos
-                </button>}
-                {hasModule('proyecto') && <button onClick={() => { setActiveTab('proyecto'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition">
+                </button>
+                <button onClick={() => { setActiveTab('proyecto'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition">
                   <PieChart size={18} className="text-orange-500"/> Proyecto Inst.
-                </button>}
-                {hasModule('informes') && appConfig.features.reports !== false && <button onClick={() => { setActiveTab('informes'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition">
+                </button>
+                <button onClick={() => { setActiveTab('informes'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition">
                   <ClipboardCheck size={18} className="text-violet-500"/> Informes Pedagógicos
-                </button>}
+                </button>
                 
                 {showPrivateMenu && (
                   <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 mb-1 mt-1">Gestión Privada</p>
-                    {hasModule('equipo') && isTechTeamRole && <button onClick={() => { setActiveTab('equipo'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-teal-50 flex items-center gap-3 text-sm font-bold text-teal-700 transition"><Briefcase size={18} className="text-teal-500"/> Equipo Técnico</button>}
                     {isAdminRole && (
                       <>
                         <button onClick={() => { setActiveTab('admin'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-blue-50 flex items-center gap-3 text-sm font-bold text-blue-600 transition"><FileText size={18} className="text-blue-500"/> Admin Docs</button>
@@ -1043,13 +1061,11 @@ function MainApp({ user, onLogout }) {
                         <ExternalLink size={18} className="text-pink-500"/> Informes Externos
                       </button>
                     )}
-                    {hasModule('evaluations') && appConfig.features.evaluations !== false && isTechTeamRole && <button onClick={() => { setActiveTab('evaluations'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl bg-orange-50 text-orange-950 flex items-center gap-3 text-sm font-black transition border border-orange-100/50 shadow-inner"><ClipboardCheck size={18} className="text-orange-600"/> Evaluación Áreas</button>}
-                    {canAccessSocial && appConfig.features.social !== false && <button onClick={() => { setActiveTab('social'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-blue-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><Users size={18} className="text-blue-500"/> Trabajo Social</button>}
-                    {hasModule('medical') && appConfig.features.medical !== false && isMedicalRole && <button onClick={() => { setActiveTab('medical'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-600 transition"><Activity size={18} className="text-red-500"/> Médico</button>}
+                    {isTechTeamRole && <button onClick={() => { setActiveTab('evaluations'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl bg-orange-50 text-orange-950 flex items-center gap-3 text-sm font-black transition border border-orange-100/50 shadow-inner"><ClipboardCheck size={18} className="text-orange-600"/> Evaluación Áreas</button>}
+                    {canAccessSocial && <button onClick={() => { setActiveTab('social'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-blue-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><Users size={18} className="text-blue-500"/> Trabajo Social</button>}
+                    {isMedicalRole && <button onClick={() => { setActiveTab('medical'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-600 transition"><Activity size={18} className="text-red-500"/> Médico</button>}
                     {isSuperAdmin && (
                       <>
-                        <button onClick={() => { setActiveTab('configuracion'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-violet-700 transition border-t border-violet-50 mt-1"><Settings size={18} className="text-violet-500"/> Configuración</button>
-                        <button onClick={() => { setActiveTab('audit'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-slate-100 flex items-center gap-3 text-sm font-bold text-slate-700 transition"><Activity size={18} className="text-slate-500"/> Auditoría Global</button>
                         <button onClick={() => { setActiveTab('users'); setShowMoreMenu(false); }} className="w-full text-left p-3 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-700 transition border-t border-red-50 mt-1"><Shield size={18} className="text-red-500"/> Gestión Usuarios</button>
                       </>
                     )}
@@ -1102,15 +1118,3 @@ function StartIcon({size}) {
     </svg>
   );
 }
-function App() {
-  return (
-    <InstitutionProvider
-      db={db}
-      appId={appId}
-    >
-      <AppContent />
-    </InstitutionProvider>
-  );
-}
-
-export default App;
