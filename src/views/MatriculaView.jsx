@@ -5108,16 +5108,10 @@ function StudentFormModal({
       ? 'Participación y jornada'
       : 'Escolaridad';
 
-  const [selectedJourneyId, setSelectedJourneyId] =
-    useState(
-      student?.groupAssignments?.find(
-        assignment =>
-          assignment.status === 'active' &&
-          !assignment.validTo
-      )?.scheduleType ||
-      journeys[0]?.id ||
-      ''
-    );
+
+  /* =====================================
+     FOTO
+  ====================================== */
 
   const handlePhotoChange = event => {
     const file =
@@ -5166,7 +5160,7 @@ function StudentFormModal({
 
 
   /* =====================================
-     JORNADA
+     JORNADA ACTUAL
   ====================================== */
 
   const currentJourney =
@@ -5174,25 +5168,13 @@ function StudentFormModal({
     journeys[0]?.id ||
     '';
 
-  const selectedJourney =
+
+  const currentJourneyName =
     journeys.find(
       journey =>
         journey.id ===
-        selectedJourneyId
-    );
-
-  const selectedJourneyName =
-    normalizeText(
-      selectedJourney?.name || ''
-    );
-
-  const selectedIsDouble =
-    selectedJourneyName.includes(
-      'doble'
-    ) ||
-    selectedJourneyName.includes(
-      'completa'
-    );
+        currentJourney
+    )?.name || '';
 
 
   /* =====================================
@@ -5208,6 +5190,7 @@ function StudentFormModal({
     ) ||
     turns[0] ||
     null;
+
 
   const afternoonTurn =
     turns.find(
@@ -5226,6 +5209,7 @@ function StudentFormModal({
         placement.turnId ===
         morningTurn?.id
     );
+
 
   const currentAfternoon =
     currentPlacements.find(
@@ -5248,6 +5232,125 @@ function StudentFormModal({
 
 
   /* =====================================
+     JORNADAS CONFIGURADAS
+  ====================================== */
+
+  const simpleJourney =
+    journeys.find(
+      journey => {
+
+        const name =
+          normalizeText(
+            journey.name || ''
+          );
+
+        return (
+          !name.includes('doble') &&
+          !name.includes('completa')
+        );
+
+      }
+    ) ||
+    journeys[0] ||
+    null;
+
+
+  const doubleJourney =
+    journeys.find(
+      journey => {
+
+        const name =
+          normalizeText(
+            journey.name || ''
+          );
+
+        return (
+          name.includes('doble') ||
+          name.includes('completa')
+        );
+
+      }
+    ) ||
+    null;
+
+
+  /* =====================================
+     ELECCIÓN VISIBLE DE JORNADA
+  ====================================== */
+
+  const getInitialJourneyChoice = () => {
+
+    const currentName =
+      normalizeText(
+        currentJourneyName
+      );
+
+
+    if (
+      currentName.includes('doble') ||
+      currentName.includes('completa')
+    ) {
+
+      return 'double';
+
+    }
+
+
+    const existingTurn =
+      turns.find(
+        turn =>
+          turn.id ===
+          currentSimpleTurnId
+      );
+
+
+    const existingTurnName =
+      normalizeText(
+        existingTurn?.name || ''
+      );
+
+
+    if (
+      existingTurnName.includes('tarde')
+    ) {
+
+      return 'simple_afternoon';
+
+    }
+
+
+    return 'simple_morning';
+
+  };
+
+
+  const [
+    selectedJourneyChoice,
+    setSelectedJourneyChoice
+  ] = useState(
+    getInitialJourneyChoice
+  );
+
+
+  const selectedIsDouble =
+    selectedJourneyChoice ===
+    'double';
+
+
+  const selectedJourneyId =
+    selectedIsDouble
+      ? doubleJourney?.id || ''
+      : simpleJourney?.id || '';
+
+
+  const selectedSimpleTurnId =
+    selectedJourneyChoice ===
+    'simple_afternoon'
+      ? afternoonTurn?.id || ''
+      : morningTurn?.id || '';
+
+
+  /* =====================================
      TALLERES / GRUPOS CENTRO DE DÍA
   ====================================== */
 
@@ -5262,6 +5365,7 @@ function StudentFormModal({
               placement.groupId
           );
 
+
         const turn =
           turns.find(
             item =>
@@ -5269,9 +5373,11 @@ function StudentFormModal({
               placement.turnId
           );
 
+
         if (!group) {
           return null;
         }
+
 
         return {
           groupId:
@@ -5292,47 +5398,32 @@ function StudentFormModal({
           array.findIndex(
             other =>
               other.groupId ===
-              item.groupId &&
+                item.groupId &&
               other.turnName ===
-              item.turnName
+                item.turnName
           )
       );
-
-
-  /* =====================================
-     CAMBIO DE JORNADA
-  ====================================== */
-
-  const handleFormChange = event => {
-
-    if (
-      event.target.name ===
-      'scheduleType'
-    ) {
-
-      setSelectedJourneyId(
-        event.target.value
-      );
-
-    }
-
-  };
 
 
   return (
     <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
 
+
+      {/* =====================================
+          MODAL
+      ====================================== */}
+
       <form
         onSubmit={onSave}
-        onChange={handleFormChange}
-        className="bg-white rounded-[28px] w-full max-w-4xl max-h-[94vh] overflow-y-auto shadow-2xl"
+        className="bg-white rounded-[28px] w-full max-w-4xl h-[94vh] max-h-[94vh] flex flex-col overflow-hidden shadow-2xl"
       >
+
 
         {/* =====================================
             ENCABEZADO
         ====================================== */}
 
-        <div className="sticky top-0 bg-white z-20 px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="bg-white z-20 shrink-0 px-6 py-5 border-b border-slate-100 flex items-center justify-between">
 
           <div>
 
@@ -5344,8 +5435,11 @@ function StudentFormModal({
 
             </h3>
 
+
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+
               {formSubtitle}
+
             </p>
 
           </div>
@@ -5363,10 +5457,10 @@ function StudentFormModal({
 
 
         {/* =====================================
-            CONTENIDO
+            CONTENIDO SCROLLEABLE
         ====================================== */}
 
-        <div className="p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-5">
 
 
           {/* =====================================
@@ -5409,19 +5503,15 @@ function StudentFormModal({
 
                 <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
 
-                  <div className="flex items-start justify-between gap-4">
+                  <div>
 
-                    <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
+                      Foto
+                    </p>
 
-                      <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
-                        Foto
-                      </p>
-
-                      <p className="text-xs text-slate-500 mt-1">
-                        Subí una foto clara para identificar a la persona.
-                      </p>
-
-                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Subí una foto clara para identificar a la persona.
+                    </p>
 
                   </div>
 
@@ -5464,6 +5554,7 @@ function StudentFormModal({
                         />
 
                       </label>
+
 
                       <p className="text-xs text-slate-400 mt-2">
                         JPG, PNG o WEBP
@@ -5564,6 +5655,7 @@ function StudentFormModal({
 
             <div className="grid md:grid-cols-2 gap-3">
 
+
               <Input
                 name="address"
                 label="Dirección"
@@ -5571,6 +5663,7 @@ function StudentFormModal({
                   student.address
                 }
               />
+
 
               <Input
                 name="city"
@@ -5580,6 +5673,7 @@ function StudentFormModal({
                 }
               />
 
+
               <Input
                 name="phone"
                 label="Teléfono"
@@ -5587,6 +5681,7 @@ function StudentFormModal({
                   student.phone
                 }
               />
+
 
               <Input
                 name="email"
@@ -5597,6 +5692,7 @@ function StudentFormModal({
                 }
               />
 
+
               <Input
                 name="motherName"
                 label="Adulto responsable 1"
@@ -5604,6 +5700,7 @@ function StudentFormModal({
                   student.motherName
                 }
               />
+
 
               <Input
                 name="motherContact"
@@ -5613,6 +5710,7 @@ function StudentFormModal({
                 }
               />
 
+
               <Input
                 name="fatherName"
                 label="Adulto responsable 2"
@@ -5621,6 +5719,7 @@ function StudentFormModal({
                 }
               />
 
+
               <Input
                 name="fatherContact"
                 label="Contacto responsable 2"
@@ -5628,6 +5727,7 @@ function StudentFormModal({
                   student.fatherContact
                 }
               />
+
 
               <Input
                 name="emergencyContact"
@@ -5655,6 +5755,7 @@ function StudentFormModal({
 
             <div className="grid md:grid-cols-2 gap-3">
 
+
               <Input
                 name="healthInsurance"
                 label="Obra social / prepaga"
@@ -5663,6 +5764,7 @@ function StudentFormModal({
                 }
               />
 
+
               <Input
                 name="cudNumber"
                 label="Número de CUD"
@@ -5670,6 +5772,7 @@ function StudentFormModal({
                   student.cudNumber
                 }
               />
+
 
               <Input
                 name="cudExpiration"
@@ -5716,49 +5819,190 @@ function StudentFormModal({
 
                   {levels.map(
                     level => (
+
                       <option
                         key={level.id}
                         value={level.id}
                       >
                         {level.name}
                       </option>
+
                     )
                   )}
 
                 </Select>
 
 
-                <Select
-                  name="scheduleType"
-                  label="Jornada"
-                  defaultValue={
-                    currentJourney
-                  }
-                >
+                {/* TIPO DE JORNADA */}
 
-                  <option value="">
-                    Seleccionar
-                  </option>
+                <div className="block">
 
-                  {journeys.map(
-                    journey => (
-                      <option
-                        key={journey.id}
-                        value={journey.id}
-                      >
-                        {journey.name}
-                      </option>
-                    )
-                  )}
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                    Tipo de jornada
+                  </span>
 
-                </Select>
+
+                  <select
+                    value={selectedJourneyChoice}
+                    onChange={event =>
+                      setSelectedJourneyChoice(
+                        event.target.value
+                      )
+                    }
+                    className="mt-1 w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 text-sm font-semibold text-slate-700"
+                  >
+
+                    <option value="simple_morning">
+                      Simple – mañana
+                    </option>
+
+                    <option value="simple_afternoon">
+                      Simple – tarde
+                    </option>
+
+                    <option
+                      value="double"
+                      disabled={!doubleJourney}
+                    >
+                      Doble jornada
+                    </option>
+
+                  </select>
+
+
+                  <input
+                    type="hidden"
+                    name="scheduleType"
+                    value={
+                      selectedJourneyId
+                    }
+                    readOnly
+                  />
+
+                </div>
 
               </div>
 
 
-              {/* JORNADA DOBLE */}
+              {/* ================================
+                  JORNADA SIMPLE
+              ================================= */}
 
-              {selectedIsDouble ? (
+              {!selectedIsDouble && (
+
+                <div className="mt-4 p-4 rounded-2xl bg-violet-50 border border-violet-100">
+
+                  <div className="flex items-center gap-2 mb-3">
+
+                    <Clock3
+                      size={16}
+                      className="text-violet-600"
+                    />
+
+                    <div>
+
+                      <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
+
+                        {selectedJourneyChoice ===
+                        'simple_afternoon'
+                          ? 'Turno tarde'
+                          : 'Turno mañana'}
+
+                      </p>
+
+
+                      <p className="text-xs font-bold text-slate-500">
+                        Elegí el grupo correspondiente.
+                      </p>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="grid md:grid-cols-2 gap-3">
+
+
+                    <div className="p-3 rounded-xl bg-white border border-violet-100">
+
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                        Turno
+                      </span>
+
+
+                      <p className="text-sm font-black text-slate-700 mt-1">
+
+                        {selectedJourneyChoice ===
+                        'simple_afternoon'
+                          ? afternoonTurn?.name ||
+                            'Tarde'
+                          : morningTurn?.name ||
+                            'Mañana'}
+
+                      </p>
+
+                    </div>
+
+
+                    <div key={selectedJourneyChoice}>
+
+                      <Select
+                        name="simpleGroupId"
+                        label="Grupo"
+                        defaultValue={
+                          selectedJourneyChoice ===
+                          'simple_afternoon'
+                            ? currentAfternoon?.groupId ||
+                              ''
+                            : currentMorning?.groupId ||
+                              ''
+                        }
+                      >
+
+                        <option value="">
+                          Sin asignar
+                        </option>
+
+
+                        {groups.map(
+                          group => (
+
+                            <option
+                              key={group.id}
+                              value={group.id}
+                            >
+                              {group.name}
+                            </option>
+
+                          )
+                        )}
+
+                      </Select>
+
+                    </div>
+
+                  </div>
+
+
+                  <input
+                    type="hidden"
+                    name="simpleTurnId"
+                    value={
+                      selectedSimpleTurnId
+                    }
+                    readOnly
+                  />
+
+                </div>
+
+              )}
+
+
+              {/* ================================
+                  DOBLE JORNADA
+              ================================= */}
+
+              {selectedIsDouble && (
 
                 <div className="mt-4 space-y-3">
 
@@ -5781,7 +6025,7 @@ function StudentFormModal({
                         </p>
 
                         <p className="text-xs font-bold text-slate-500">
-                          Grupo correspondiente
+                          Grupo correspondiente al turno mañana.
                         </p>
 
                       </div>
@@ -5812,14 +6056,17 @@ function StudentFormModal({
                         Sin asignar
                       </option>
 
+
                       {groups.map(
                         group => (
+
                           <option
                             key={group.id}
                             value={group.id}
                           >
                             {group.name}
                           </option>
+
                         )
                       )}
 
@@ -5846,7 +6093,7 @@ function StudentFormModal({
                         </p>
 
                         <p className="text-xs font-bold text-slate-500">
-                          Grupo correspondiente
+                          Grupo correspondiente al turno tarde.
                         </p>
 
                       </div>
@@ -5877,14 +6124,17 @@ function StudentFormModal({
                         Sin asignar
                       </option>
 
+
                       {groups.map(
                         group => (
+
                           <option
                             key={group.id}
                             value={group.id}
                           >
                             {group.name}
                           </option>
+
                         )
                       )}
 
@@ -5894,74 +6144,10 @@ function StudentFormModal({
 
                 </div>
 
-              ) : (
-
-                /* JORNADA SIMPLE */
-
-                <div className="mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-
-                  <div className="flex items-center gap-2 mb-3">
-
-                    <Clock3
-                      size={16}
-                      className="text-slate-500"
-                    />
-
-                    <div>
-
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                        Grupo
-                      </p>
-
-                      <p className="text-xs font-bold text-slate-500">
-                        Grupo correspondiente a la jornada
-                      </p>
-
-                    </div>
-
-                  </div>
-
-
-                  <input
-                    type="hidden"
-                    name="simpleTurnId"
-                    value={
-                      currentSimpleTurnId
-                    }
-                    readOnly
-                  />
-
-
-                  <Select
-                    name="simpleGroupId"
-                    label="Grupo"
-                    defaultValue={
-                      currentSimplePlacement?.groupId ||
-                      ''
-                    }
-                  >
-
-                    <option value="">
-                      Sin asignar
-                    </option>
-
-                    {groups.map(
-                      group => (
-                        <option
-                          key={group.id}
-                          value={group.id}
-                        >
-                          {group.name}
-                        </option>
-                      )
-                    )}
-
-                  </Select>
-
-                </div>
-
               )}
 
+
+              {/* RESUMEN */}
 
               <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
 
@@ -5969,11 +6155,15 @@ function StudentFormModal({
                   Cómo se guarda
                 </p>
 
+
                 <p className="text-xs font-bold text-slate-600 mt-1">
 
                   {selectedIsDouble
                     ? 'Mañana y tarde pueden tener grupos diferentes.'
-                    : 'Jornada simple: se utiliza un solo grupo.'}
+                    : selectedJourneyChoice ===
+                      'simple_afternoon'
+                    ? 'Jornada simple: se utilizará un grupo del turno tarde.'
+                    : 'Jornada simple: se utilizará un grupo del turno mañana.'}
 
                 </p>
 
@@ -6005,11 +6195,14 @@ function StudentFormModal({
                   Tipo de jornada
                 </p>
 
+
                 <p className="text-sm font-black text-slate-700 mt-1">
+
                   {currentAssignment?.scheduleType
                     ? currentJourneyName ||
                       'Jornada configurada'
                     : 'Sin jornada asignada'}
+
                 </p>
 
               </div>
@@ -6019,19 +6212,16 @@ function StudentFormModal({
 
               <div className="mt-4 rounded-2xl bg-violet-50/60 border border-violet-100 p-4">
 
-                <div className="flex items-center justify-between gap-3">
+                <div>
 
-                  <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-violet-600">
+                    Talleres / grupos asignados
+                  </p>
 
-                    <p className="text-[9px] font-black uppercase tracking-widest text-violet-600">
-                      Talleres / grupos asignados
-                    </p>
 
-                    <p className="text-xs text-slate-500 mt-1">
-                      Esta información se gestiona desde Grupos.
-                    </p>
-
-                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Esta información se gestiona desde Grupos.
+                  </p>
 
                 </div>
 
@@ -6051,6 +6241,7 @@ function StudentFormModal({
                           <p className="text-xs font-black text-slate-700">
                             {item.groupName}
                           </p>
+
 
                           {item.turnName && (
 
@@ -6088,6 +6279,7 @@ function StudentFormModal({
                   Gestión de participación
                 </p>
 
+
                 <p className="text-xs font-bold text-slate-600 mt-1">
                   Los talleres y grupos se asignan desde el módulo Grupos y se reflejan automáticamente en este legajo.
                 </p>
@@ -6103,8 +6295,26 @@ function StudentFormModal({
               CONSULTORIOS
           ====================================== */}
 
-          {/* En consultorios no se muestra
-              escolaridad, jornada ni grupos. */}
+          {institutionMode === 'clinic' && (
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+              <SectionTitle>
+                Atención
+              </SectionTitle>
+
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+
+                <p className="text-xs font-bold text-slate-500">
+                  La información de profesionales, especialidades y espacios de atención se gestionará desde el módulo correspondiente.
+                </p>
+
+              </div>
+
+            </section>
+
+          )}
 
 
           {/* =====================================
@@ -6125,7 +6335,7 @@ function StudentFormModal({
               }
               rows={4}
               placeholder="Observaciones institucionales..."
-              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:border-violet-400 text-sm font-medium resize-none"
+              className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 text-sm font-medium resize-none"
             />
 
           </section>
@@ -6134,10 +6344,10 @@ function StudentFormModal({
 
 
         {/* =====================================
-            PIE
+            PIE FIJO
         ====================================== */}
 
-        <div className="sticky bottom-0 bg-white border-t border-slate-100 p-4 flex gap-2 justify-end z-20">
+        <div className="bg-white border-t border-slate-100 p-4 flex gap-2 justify-end shrink-0 z-20">
 
           <button
             type="button"
