@@ -1,4 +1,9 @@
-import { getCachedAppConfig, getInstitutionName } from '../config';
+import {
+  getCachedAppConfig,
+  getInstitutionName,
+  INSTITUTION_MODES,
+  STAFF_WEEKDAYS
+} from '../config';
 import React, { useState, useEffect } from 'react';
 import { 
   Calendar as CalendarIcon, CheckSquare, Settings, User, FileText, CheckCircle, 
@@ -20,7 +25,50 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
   const [staffList, setStaffList] = useState([]);
   const [students, setStudents] = useState([]);
   const [users, setUsers] = useState([]);
-  const turnOptions = (Array.isArray(TURNS_LIST) ? TURNS_LIST : [])
+
+  // La configuración institucional determina cómo se presenta Personal.
+  // Se parte del cache actual y se actualiza en vivo cuando Configuración guarda cambios.
+  const [institutionConfig, setInstitutionConfig] = useState(() => getCachedAppConfig());
+
+  useEffect(() => {
+    const handleConfigUpdate = (event) => {
+      if (event?.detail) {
+        setInstitutionConfig(event.detail);
+      } else {
+        setInstitutionConfig(getCachedAppConfig());
+      }
+    };
+
+    window.addEventListener('institution-config-updated', handleConfigUpdate);
+
+    return () => {
+      window.removeEventListener('institution-config-updated', handleConfigUpdate);
+    };
+  }, []);
+
+  const institutionMode = institutionConfig?.institutionMode || INSTITUTION_MODES.SCHOOL;
+  const isSchool = institutionMode === INSTITUTION_MODES.SCHOOL;
+  const isDayCenter = institutionMode === INSTITUTION_MODES.DAY_CENTER;
+  const isClinic = institutionMode === INSTITUTION_MODES.CLINIC;
+  const isNonSchool = !isSchool;
+
+  // Los roles vienen de la configuración institucional.
+  // Se mantiene compatibilidad con los roles recibidos por props y con configuraciones antiguas.
+  const configuredRoles = Array.isArray(institutionConfig?.roles) && institutionConfig.roles.length
+    ? institutionConfig.roles
+    : (Array.isArray(VALID_ROLES_OFFICIAL) ? VALID_ROLES_OFFICIAL : []);
+
+  const roleOptions = configuredRoles
+    .map((role, index) => {
+      if (typeof role === 'string') return role;
+      return role?.name || role?.shortName || role?.label || role?.id || `Rol ${index + 1}`;
+    })
+    .filter(Boolean);
+
+  const turnOptions = (Array.isArray(institutionConfig?.turns) && institutionConfig.turns.length
+    ? institutionConfig.turns
+    : (Array.isArray(TURNS_LIST) ? TURNS_LIST : [])
+  )
     .map((turn, index) => {
       if (typeof turn === 'string') return { id: turn, name: turn };
       return {
@@ -30,13 +78,6 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
     })
     .filter(turn => turn.name);
 
-  const roleOptions = (Array.isArray(VALID_ROLES_OFFICIAL) ? VALID_ROLES_OFFICIAL : [])
-    .map((role, index) => {
-      if (typeof role === 'string') return role;
-      return role?.name || role?.shortName || role?.label || role?.id || `Rol ${index + 1}`;
-    })
-    .filter(Boolean);
-  
   const [staffFilterText, setStaffFilterText] = useState('');
   const [filters, setFilters] = useState({ modality: 'all', roles: [], turn: 'all', subsidized: 'all' });
   
@@ -79,8 +120,9 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
   const getNormRole = (r) => {
       if (!r) return '';
-      const match = VALID_ROLES.find(v => v.toLowerCase() === r.trim().toLowerCase());
-      return match || r.trim();
+      const clean = String(r).trim();
+      const match = VALID_ROLES.find(v => String(v).toLowerCase() === clean.toLowerCase());
+      return match || clean;
   };
 
   useEffect(() => {
@@ -192,36 +234,54 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
       const txt = staffFilterText.toLowerCase();
       const matchesText = !txt || `${s.lastName || ''} ${s.firstName || ''} ${s.dni || ''}`.toLowerCase().includes(txt);
       if (!matchesText) return false;
-      if (filters.modality !== 'all' && (s.modality || 'Sede') !== filters.modality) return false;
-      
-      const c1Sub = s.cargo1_subsidized;
-      const c2Sub = s.cargo2_subsidized;
 
-      const isMecanizada = (c1Sub === 'true' || c2Sub === 'true');
-      const isFueraDePlanta = (c1Sub === 'fuera' || c2Sub === 'fuera' || s.cargo1_en_papeles === 'true' || s.cargo2_en_papeles === 'true');
-      const isDeno = !isMecanizada && !isFueraDePlanta;
+      // Sede / Inclusión, subvención y turnos son datos propios de la escuela.
+      if (isSchool) {
+          if (filters.modality !== 'all' && (s.modality || 'Sede') !== filters.modality) return false;
 
-      if (filters.subsidized !== 'all') {
-          if (filters.subsidized === 'yes' && !isMecanizada) return false;
-          if (filters.subsidized === 'fuera' && !isFueraDePlanta) return false;
-          if (filters.subsidized === 'no' && !isDeno) return false;
+          const c1Sub = s.cargo1_subsidized;
+          const c2Sub = s.cargo2_subsidized;
+
+          const isMecanizada = (c1Sub === 'true' || c2Sub === 'true');
+          const isFueraDePlanta = (
+              c1Sub === 'fuera' ||
+              c2Sub === 'fuera' ||
+              s.cargo1_en_papeles === 'true' ||
+              s.cargo2_en_papeles === 'true'
+          );
+          const isDeno = !isMecanizada && !isFueraDePlanta;
+
+          if (filters.subsidized !== 'all') {
+              if (filters.subsidized === 'yes' && !isMecanizada) return false;
+              if (filters.subsidized === 'fuera' && !isFueraDePlanta) return false;
+              if (filters.subsidized === 'no' && !isDeno) return false;
+          }
+
+          const c1Role = getNormRole(s.cargo1_role || s.role);
+          const c2Role = getNormRole(s.cargo2_role);
+          const c1Turn = (s.cargo1_turn || '').trim().toLowerCase();
+          const c2Turn = (s.cargo2_turn || '').trim().toLowerCase();
+          const filterRoles = filters.roles || [];
+          const filterTurn = filters.turn.toLowerCase();
+          const hasC1 = Boolean((s.cargo1_name && s.cargo1_name.trim()) || c1Role || c1Turn);
+          const hasC2 = Boolean((s.cargo2_name && s.cargo2_name.trim()) || c2Role || c2Turn);
+          const c1MatchesRole = filterRoles.length === 0 || filterRoles.includes(c1Role);
+          const c2MatchesRole = filterRoles.length === 0 || filterRoles.includes(c2Role);
+          const c1MatchesTurn = filterTurn === 'all' || c1Turn.includes(filterTurn);
+          const c2MatchesTurn = filterTurn === 'all' || c2Turn.includes(filterTurn);
+
+          if (filterRoles.length === 0 && filterTurn === 'all') return true;
+          return (hasC1 && c1MatchesRole && c1MatchesTurn) || (hasC2 && c2MatchesRole && c2MatchesTurn);
       }
 
-      const c1Role = getNormRole(s.cargo1_role || s.role); 
-      const c2Role = getNormRole(s.cargo2_role);
-      const c1Turn = (s.cargo1_turn || '').trim().toLowerCase();
-      const c2Turn = (s.cargo2_turn || '').trim().toLowerCase();
+      // Centro de día / consultorio: el filtro útil es el rol.
+      const staffRole = getNormRole(s.role || s.cargo1_role);
       const filterRoles = filters.roles || [];
-      const filterTurn = filters.turn.toLowerCase();
-      const hasC1 = Boolean((s.cargo1_name && s.cargo1_name.trim()) || c1Role || c1Turn);
-      const hasC2 = Boolean((s.cargo2_name && s.cargo2_name.trim()) || c2Role || c2Turn);
-      let c1MatchesRole = filterRoles.length === 0 || filterRoles.includes(c1Role);
-      let c2MatchesRole = filterRoles.length === 0 || filterRoles.includes(c2Role);
-      const c1MatchesTurn = filterTurn === 'all' || c1Turn.includes(filterTurn);
-      const c2MatchesTurn = filterTurn === 'all' || c2Turn.includes(filterTurn);
 
-      if (filterRoles.length === 0 && filterTurn === 'all') return true;
-      return (hasC1 && c1MatchesRole && c1MatchesTurn) || (hasC2 && c2MatchesRole && c2MatchesTurn);
+      if (filterRoles.length === 0) return true;
+      if (filterRoles.includes('sin-asignar') && !staffRole) return true;
+
+      return filterRoles.includes(staffRole);
   });
 
   const handlePhotoChange = (e) => {
@@ -272,10 +332,126 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
       return `${totalAnios} años, ${totalMeses} mes${totalMeses !== 1 ? 'es' : ''}`;
   };
 
-  const getSafeDate = (d) => { if(!d) return '-'; try { return new Date(d.includes('T') ? d : d+'T00:00:00').toLocaleDateString('es-AR'); } catch(e) { return d; } };
+  const getSafeDate = (d) => {
+      if (!d) return '-';
+      try {
+          return new Date(d.includes('T') ? d : d+'T00:00:00').toLocaleDateString('es-AR');
+      } catch(e) {
+          return d;
+      }
+  };
+
+  const getStaffStartDate = (staff) =>
+      staff?.fechaInicioActividades ||
+      staff?.fechaIngreso ||
+      staff?.antiguedadFechaRef ||
+      '';
+
+  const getStaffWorkDays = (staff) => {
+      if (!staff) return [];
+      if (Array.isArray(staff.workDays)) return staff.workDays;
+      if (Array.isArray(staff.diasTrabajo)) return staff.diasTrabajo;
+      if (typeof staff.workDays === 'string') {
+          return staff.workDays.split(',').map(v => v.trim()).filter(Boolean);
+      }
+      if (typeof staff.diasTrabajo === 'string') {
+          return staff.diasTrabajo.split(',').map(v => v.trim()).filter(Boolean);
+      }
+      return [];
+  };
+
+  const getStaffSeniority = (staff) =>
+      calcularAntiguedad(
+          staff?.antiguedadAnios,
+          staff?.antiguedadMeses,
+          getStaffStartDate(staff)
+      );
 
   const imprimirFichasDocentes = (lista) => {
-      if (!lista || lista.length === 0) return alert("No hay docentes para imprimir.");
+      if (!lista || lista.length === 0) return alert("No hay personal para imprimir.");
+
+      if (isNonSchool) {
+          let html = `<html><head><title>Fichas de Personal</title>
+          <style>
+              @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
+              body{font-family:'Roboto',sans-serif;padding:20px;color:#222;}
+              .page{border:1px solid #eee;padding:30px;margin:0 auto 20px auto;border-radius:8px;page-break-after:always;max-width:800px;border-top:10px solid #8b5cf6;}
+              .header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #ddd;padding-bottom:20px;margin-bottom:20px;}
+              .header-text h1{color:#5b21b6;font-size:24px;margin:0;text-transform:uppercase;}
+              .header-text p{color:#666;font-size:14px;margin:5px 0 0 0;}
+              .photo-box{width:80px;height:80px;background:#eee;border-radius:50%;overflow:hidden;border:3px solid #8b5cf6;display:flex;align-items:center;justify-content:center;font-size:30px;color:#aaa;}
+              .photo-box img{width:100%;height:100%;object-fit:cover;}
+              .section-title{background:#f3f4f6;color:#5b21b6;padding:8px 15px;font-weight:900;text-transform:uppercase;font-size:12px;border-radius:6px;margin-bottom:10px;border-left:5px solid #8b5cf6;margin-top:20px;}
+              .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;}
+              .field{margin-bottom:8px;}
+              .label{display:block;font-size:9px;color:#888;text-transform:uppercase;font-weight:bold;}
+              .value{font-size:12px;font-weight:bold;color:#333;}
+              .days{display:flex;flex-wrap:wrap;gap:5px;}
+              .day{background:#ede9fe;color:#5b21b6;border-radius:6px;padding:4px 7px;font-size:10px;font-weight:bold;}
+              .footer{text-align:center;font-size:9px;color:#aaa;margin-top:30px;border-top:1px solid #eee;padding-top:10px;}
+          </style></head><body>`;
+
+          lista.forEach(s => {
+              const linked = getLinkedUser(s);
+              const days = getStaffWorkDays(s);
+              const startDate = getStaffStartDate(s);
+              const seniority = getStaffSeniority(s);
+              const role = getNormRole(s.role || s.cargo1_role) || 'Rol pendiente';
+
+              html += `<div class="page">
+                  <div class="header">
+                      <div class="header-text">
+                          <h1>${s.lastName || ''}, ${s.firstName || ''}</h1>
+                          <p>DNI: ${s.dni || '-'}</p>
+                      </div>
+                      <div class="photo-box">${s.photoUrl ? `<img src="${s.photoUrl}"/>` : s.firstName?.[0] || 'U'}</div>
+                  </div>
+
+                  <div class="section-title">Datos personales</div>
+                  <div class="grid">
+                      <div class="field"><span class="label">Fecha Nacimiento</span><span class="value">${s.birthDate ? new Date(s.birthDate + 'T00:00:00').toLocaleDateString('es-AR') : '-'}</span></div>
+                      <div class="field"><span class="label">Teléfono / Celular</span><span class="value">${s.phone || '-'}</span></div>
+                      <div class="field"><span class="label">Email</span><span class="value">${s.email || '-'}</span></div>
+                      <div class="field"><span class="label">Contacto de Emergencia</span><span class="value">${s.emergencyContact || '-'}</span></div>
+                      <div class="field" style="grid-column:span 2;"><span class="label">Dirección</span><span class="value">${s.address || '-'}</span></div>
+                      <div class="field"><span class="label">Título</span><span class="value">${s.degree || '-'}</span></div>
+                      <div class="field"><span class="label">Estado de Estudios</span><span class="value">${s.studyStatus || '-'}</span></div>
+                  </div>
+
+                  <div class="section-title">Información laboral</div>
+                  <div class="grid">
+                      <div class="field"><span class="label">Rol / Función</span><span class="value">${role}</span></div>
+                      <div class="field"><span class="label">Horas semanales</span><span class="value">${s.weeklyHours || s.horasSemanales || '-'}</span></div>
+                      <div class="field"><span class="label">Inicio de actividades</span><span class="value">${getSafeDate(startDate)}</span></div>
+                      <div class="field"><span class="label">Antigüedad en el instituto</span><span class="value">${seniority}</span></div>
+                      <div class="field" style="grid-column:span 2;"><span class="label">Días de asistencia / trabajo</span><span class="value">${days.length ? days.join(', ') : '-'}</span></div>
+                  </div>
+
+                  <div class="section-title">Cuenta de CENTRA</div>
+                  <div class="grid">
+                      <div class="field"><span class="label">Usuario</span><span class="value">${linked ? (linked.fullName || `${linked.firstName || ''} ${linked.lastName || ''}`.trim() || linked.username || '-') : 'Sin usuario vinculado'}</span></div>
+                      <div class="field"><span class="label">Identificador</span><span class="value">${linked?.username || linked?.email || '-'}</span></div>
+                  </div>
+
+                  <div class="footer">${getInstitutionName()} - Ficha de Personal generada el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</div>
+              </div>`;
+          });
+
+          html += '</body></html>';
+
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'fixed'; iframe.style.bottom = '0'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+          document.body.appendChild(iframe);
+          const printDoc = iframe.contentWindow.document;
+          printDoc.open(); printDoc.write(html); printDoc.close();
+          setTimeout(() => {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+              setTimeout(() => document.body.removeChild(iframe), 5000);
+          }, 500);
+
+          return;
+      }
       let html = `<html><head><title>Fichas Docentes</title>
       <style>
           @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
@@ -303,7 +479,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
       </style></head><body>`;
       
       lista.forEach(s => {
-          let antiguedad = calcularAntiguedad(s.antiguedadAnios, s.antiguedadMeses, s.antiguedadFechaRef);
+          let antiguedad = getStaffSeniority(s);
           
           let c1Role = getNormRole(s.cargo1_role || s.role) || 'Rol Pendiente';
           let c2Role = getNormRole(s.cargo2_role) || 'Rol Pendiente';
@@ -326,7 +502,6 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                       <div class="field"><span class="label">N° de Cargo</span><span class="value">${s.cargo1_numero || '-'}</span></div>
                       <div class="field"><span class="label">Detalle / Nombre</span><span class="value">${s.cargo1_name || '-'}</span></div>
                       <div class="field"><span class="label">Turno</span><span class="value">${s.cargo1_turn || '-'}</span></div>
-                      <div class="field"><span class="label">Sit. de Revista</span><span class="value">${s.cargo1_revista || '-'}</span></div>
                       <div class="field"><span class="label">Tipo</span><span class="value" style="text-transform:uppercase;">${s.cargo1_type || '-'}</span></div>
                       <div class="field"><span class="label">Fecha Alta</span><span class="value">${getSafeDate(s.cargo1_ingreso)}</span></div>
                   </div>
@@ -350,7 +525,6 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                       <div class="field"><span class="label">N° de Cargo</span><span class="value">${s.cargo2_numero || '-'}</span></div>
                       <div class="field"><span class="label">Detalle / Nombre</span><span class="value">${s.cargo2_name || '-'}</span></div>
                       <div class="field"><span class="label">Turno</span><span class="value">${s.cargo2_turn || '-'}</span></div>
-                      <div class="field"><span class="label">Sit. de Revista</span><span class="value">${s.cargo2_revista || '-'}</span></div>
                       <div class="field"><span class="label">Tipo</span><span class="value" style="text-transform:uppercase;">${s.cargo2_type || '-'}</span></div>
                       <div class="field"><span class="label">Fecha Alta</span><span class="value">${getSafeDate(s.cargo2_ingreso)}</span></div>
                   </div>
@@ -396,6 +570,67 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
   const imprimirPlanillaGeneral = (lista) => {
       if (!lista || lista.length === 0) return alert("No hay personal para imprimir.");
+
+      if (isNonSchool) {
+          const LOGO_APP = getCachedAppConfig().logoUrl || '/icon-192.png';
+
+          let html = `<html><head><title>Planilla de Personal</title>
+          <style>
+              @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
+              @page { size: landscape; margin: 10mm; }
+              body { font-family: 'Roboto', sans-serif; padding: 0; color: #1e293b; font-size: 9px; }
+              .header-table { width:100%; border-bottom:2px solid #6d28d9; margin-bottom:15px; }
+              table.data-table { width:100%; border-collapse:collapse; }
+              .data-table th { background:#f8fafc; padding:8px; border:1px solid #e2e8f0; text-transform:uppercase; font-weight:900; text-align:left; }
+              .data-table td { padding:8px; border:1px solid #e2e8f0; vertical-align:top; }
+              tr:nth-child(even) { background-color:#f1f5f9; }
+          </style></head><body>
+          <table class="header-table"><tr>
+              <td><img src="${LOGO_APP}" style="height:40px;"></td>
+              <td style="text-align:center;"><h1 style="margin:0;font-size:18px;color:#6d28d9;">Planilla de Personal Institucional</h1></td>
+              <td style="text-align:right;font-weight:bold;">${institutionConfig.schoolYear || ''}</td>
+          </tr></table>
+          <table class="data-table">
+              <thead><tr>
+                  <th>Apellido y Nombre</th>
+                  <th>DNI</th>
+                  <th>Rol / Función</th>
+                  <th>Días de trabajo</th>
+                  <th>Horas semanales</th>
+                  <th>Inicio de actividades</th>
+                  <th>Antigüedad</th>
+              </tr></thead><tbody>`;
+
+          lista.forEach(s => {
+              const days = getStaffWorkDays(s);
+              html += `<tr>
+                  <td style="font-weight:700;text-transform:uppercase;">${s.lastName || ''}, ${s.firstName || ''}</td>
+                  <td>${s.dni || '-'}</td>
+                  <td style="font-weight:700;">${getNormRole(s.role || s.cargo1_role) || '-'}</td>
+                  <td>${days.length ? days.join(', ') : '-'}</td>
+                  <td>${s.weeklyHours || s.horasSemanales || '-'}</td>
+                  <td>${getSafeDate(getStaffStartDate(s))}</td>
+                  <td>${getStaffSeniority(s)}</td>
+              </tr>`;
+          });
+
+          html += `</tbody></table>
+          <p style="text-align:right;font-size:8px;margin-top:10px;">Generado el ${new Date().toLocaleString('es-AR')}</p>
+          </body></html>`;
+
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+          const printDoc = iframe.contentWindow.document;
+          printDoc.open(); printDoc.write(html); printDoc.close();
+          setTimeout(() => {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+              document.body.removeChild(iframe);
+          }, 500);
+
+          return;
+      }
       
       const LOGO_APP = getCachedAppConfig().logoUrl || '/icon-192.png';
 
@@ -497,10 +732,52 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
     const selectedUserId = String(d.userId || '').trim();
     delete d.userId;
 
+    // Los días son múltiples checkboxes y FormData necesita getAll().
+    if (isNonSchool) {
+      d.workDays = fd.getAll('workDays');
+    }
+
     const currentUserId = getLinkedUserId(editingStaff);
     const targetUser = selectedUserId
       ? users.find(item => item.id === selectedUserId)
       : null;
+
+    if (isNonSchool) {
+      const selectedRole = String(d.role || '').trim();
+      const selectedWorkDays = Array.isArray(d.workDays) ? d.workDays : [];
+      const weeklyHours = String(d.weeklyHours || '').trim();
+      const startDate = String(d.fechaInicioActividades || '').trim();
+
+      if (!selectedRole) {
+        alert('Seleccioná el rol o función del personal.');
+        return;
+      }
+
+      if (selectedWorkDays.length === 0) {
+        alert('Seleccioná al menos un día de trabajo/asistencia.');
+        return;
+      }
+
+      if (!weeklyHours || Number(weeklyHours) <= 0) {
+        alert('Ingresá la cantidad de horas semanales.');
+        return;
+      }
+
+      if (!startDate) {
+        alert('Ingresá la fecha de inicio de actividades.');
+        return;
+      }
+
+      // Guardamos también role en cargo1_role para mantener compatibilidad
+      // con las funciones históricas del sistema.
+      d.role = selectedRole;
+      d.cargo1_role = selectedRole;
+      d.workDays = selectedWorkDays;
+      d.fechaInicioActividades = startDate;
+      d.fechaIngreso = startDate;
+      d.antiguedadFechaRef = startDate;
+      d.weeklyHours = weeklyHours;
+    }
 
     // Todo registro de Personal debe quedar asociado a una cuenta CENTRA.
     if (!selectedUserId) {
@@ -525,7 +802,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
     d.photoUrl = photoPreview || editingStaff?.photoUrl || '';
 
-    if (!d.cargo2_name || d.cargo2_name.trim() === '') {
+    if (isSchool && (!d.cargo2_name || d.cargo2_name.trim() === '')) {
       d.cargo2_role = '';
       d.cargo2_turn = '';
       d.cargo2_type = '';
@@ -575,6 +852,16 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
         userId: selectedUserId
       };
 
+      if (isNonSchool) {
+        nextStaff.role = d.role;
+        nextStaff.cargo1_role = d.cargo1_role;
+        nextStaff.workDays = d.workDays;
+        nextStaff.fechaInicioActividades = d.fechaInicioActividades;
+        nextStaff.fechaIngreso = d.fechaIngreso;
+        nextStaff.antiguedadFechaRef = d.antiguedadFechaRef;
+        nextStaff.weeklyHours = d.weeklyHours;
+      }
+
       if (viewingStaff?.id === staffId) {
         setViewingStaff(nextStaff);
       }
@@ -594,6 +881,10 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
       const stats = {
           cargos: { simple: 0, doble: 0 },
       };
+
+      if (isNonSchool) {
+          return stats;
+      }
 
       filteredStaff.forEach(s => {
           const c1Role = getNormRole(s.cargo1_role || s.role);
@@ -633,6 +924,17 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
   const currentStats = calculateStats();
   const totalCargosReales = currentStats.cargos.simple + (currentStats.cargos.doble * 2);
+
+  const editingStaffIncomplete = Boolean(
+    editingStaff && (
+      !editingStaff?.dni ||
+      (isSchool
+        ? (!editingStaff?.cargo1_role && !editingStaff?.role) || !editingStaff?.modality
+        : !(editingStaff?.role || editingStaff?.cargo1_role) ||
+          !(editingStaff?.fechaInicioActividades || editingStaff?.fechaIngreso)
+      )
+    )
+  );
 
   const handleDeleteAbsence = async (id) => {
       if(window.confirm("⚠️ ¿Seguro que querés eliminar este registro de inasistencia?")) {
@@ -799,14 +1101,18 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                 
                 <div className="flex gap-2">
                     <div className="bg-orange-100 text-orange-700 px-3 py-2 rounded-xl font-black text-[10px] md:text-xs flex items-center gap-1.5 border border-orange-200 shadow-sm uppercase tracking-widest" title="Cantidad de personas físicas activas">
-                        <User size={14}/> {filteredStaff.filter(s => !s.cargo1_baja || !s.cargo2_baja).length} {filteredStaff.length === 1 ? 'Persona' : 'Personas'}
+                        <User size={14}/> {isSchool
+                            ? filteredStaff.filter(s => !s.cargo1_baja || !s.cargo2_baja).length
+                            : filteredStaff.filter(s => !s.baja && !s.fechaBaja).length
+                        } {filteredStaff.length === 1 ? 'Persona' : 'Personas'}
                     </div>
-                    
-                    <div className="bg-emerald-100 text-emerald-800 px-3 py-2 rounded-xl font-black text-[10px] md:text-xs flex items-center gap-1.5 border border-emerald-200 shadow-sm uppercase tracking-widest" title="Cantidad total de cargos ejercidos activos">
-                        {totalCargosReales} {totalCargosReales === 1 ? 'Cargo Activo' : 'Cargos Activos'}
-                    </div>
+
+                    {isSchool && (
+                        <div className="bg-emerald-100 text-emerald-800 px-3 py-2 rounded-xl font-black text-[10px] md:text-xs flex items-center gap-1.5 border border-emerald-200 shadow-sm uppercase tracking-widest" title="Cantidad total de cargos ejercidos activos">
+                            {totalCargosReales} {totalCargosReales === 1 ? 'Cargo Activo' : 'Cargos Activos'}
+                        </div>
+                    )}
                 </div>
-            </div>
             
             <div className="flex gap-2">
                 <button 
@@ -848,27 +1154,44 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
             </button>
         </div>
 
-        {/* BARRA DE FILTROS ACTUALIZADA PARA MULTISELECCIÓN */}
+        {/* BARRA DE FILTROS */}
         <div className="space-y-2">
             <div className="bg-white p-2 rounded-2xl border border-gray-100 flex items-center gap-2 shadow-sm">
                 <Search size={18} className="ml-2 text-gray-300"/>
-                <input value={staffFilterText} onChange={e=>setStaffFilterText(e.target.value)} placeholder="Buscar por apellido, nombre o DNI..." className="w-full p-2 outline-none text-sm font-bold text-gray-700 bg-transparent"/>
-                {staffFilterText && <button onClick={()=>setStaffFilterText('')} className="pr-2 text-gray-400 hover:text-gray-600"><X size={16}/></button>}
+                <input
+                    value={staffFilterText}
+                    onChange={e=>setStaffFilterText(e.target.value)}
+                    placeholder="Buscar por apellido, nombre o DNI..."
+                    className="w-full p-2 outline-none text-sm font-bold text-gray-700 bg-transparent"
+                />
+                {staffFilterText && (
+                    <button onClick={()=>setStaffFilterText('')} className="pr-2 text-gray-400 hover:text-gray-600">
+                        <X size={16}/>
+                    </button>
+                )}
             </div>
-            
+
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide items-center">
-                <select value={filters.modality} onChange={e=>setFilters({...filters, modality: e.target.value})} className="bg-white text-gray-700 text-xs p-2 rounded-lg font-bold min-w-[120px] border border-gray-200 shadow-sm outline-none">
-                    <option value="all">Modalidad: Todas</option><option value="Sede">Sede</option><option value="Inclusión">Inclusión</option>
-                </select>
-                
-                <select 
-                    value="default" 
+                {isSchool && (
+                    <select
+                        value={filters.modality}
+                        onChange={e=>setFilters({...filters, modality: e.target.value})}
+                        className="bg-white text-gray-700 text-xs p-2 rounded-lg font-bold min-w-[120px] border border-gray-200 shadow-sm outline-none"
+                    >
+                        <option value="all">Modalidad: Todas</option>
+                        <option value="Sede">Sede</option>
+                        <option value="Inclusión">Inclusión</option>
+                    </select>
+                )}
+
+                <select
+                    value="default"
                     onChange={e => {
                         const val = e.target.value;
                         if (val !== 'default' && !filters.roles.includes(val)) {
                             setFilters({...filters, roles: [...filters.roles, val]});
                         }
-                    }} 
+                    }}
                     className="bg-white text-violet-700 text-xs p-2 rounded-lg font-bold min-w-[140px] border border-violet-200 shadow-sm outline-none cursor-pointer"
                 >
                     <option value="default">+ Agregar Rol...</option>
@@ -876,24 +1199,38 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                     {VALID_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
 
-                <select value={filters.turn} onChange={e=>setFilters({...filters, turn: e.target.value})} className="bg-white text-gray-700 text-xs p-2 rounded-lg font-bold min-w-[120px] border border-gray-200 shadow-sm outline-none">
-                    <option value="all">Turno: Todos</option>
-                    {turnOptions.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                </select>
+                {isSchool && (
+                    <select
+                        value={filters.turn}
+                        onChange={e=>setFilters({...filters, turn: e.target.value})}
+                        className="bg-white text-gray-700 text-xs p-2 rounded-lg font-bold min-w-[120px] border border-gray-200 shadow-sm outline-none"
+                    >
+                        <option value="all">Turno: Todos</option>
+                        {turnOptions.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                    </select>
+                )}
 
-                <select 
-                  value={filters.subsidized} 
-                  onChange={e => setFilters({...filters, subsidized: e.target.value})} 
-                  className="bg-white text-gray-700 text-xs p-2 rounded-lg font-bold min-w-[120px] border border-gray-200 shadow-sm outline-none cursor-pointer"
+                {isSchool && (
+                    <select
+                        value={filters.subsidized}
+                        onChange={e => setFilters({...filters, subsidized: e.target.value})}
+                        className="bg-white text-gray-700 text-xs p-2 rounded-lg font-bold min-w-[120px] border border-gray-200 shadow-sm outline-none cursor-pointer"
+                    >
+                        <option value="all">Subvención: Todas</option>
+                        <option value="yes">Mecanizada (Subv.)</option>
+                        <option value="no">No Subvencionada (DENO)</option>
+                        <option value="fuera">Fuera de Planta / Papeles</option>
+                    </select>
+                )}
+
+                <button
+                    onClick={() => setFilters({ modality: 'all', roles: [], turn: 'all', subsidized: 'all' })}
+                    className="bg-red-50 text-red-600 text-xs px-3 py-2 rounded-lg font-bold min-w-[80px] border border-red-100 shadow-sm hover:bg-red-100 transition"
                 >
-                    <option value="all">Subvención: Todas</option>
-                    <option value="yes">Mecanizada (Subv.)</option>
-                    <option value="no">No Subvencionada (DENO)</option>
-                    <option value="fuera">Fuera de Planta / Papeles</option>
-                </select>
-                <button onClick={() => setFilters({ modality: 'all', roles: [], turn: 'all', subsidized: 'all' })} className="bg-red-50 text-red-600 text-xs px-3 py-2 rounded-lg font-bold min-w-[80px] border border-red-100 shadow-sm hover:bg-red-100 transition">Limpiar</button>
+                    Limpiar
+                </button>
             </div>
 
             {filters.roles.length > 0 && (
@@ -901,96 +1238,152 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                     {filters.roles.map(r => (
                         <span key={r} className="bg-violet-100 text-violet-800 text-[10px] font-black px-2 py-1.5 rounded-lg flex items-center gap-1 border border-violet-200 shadow-sm">
                             {r === 'sin-asignar' ? '⚠️ Sin Asignar' : r}
-                            <button onClick={() => setFilters({...filters, roles: filters.roles.filter(role => role !== r)})} className="hover:text-red-500 transition-colors bg-white rounded-full p-0.5 ml-1"><X size={10}/></button>
+                            <button
+                                onClick={() => setFilters({...filters, roles: filters.roles.filter(role => role !== r)})}
+                                className="hover:text-red-500 transition-colors bg-white rounded-full p-0.5 ml-1"
+                            >
+                                <X size={10}/>
+                            </button>
                         </span>
                     ))}
                 </div>
             )}
         </div>
 
-        {/* LISTADO DE PERSONAL (CON SOPORTE DE BAJA EN GRIS) */}
+        {/* LISTADO DE PERSONAL */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-24 mt-2">
-             {filteredStaff.map(s => {
+            {filteredStaff.map(s => {
                 const tieneSub = s.cargo1_subsidized === 'true' || s.cargo2_subsidized === 'true' || s.isSubsidized === 'true';
-                
+
                 const c1Role = getNormRole(s.cargo1_role || s.role);
                 const c2Role = getNormRole(s.cargo2_role);
 
                 const hasC1 = Boolean((s.cargo1_name && s.cargo1_name.trim()) || c1Role || (s.cargo1_turn && s.cargo1_turn.trim()));
                 const hasC2 = Boolean((s.cargo2_name && s.cargo2_name.trim()) || c2Role || (s.cargo2_turn && s.cargo2_turn.trim()));
 
-                const c1NeedsFix = !hasC1 || !VALID_ROLES_OFFICIAL.includes(c1Role);
-                const c2NeedsFix = hasC2 && !VALID_ROLES_OFFICIAL.includes(c2Role);
-                const needsRoleFix = c1NeedsFix || c2NeedsFix;
-                                
                 const c1Baja = Boolean(s.cargo1_baja);
                 const c2Baja = Boolean(s.cargo2_baja);
-                const estaDadoDeBajaTotal = (hasC1 ? c1Baja : true) && (hasC2 ? c2Baja : true);
+                const estaDadoDeBajaTotal = isSchool
+                    ? ((hasC1 ? c1Baja : true) && (hasC2 ? c2Baja : true))
+                    : Boolean(s.baja || s.fechaBaja);
+
+                const schoolNeedsRoleFix =
+                    !hasC1 ||
+                    !VALID_ROLES.includes(c1Role) ||
+                    (hasC2 && !VALID_ROLES.includes(c2Role));
+
+                const nonSchoolRole = getNormRole(s.role || s.cargo1_role);
+                const nonSchoolNeedsRoleFix = !nonSchoolRole || !VALID_ROLES.includes(nonSchoolRole);
+
+                const needsRoleFix = isSchool ? schoolNeedsRoleFix : nonSchoolNeedsRoleFix;
+                const workDays = getStaffWorkDays(s);
 
                 return (
-                    <div 
-                      key={s.id} 
-                      onClick={() => setViewingStaff(s)} 
-                      className={`p-4 rounded-[25px] border transition-all cursor-pointer group relative flex items-center gap-4 ${
-                          estaDadoDeBajaTotal 
-                              ? 'bg-gray-100 border-gray-300 opacity-60 grayscale' 
-                              : 'bg-white border-gray-100 hover:border-violet-300 shadow-sm'
-                      }`}
+                    <div
+                        key={s.id}
+                        onClick={() => setViewingStaff(s)}
+                        className={`p-4 rounded-[25px] border transition-all cursor-pointer group relative flex items-center gap-4 ${
+                            estaDadoDeBajaTotal
+                                ? 'bg-gray-100 border-gray-300 opacity-60 grayscale'
+                                : 'bg-white border-gray-100 hover:border-violet-300 shadow-sm'
+                        }`}
                     >
                         <div className="w-16 h-16 bg-violet-50 rounded-2xl flex items-center justify-center font-black text-violet-300 overflow-hidden border-2 border-violet-100 shrink-0 relative">
                             {s.photoUrl ? <img src={s.photoUrl} className="w-full h-full object-cover"/> : s.firstName?.[0]}
-                            {tieneSub && <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm" title="Subvencionada"></div>}
+                            {isSchool && tieneSub && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm" title="Subvencionada"></div>
+                            )}
                         </div>
+
                         <div className="flex-1 min-w-0">
                             <div className="flex gap-2 items-center flex-wrap">
-                                <h4 className="font-bold text-gray-800 text-sm uppercase truncate">{s.lastName}, {s.firstName}</h4>
-                                <span className={`text-[8px] px-2 py-0.5 rounded-md font-black uppercase ${s.modality === 'Inclusión' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>{s.modality || 'Sede'}</span>
-                                {getLinkedUser(s) ? (
-                                  <span className="text-[8px] px-2 py-0.5 rounded-md font-black uppercase bg-emerald-100 text-emerald-700 flex items-center gap-1">
-                                    <CheckCircle2 size={10}/> Usuario vinculado
-                                  </span>
-                                ) : (
-                                  <span className="text-[8px] px-2 py-0.5 rounded-md font-black uppercase bg-amber-100 text-amber-700 flex items-center gap-1">
-                                    <AlertCircle size={10}/> Sin usuario
-                                  </span>
+                                <h4 className="font-bold text-gray-800 text-sm uppercase truncate">
+                                    {s.lastName}, {s.firstName}
+                                </h4>
+
+                                {isSchool && (
+                                    <span className={`text-[8px] px-2 py-0.5 rounded-md font-black uppercase ${
+                                        s.modality === 'Inclusión'
+                                            ? 'bg-indigo-100 text-indigo-700'
+                                            : 'bg-orange-100 text-orange-700'
+                                    }`}>
+                                        {s.modality || 'Sede'}
+                                    </span>
                                 )}
-                                {estaDadoDeBajaTotal && <span className="bg-red-100 text-red-700 text-[9px] font-black px-2 py-0.5 rounded-lg border border-red-200">BAJA</span>}
-                                {needsRoleFix && <span className="bg-red-100 text-red-700 text-[9px] font-black px-2 py-0.5 rounded-lg border border-red-200 animate-pulse">⚠️ ASIGNAR ROL</span>}
-                            </div>
-                            <div className="flex gap-2 text-[10px] mt-1 text-gray-500 font-bold">
-                                {s.dni && <span>DNI: {s.dni}</span>}
-                                <span className="text-violet-500">Anti: {calcularAntiguedad(s.antiguedadAnios, s.antiguedadMeses, s.antiguedadFechaRef)}</span>
-                            </div>
-                            
-                            <p className="text-[10px] font-black uppercase mt-1 truncate">
-                                {hasC1 ? (
-                                    <span className={s.cargo1_subsidized === 'true' ? 'text-emerald-600' : s.cargo1_subsidized === 'fuera' ? 'text-amber-600' : 'text-slate-400'}>
-                                        C1: {getNormRole(s.cargo1_role || s.role)} ({s.cargo1_turn || '-'}) 
-                                        {s.cargo1_subsidized === 'true' ? ' (MECA)' : s.cargo1_subsidized === 'fuera' ? ' (PAPELES)' : ' (DENO)'}
-                                        {s.cargo1_baja && <b className="text-red-500 ml-1">[Baja: {getSafeDate(s.cargo1_baja)}]</b>}
+
+                                {getLinkedUser(s) ? (
+                                    <span className="text-[8px] px-2 py-0.5 rounded-md font-black uppercase bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                                        <CheckCircle2 size={10}/> Usuario vinculado
                                     </span>
                                 ) : (
-                                    <span className="text-gray-300">NO TRABAJA (C1)</span>
-                                )} 
-                                
-                                {hasC2 ? (
-                                    <>
-                                        <span className="text-gray-300 mx-1">|</span>
-                                        <span className={s.cargo2_subsidized === 'true' ? 'text-emerald-600' : s.cargo2_subsidized === 'fuera' ? 'text-amber-600' : 'text-slate-400'}>
-                                            C2: {getNormRole(s.cargo2_role)} ({s.cargo2_turn || '-'}) 
-                                            {s.cargo2_subsidized === 'true' ? ' (MECA)' : s.cargo2_subsidized === 'fuera' ? ' (PAPELES)' : ' (DENO)'}
-                                            {s.cargo2_baja && <b className="text-red-500 ml-1">[Baja: {getSafeDate(s.cargo2_baja)}]</b>}
-                                        </span>
-                                    </>
-                                ) : (
-                                    <span className="text-gray-300"> | NO TRABAJA (C2)</span>
+                                    <span className="text-[8px] px-2 py-0.5 rounded-md font-black uppercase bg-amber-100 text-amber-700 flex items-center gap-1">
+                                        <AlertCircle size={10}/> Sin usuario
+                                    </span>
                                 )}
-                            </p>
+
+                                {estaDadoDeBajaTotal && (
+                                    <span className="bg-red-100 text-red-700 text-[9px] font-black px-2 py-0.5 rounded-lg border border-red-200">
+                                        BAJA
+                                    </span>
+                                )}
+
+                                {needsRoleFix && (
+                                    <span className="bg-red-100 text-red-700 text-[9px] font-black px-2 py-0.5 rounded-lg border border-red-200 animate-pulse">
+                                        ⚠️ ASIGNAR ROL
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex gap-2 text-[10px] mt-1 text-gray-500 font-bold">
+                                {s.dni && <span>DNI: {s.dni}</span>}
+                                <span className="text-violet-500">
+                                    Anti: {getStaffSeniority(s)}
+                                </span>
+                            </div>
+
+                            {isSchool ? (
+                                <p className="text-[10px] font-black uppercase mt-1 truncate">
+                                    {hasC1 ? (
+                                        <span className={s.cargo1_subsidized === 'true' ? 'text-emerald-600' : s.cargo1_subsidized === 'fuera' ? 'text-amber-600' : 'text-slate-400'}>
+                                            C1: {getNormRole(s.cargo1_role || s.role)} ({s.cargo1_turn || '-'})
+                                            {s.cargo1_subsidized === 'true' ? ' (MECA)' : s.cargo1_subsidized === 'fuera' ? ' (PAPELES)' : ' (DENO)'}
+                                            {s.cargo1_baja && <b className="text-red-500 ml-1">[Baja: {getSafeDate(s.cargo1_baja)}]</b>}
+                                        </span>
+                                    ) : (
+                                        <span className="text-gray-300">NO TRABAJA (C1)</span>
+                                    )}
+
+                                    {hasC2 ? (
+                                        <>
+                                            <span className="text-gray-300 mx-1">|</span>
+                                            <span className={s.cargo2_subsidized === 'true' ? 'text-emerald-600' : s.cargo2_subsidized === 'fuera' ? 'text-amber-600' : 'text-slate-400'}>
+                                                C2: {getNormRole(s.cargo2_role)} ({s.cargo2_turn || '-'})
+                                                {s.cargo2_subsidized === 'true' ? ' (MECA)' : s.cargo2_subsidized === 'fuera' ? ' (PAPELES)' : ' (DENO)'}
+                                                {s.cargo2_baja && <b className="text-red-500 ml-1">[Baja: {getSafeDate(s.cargo2_baja)}]</b>}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <span className="text-gray-300"> | NO TRABAJA (C2)</span>
+                                    )}
+                                </p>
+                            ) : (
+                                <div className="mt-1 space-y-0.5">
+                                    <p className="text-[10px] font-black text-violet-700 uppercase truncate">
+                                        {nonSchoolRole || 'Rol pendiente'}
+                                    </p>
+                                    <p className="text-[9px] text-slate-500 font-bold truncate">
+                                        {workDays.length ? workDays.join(' · ') : 'Sin días cargados'}
+                                        {' · '}
+                                        {s.weeklyHours || s.horasSemanales || '-'} hs semanales
+                                    </p>
+                                </div>
+                            )}
                         </div>
+
                         <Eye className="text-gray-300 group-hover:text-violet-500 transition-colors shrink-0" />
                     </div>
                 );
-             })}
+            })}
         </div>
 
         {/* MODAL LECTURA LEGAJO */}
@@ -1015,8 +1408,14 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black uppercase tracking-tight">{viewingStaff?.lastName}, {viewingStaff?.firstName}</h2>
-                                <p className="text-orange-300 font-bold text-xs uppercase tracking-widest">{viewingStaff?.modality || 'Sede'}</p>
-                                <span className="bg-white/20 px-3 py-1 rounded-lg text-[10px] font-bold inline-block mt-2">DNI: {viewingStaff?.dni || '-'}</span>
+                                {isSchool && (
+                                  <p className="text-orange-300 font-bold text-xs uppercase tracking-widest">
+                                    {viewingStaff?.modality || 'Sede'}
+                                  </p>
+                                )}
+                                <span className="bg-white/20 px-3 py-1 rounded-lg text-[10px] font-bold inline-block mt-2">
+                                  DNI: {viewingStaff?.dni || '-'}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -1046,38 +1445,117 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                             </div>
                         </div>
 
-                        <div className="bg-violet-50 p-4 rounded-2xl border border-violet-100 shadow-sm space-y-3">
-                            <div className="flex justify-between text-xs border-b border-violet-200 pb-2">
-                                <span className="font-bold text-gray-500">Ingreso Inst: {getSafeDate(viewingStaff.fechaIngreso)}</span>
-                                <span className="font-black text-violet-700">Antigüedad: {calcularAntiguedad(viewingStaff.antiguedadAnios, viewingStaff.antiguedadMeses, viewingStaff.antiguedadFechaRef)}</span>
+                        {isSchool ? (
+                            <div className="bg-violet-50 p-4 rounded-2xl border border-violet-100 shadow-sm space-y-3">
+                                <div className="flex justify-between text-xs border-b border-violet-200 pb-2">
+                                    <span className="font-bold text-gray-500">
+                                        Inicio de actividades: {getSafeDate(getStaffStartDate(viewingStaff))}
+                                    </span>
+                                    <span className="font-black text-violet-700">
+                                        Antigüedad: {getStaffSeniority(viewingStaff)}
+                                    </span>
+                                </div>
+
+                                {Boolean((viewingStaff.cargo1_name && viewingStaff.cargo1_name.trim()) || viewingStaff.cargo1_role || viewingStaff.role) && (
+                                    <div className={`bg-white p-3 rounded-lg border ${viewingStaff.cargo1_baja ? 'border-red-300 bg-red-50/50' : 'border-violet-200 shadow-sm'} text-xs relative`}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-black text-violet-900 uppercase">
+                                                C1: {getNormRole(viewingStaff.cargo1_role || viewingStaff.role)}
+                                                {viewingStaff.cargo1_baja && (
+                                                    <span className="bg-red-200 text-red-800 px-1.5 py-0.5 rounded text-[8px] ml-1">
+                                                        BAJA: {getSafeDate(viewingStaff.cargo1_baja)}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${viewingStaff.cargo1_subsidized === 'true' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+                                                {viewingStaff.cargo1_subsidized === 'true' ? 'MECA' : 'DENO'}
+                                            </span>
+                                        </div>
+                                        <p className="font-bold text-gray-700">{viewingStaff.cargo1_name}</p>
+                                        <p className="text-gray-500 text-[10px]">
+                                            N° {viewingStaff.cargo1_numero || '-'} | {viewingStaff.cargo1_type || '-'} | {viewingStaff.cargo1_turn || '-'}
+                                        </p>
+                                        <p className="text-[9px] text-violet-400 mt-1 font-bold">
+                                            Alta: {getSafeDate(viewingStaff.cargo1_ingreso)}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {Boolean((viewingStaff.cargo2_name && viewingStaff.cargo2_name.trim()) || viewingStaff.cargo2_role) && (
+                                    <div className={`bg-white p-3 rounded-lg border ${viewingStaff.cargo2_baja ? 'border-red-300 bg-red-50/50' : 'border-violet-200 shadow-sm'} text-xs relative`}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-black text-violet-900 uppercase">
+                                                C2: {getNormRole(viewingStaff.cargo2_role)}
+                                                {viewingStaff.cargo2_baja && (
+                                                    <span className="bg-red-200 text-red-800 px-1.5 py-0.5 rounded text-[8px] ml-1">
+                                                        BAJA: {getSafeDate(viewingStaff.cargo2_baja)}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${viewingStaff.cargo2_subsidized === 'true' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+                                                {viewingStaff.cargo2_subsidized === 'true' ? 'MECA' : 'DENO'}
+                                            </span>
+                                        </div>
+                                        <p className="font-bold text-gray-700">{viewingStaff.cargo2_name}</p>
+                                        <p className="text-gray-500 text-[10px]">
+                                            N° {viewingStaff.cargo2_numero || '-'} | {viewingStaff.cargo2_type || '-'} | {viewingStaff.cargo2_turn || '-'}
+                                        </p>
+                                        <p className="text-[9px] text-violet-400 mt-1 font-bold">
+                                            Alta: {getSafeDate(viewingStaff.cargo2_ingreso)}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
-                            
-                            {Boolean((viewingStaff.cargo1_name && viewingStaff.cargo1_name.trim()) || viewingStaff.cargo1_role || viewingStaff.role) && (
-                                <div className={`bg-white p-3 rounded-lg border ${viewingStaff.cargo1_baja ? 'border-red-300 bg-red-50/50' : 'border-violet-200 shadow-sm'} text-xs relative`}>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <span className="font-black text-violet-900 uppercase">C1: {getNormRole(viewingStaff.cargo1_role || viewingStaff.role)} {viewingStaff.cargo1_baja && <span className="bg-red-200 text-red-800 px-1.5 py-0.5 rounded text-[8px] ml-1">BAJA: {getSafeDate(viewingStaff.cargo1_baja)}</span>}</span>
-                                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${viewingStaff.cargo1_subsidized === 'true' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>{viewingStaff.cargo1_subsidized === 'true' ? 'MECA' : 'DENO'}</span>
+                        ) : (
+                            <div className="bg-violet-50 p-4 rounded-2xl border border-violet-100 shadow-sm space-y-3">
+                                <div className="flex justify-between items-start gap-3">
+                                    <div>
+                                        <p className="text-[9px] font-black text-violet-700 uppercase">
+                                            {isDayCenter ? 'Información laboral' : 'Información profesional'}
+                                        </p>
+                                        <p className="text-[16px] font-black text-slate-800 mt-1">
+                                            {getNormRole(viewingStaff.role || viewingStaff.cargo1_role) || 'Rol pendiente'}
+                                        </p>
                                     </div>
-                                    <p className="font-bold text-gray-700">{viewingStaff.cargo1_name}</p>
-                                    <p className="text-gray-500 text-[10px]">N° {viewingStaff.cargo1_numero || '-'} | {viewingStaff.cargo1_type || '-'} | {viewingStaff.cargo1_turn || '-'} | {viewingStaff.cargo1_revista || '-'}</p>
-                                    <p className="text-[9px] text-violet-400 mt-1 font-bold">Alta: {getSafeDate(viewingStaff.cargo1_ingreso)}</p>
+                                    <span className="bg-white text-violet-700 px-2 py-1 rounded-lg text-[9px] font-black border border-violet-200">
+                                        {viewingStaff.weeklyHours || viewingStaff.horasSemanales || '-'} hs/sem.
+                                    </span>
                                 </div>
-                            )}
 
-                            {Boolean((viewingStaff.cargo2_name && viewingStaff.cargo2_name.trim()) || viewingStaff.cargo2_role) && (
-                                <div className={`bg-white p-3 rounded-lg border ${viewingStaff.cargo2_baja ? 'border-red-300 bg-red-50/50' : 'border-violet-200 shadow-sm'} text-xs relative`}>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <span className="font-black text-violet-900 uppercase">C2: {getNormRole(viewingStaff.cargo2_role)} {viewingStaff.cargo2_baja && <span className="bg-red-200 text-red-800 px-1.5 py-0.5 rounded text-[8px] ml-1">BAJA: {getSafeDate(viewingStaff.cargo2_baja)}</span>}</span>
-                                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${viewingStaff.cargo2_subsidized === 'true' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>{viewingStaff.cargo2_subsidized === 'true' ? 'MECA' : 'DENO'}</span>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-white p-3 rounded-xl border border-violet-100">
+                                        <p className="text-[8px] font-black text-gray-400 uppercase">Inicio de actividades</p>
+                                        <p className="text-xs font-bold text-slate-700 mt-1">
+                                            {getSafeDate(getStaffStartDate(viewingStaff))}
+                                        </p>
                                     </div>
-                                    <p className="font-bold text-gray-700">{viewingStaff.cargo2_name}</p>
-                                    <p className="text-gray-500 text-[10px]">N° {viewingStaff.cargo2_numero || '-'} | {viewingStaff.cargo2_type || '-'} | {viewingStaff.cargo2_turn || '-'} | {viewingStaff.cargo2_revista || '-'}</p>
-                                    <p className="text-[9px] text-violet-400 mt-1 font-bold">Alta: {getSafeDate(viewingStaff.cargo2_ingreso)}</p>
+                                    <div className="bg-white p-3 rounded-xl border border-violet-100">
+                                        <p className="text-[8px] font-black text-gray-400 uppercase">Antigüedad</p>
+                                        <p className="text-xs font-black text-violet-700 mt-1">
+                                            {getStaffSeniority(viewingStaff)}
+                                        </p>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
 
-                        {['Docente', 'Auxiliar', 'Preceptora', 'DAI', 'Inclusión'].some(role => 
+                                <div className="bg-white p-3 rounded-xl border border-violet-100">
+                                    <p className="text-[8px] font-black text-gray-400 uppercase mb-2">
+                                        Días de asistencia / trabajo
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {getStaffWorkDays(viewingStaff).length
+                                            ? getStaffWorkDays(viewingStaff).map(day => (
+                                                <span key={day} className="bg-violet-100 text-violet-700 px-2 py-1 rounded-lg text-[9px] font-black">
+                                                    {day}
+                                                </span>
+                                            ))
+                                            : <span className="text-[10px] text-slate-400 italic">Sin días cargados.</span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {isSchool && ['Docente', 'Auxiliar', 'Preceptora', 'DAI', 'Inclusión'].some(role => 
                             (viewingStaff.cargo1_role || viewingStaff.role || '').includes(role) || 
                             (viewingStaff.cargo2_role || '').includes(role)
                         ) && (
@@ -1166,7 +1644,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                   <h3 className="text-lg font-black uppercase italic tracking-tighter">
                     {editingStaff ? 'Editar Legajo' : 'Nuevo Personal'}
                   </h3>
-                  {editingStaff && (!editingStaff?.dni || !editingStaff?.cargo1_role || !editingStaff?.modality) ? (
+                  {editingStaff && editingStaffIncomplete ? (
                     <div className="bg-amber-400 text-amber-900 text-[8px] font-black px-2 py-0.5 rounded-full inline-flex items-center gap-1 animate-pulse mt-1 uppercase">
                       ⚠️ Atención: Ficha incompleta. Completar datos para vinculación.
                     </div>
@@ -1269,147 +1747,290 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                   </div>
                 </details>
 
-                <details open className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <summary className="list-none p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-l-4 border-emerald-500">
-                    <span className="text-[11px] font-black text-emerald-600 uppercase flex items-center gap-2">
-                      <Briefcase size={14}/> Cargo Principal
-                    </span>
-                    <ChevronDown size={16} className="group-open:rotate-180 transition-transform text-slate-400" />
-                  </summary>
-                  <div className="p-4 pt-0 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <select name="modality" defaultValue={editingStaff?.modality || 'Sede'} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs">
-                        <option value="Sede">Modalidad: Sede</option>
-                        <option value="Inclusión">Modalidad: Inclusión</option>
-                        <option value="Ambos">Modalidad: Ambos</option>
-                      </select>
-                      <select name="cargo1_subsidized" defaultValue={editingStaff?.cargo1_subsidized || 'false'} className={`p-3 rounded-xl border-none font-black text-xs ${editingStaff?.cargo1_subsidized === 'true' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}>
-                        <option value="false">DENO (No Subvencionado)</option>
-                        <option value="true">MECA (Subvencionado)</option>
-                        <option value="fuera">FUERA DE PLANTA (Papeles)</option>
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-[1fr,2fr] gap-2">
-                      <input name="cargo1_numero" defaultValue={editingStaff?.cargo1_numero || ""} placeholder="N° Cargo" className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm"/>
-                      <input name="cargo1_name" defaultValue={editingStaff?.cargo1_name || ""} placeholder="Nombre del Cargo" className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm"/>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="flex flex-col">
-                        <label className="text-[7px] font-black text-slate-400 uppercase ml-2">Función / Rol</label>
-                        <select 
-                          name="cargo1_role" 
-                          defaultValue={editingStaff?.cargo1_role || editingStaff?.role || ""} 
-                          className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs"
-                          required
-                        >
-                          <option value="">Seleccionar Rol...</option>
-                          {roleOptions.map(r => (
-                            <option key={r} value={r}>{r}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex flex-col">
-                        <label className="text-[7px] font-black text-slate-400 uppercase ml-2">Turno Horario</label>
-                        <select name="cargo1_turn" defaultValue={editingStaff?.cargo1_turn || ""} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs">
-                          <option value="">Turno...</option>
-                          <option value="Mañana">Mañana</option>
-                          <option value="Tarde">Tarde</option>
-                          <option value="Alternado">Alternado</option>
-                          <option value="Vespertino">Vespertino</option>
-                          <option value="Doble">Doble</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
-                         <select name="cargo1_revista" defaultValue={editingStaff?.cargo1_revista || ""} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs">
-                        <option value="">Revista...</option>
-                        <option value="Titular">Titular</option><option value="Provisional">Provisional</option><option value="Suplente">Suplente</option>
-                      </select>
-                      <div className="flex flex-col">
-                        <label className="text-[7px] font-black text-slate-400 uppercase ml-2">Alta Cargo</label>
-                        <input name="cargo1_ingreso" type="date" defaultValue={editingStaff?.cargo1_ingreso || ""} className="p-2 bg-slate-50 rounded-xl border-none font-bold text-xs"/>
-                      </div>
-                    </div>
-                    <div className="flex flex-col bg-red-50 p-2.5 rounded-xl border border-red-100">
-                        <label className="text-[8px] font-black text-red-600 uppercase ml-1">Fecha de Baja Cargo 1 (Dejar vacío si sigue activo)</label>
-                        <input name="cargo1_baja" type="date" defaultValue={editingStaff?.cargo1_baja || ""} className="p-2 bg-white rounded-lg border border-red-200 font-bold text-xs mt-1"/>
-                    </div>
-                  </div>
-                </details>
+                {isSchool ? (
+                  <>
+                    {/* ================= ESCUELA ================= */}
+                    <details open className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      <summary className="list-none p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-l-4 border-emerald-500">
+                        <span className="text-[11px] font-black text-emerald-600 uppercase flex items-center gap-2">
+                          <Briefcase size={14}/> Cargo Principal
+                        </span>
+                        <ChevronDown size={16} className="group-open:rotate-180 transition-transform text-slate-400" />
+                      </summary>
 
-                <details className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-3">
-                  <summary className="list-none p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
-                    <span className="text-[11px] font-black text-slate-500 uppercase flex items-center gap-2">
-                      <PlusCircle size={14}/> Cargo Secundario / Adicional
-                    </span>
-                    <ChevronDown size={16} className="group-open:rotate-180 transition-transform text-slate-400" />
-                  </summary>
-                  <div className="p-4 pt-0 space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <input name="cargo2_numero" defaultValue={editingStaff?.cargo2_numero || ""} placeholder="N° Cargo" className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm w-full"/>
-                      <input name="cargo2_name" defaultValue={editingStaff?.cargo2_name || ""} placeholder="Nombre Cargo" className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm w-full"/>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <select name="cargo2_role" defaultValue={editingStaff?.cargo2_role || ""} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs w-full">
-                        <option value="">Rol Cargo 2...</option>
-                        {VALID_ROLES.map(r => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </select>
-                      <select name="cargo2_subsidized" defaultValue={editingStaff?.cargo2_subsidized || 'false'} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs w-full">
-                        <option value="false">DENO (No Subvencionado)</option>
-                        <option value="true">MECA (Subvencionado)</option>
-                        <option value="fuera">FUERA DE PLANTA (Papeles)</option>
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                         <select name="cargo2_revista" defaultValue={editingStaff?.cargo2_revista || ""} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs">
-                        <option value="">Revista...</option>
-                        <option value="Titular">Titular</option>
-                        <option value="Provisional">Provisional</option>
-                        <option value="Suplente">Suplente</option>
-                      </select>
-                      <div className="flex flex-col">
-                        <label className="text-[7px] font-black text-slate-400 uppercase ml-2">Alta Cargo 2</label>
-                        <input name="cargo2_ingreso" type="date" defaultValue={editingStaff?.cargo2_ingreso || ""} className="p-2 bg-slate-50 rounded-xl border-none font-bold text-xs"/>
-                      </div>
-                    </div>
-                    <div className="flex flex-col bg-red-50 p-2.5 rounded-xl border border-red-100">
-                        <label className="text-[8px] font-black text-red-600 uppercase ml-1">Fecha de Baja Cargo 2 (Dejar vacío si sigue activo)</label>
-                        <input name="cargo2_baja" type="date" defaultValue={editingStaff?.cargo2_baja || ""} className="p-2 bg-white rounded-lg border border-red-200 font-bold text-xs mt-1"/>
-                    </div>
-                    <div className="flex items-center gap-2 px-2">
-                         <input type="checkbox" name="cargo2_en_papeles" defaultChecked={editingStaff?.cargo2_en_papeles === 'true'} value="true" className="w-4 h-4 accent-violet-600"/>
-                         <span className="text-[10px] font-bold text-gray-500 uppercase">¿Este cargo figura solo en papeles?</span>
-                    </div>
-                  </div>
-                </details>
+                      <div className="p-4 pt-0 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <select name="modality" defaultValue={editingStaff?.modality || 'Sede'} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs">
+                            <option value="Sede">Modalidad: Sede</option>
+                            <option value="Inclusión">Modalidad: Inclusión</option>
+                            <option value="Ambos">Modalidad: Ambos</option>
+                          </select>
 
-                <details className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <summary className="list-none p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
-                    <span className="text-[11px] font-black text-violet-500 uppercase flex items-center gap-2">
-                      <Clock size={14}/> Ingreso y Antigüedad
-                    </span>
-                    <ChevronDown size={16} className="group-open:rotate-180 transition-transform text-slate-400" />
-                  </summary>
-                  <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1">Ingreso Institución</label>
-                      <input name="fechaIngreso" type="date" defaultValue={editingStaff?.fechaIngreso || ""} className="p-3 bg-slate-50 rounded-xl border-none w-full font-bold text-sm"/>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1">Años Anti.</label>
-                        <input name="antiguedadAnios" type="number" defaultValue={editingStaff?.antiguedadAnios || ""} className="p-3 bg-slate-50 rounded-xl border-none w-full font-bold text-sm text-center"/>
+                          <select
+                            name="cargo1_subsidized"
+                            defaultValue={editingStaff?.cargo1_subsidized || 'false'}
+                            className={`p-3 rounded-xl border-none font-black text-xs ${editingStaff?.cargo1_subsidized === 'true' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}
+                          >
+                            <option value="false">DENO (No Subvencionado)</option>
+                            <option value="true">MECA (Subvencionado)</option>
+                            <option value="fuera">FUERA DE PLANTA (Papeles)</option>
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-[1fr,2fr] gap-2">
+                          <input name="cargo1_numero" defaultValue={editingStaff?.cargo1_numero || ""} placeholder="N° Cargo" className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm"/>
+                          <input name="cargo1_name" defaultValue={editingStaff?.cargo1_name || ""} placeholder="Nombre del Cargo" className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm"/>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="flex flex-col">
+                            <label className="text-[7px] font-black text-slate-400 uppercase ml-2">Función / Rol</label>
+                            <select
+                              name="cargo1_role"
+                              defaultValue={editingStaff?.cargo1_role || editingStaff?.role || ""}
+                              className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs"
+                              required
+                            >
+                              <option value="">Seleccionar Rol...</option>
+                              {roleOptions.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col">
+                            <label className="text-[7px] font-black text-slate-400 uppercase ml-2">Turno Horario</label>
+                            <select name="cargo1_turn" defaultValue={editingStaff?.cargo1_turn || ""} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs">
+                              <option value="">Turno...</option>
+                              {turnOptions.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col">
+                          <label className="text-[7px] font-black text-slate-400 uppercase ml-2">Alta Cargo</label>
+                          <input name="cargo1_ingreso" type="date" defaultValue={editingStaff?.cargo1_ingreso || ""} className="p-2 bg-slate-50 rounded-xl border-none font-bold text-xs"/>
+                        </div>
+
+                        <div className="flex flex-col bg-red-50 p-2.5 rounded-xl border border-red-100">
+                          <label className="text-[8px] font-black text-red-600 uppercase ml-1">Fecha de Baja Cargo 1 (Dejar vacío si sigue activo)</label>
+                          <input name="cargo1_baja" type="date" defaultValue={editingStaff?.cargo1_baja || ""} className="p-2 bg-white rounded-lg border border-red-200 font-bold text-xs mt-1"/>
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1">Meses Anti.</label>
-                        <input name="antiguedadMeses" type="number" defaultValue={editingStaff?.antiguedadMeses || ""} className="p-3 bg-slate-50 rounded-xl border-none w-full font-bold text-sm text-center"/>
+                    </details>
+
+                    <details className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-3">
+                      <summary className="list-none p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
+                        <span className="text-[11px] font-black text-slate-500 uppercase flex items-center gap-2">
+                          <PlusCircle size={14}/> Cargo Secundario / Adicional
+                        </span>
+                        <ChevronDown size={16} className="group-open:rotate-180 transition-transform text-slate-400" />
+                      </summary>
+
+                      <div className="p-4 pt-0 space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <input name="cargo2_numero" defaultValue={editingStaff?.cargo2_numero || ""} placeholder="N° Cargo" className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm w-full"/>
+                          <input name="cargo2_name" defaultValue={editingStaff?.cargo2_name || ""} placeholder="Nombre Cargo" className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm w-full"/>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <select name="cargo2_role" defaultValue={editingStaff?.cargo2_role || ""} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs w-full">
+                            <option value="">Rol Cargo 2...</option>
+                            {VALID_ROLES.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+
+                          <select name="cargo2_subsidized" defaultValue={editingStaff?.cargo2_subsidized || 'false'} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs w-full">
+                            <option value="false">DENO (No Subvencionado)</option>
+                            <option value="true">MECA (Subvencionado)</option>
+                            <option value="fuera">FUERA DE PLANTA (Papeles)</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col">
+                          <label className="text-[7px] font-black text-slate-400 uppercase ml-2">Alta Cargo 2</label>
+                          <input name="cargo2_ingreso" type="date" defaultValue={editingStaff?.cargo2_ingreso || ""} className="p-2 bg-slate-50 rounded-xl border-none font-bold text-xs"/>
+                        </div>
+
+                        <div className="flex flex-col bg-red-50 p-2.5 rounded-xl border border-red-100">
+                          <label className="text-[8px] font-black text-red-600 uppercase ml-1">Fecha de Baja Cargo 2 (Dejar vacío si sigue activo)</label>
+                          <input name="cargo2_baja" type="date" defaultValue={editingStaff?.cargo2_baja || ""} className="p-2 bg-white rounded-lg border border-red-200 font-bold text-xs mt-1"/>
+                        </div>
+
+                        <div className="flex items-center gap-2 px-2">
+                          <input type="checkbox" name="cargo2_en_papeles" defaultChecked={editingStaff?.cargo2_en_papeles === 'true'} value="true" className="w-4 h-4 accent-violet-600"/>
+                          <span className="text-[10px] font-bold text-gray-500 uppercase">¿Este cargo figura solo en papeles?</span>
+                        </div>
                       </div>
-                    </div>
-                    <input name="antiguedadFechaRef" type="hidden" defaultValue={editingStaff?.antiguedadFechaRef || new Date().toISOString().split('T')[0]} />
-                  </div>
-                </details>
+                    </details>
+
+                    <details className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      <summary className="list-none p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition">
+                        <span className="text-[11px] font-black text-violet-500 uppercase flex items-center gap-2">
+                          <Clock size={14}/> Ingreso y Antigüedad
+                        </span>
+                        <ChevronDown size={16} className="group-open:rotate-180 transition-transform text-slate-400" />
+                      </summary>
+
+                      <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1">Fecha de inicio de actividades</label>
+                          <input
+                            name="fechaIngreso"
+                            type="date"
+                            defaultValue={editingStaff?.fechaIngreso || ""}
+                            className="p-3 bg-slate-50 rounded-xl border-none w-full font-bold text-sm"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1">Años Anti. Reconocida</label>
+                            <input name="antiguedadAnios" type="number" min="0" defaultValue={editingStaff?.antiguedadAnios || ""} className="p-3 bg-slate-50 rounded-xl border-none w-full font-bold text-sm text-center"/>
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1">Meses Anti. Reconocida</label>
+                            <input name="antiguedadMeses" type="number" min="0" max="11" defaultValue={editingStaff?.antiguedadMeses || ""} className="p-3 bg-slate-50 rounded-xl border-none w-full font-bold text-sm text-center"/>
+                          </div>
+                        </div>
+
+                        <div className="sm:col-span-2 bg-violet-50 border border-violet-100 rounded-xl px-3 py-2">
+                          <p className="text-[9px] font-bold text-violet-700">
+                            La antigüedad se calcula automáticamente a partir de la fecha de inicio y, cuando corresponda, suma la antigüedad reconocida.
+                          </p>
+                        </div>
+
+                        <input
+                          name="antiguedadFechaRef"
+                          type="hidden"
+                          defaultValue={editingStaff?.antiguedadFechaRef || editingStaff?.fechaIngreso || new Date().toISOString().split('T')[0]}
+                        />
+                      </div>
+                    </details>
+                  </>
+                ) : (
+                  <>
+                    {/* ============== CENTRO DE DÍA / CONSULTORIO ============== */}
+                    <details open className="group bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      <summary className="list-none p-4 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition border-l-4 border-emerald-500">
+                        <span className="text-[11px] font-black text-emerald-600 uppercase flex items-center gap-2">
+                          <Briefcase size={14}/>
+                          {isDayCenter ? 'Información laboral' : 'Información profesional'}
+                        </span>
+                        <ChevronDown size={16} className="group-open:rotate-180 transition-transform text-slate-400" />
+                      </summary>
+
+                      <div className="p-4 pt-0 space-y-4">
+                        <div>
+                          <label className="text-[8px] font-black text-slate-400 uppercase ml-2 mb-1">
+                            Rol / Función
+                          </label>
+                          <select
+                            name="role"
+                            defaultValue={editingStaff?.role || editingStaff?.cargo1_role || ""}
+                            required
+                            className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm w-full"
+                          >
+                            <option value="">Seleccionar rol / función...</option>
+                            {VALID_ROLES.map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[8px] font-black text-slate-400 uppercase ml-2 mb-2">
+                            Días de asistencia / trabajo
+                          </label>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {(institutionConfig?.staffWeekdays || STAFF_WEEKDAYS).map(day => {
+                              const checkedDays = getStaffWorkDays(editingStaff);
+                              return (
+                                <label key={day} className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-violet-50 hover:border-violet-200">
+                                  <input
+                                    type="checkbox"
+                                    name="workDays"
+                                    value={day}
+                                    defaultChecked={checkedDays.includes(day)}
+                                    className="w-4 h-4 accent-violet-600"
+                                  />
+                                  <span className="text-[10px] font-bold text-slate-600">{day}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[8px] font-black text-slate-400 uppercase ml-2 mb-1">
+                              Horas semanales
+                            </label>
+                            <input
+                              name="weeklyHours"
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              required
+                              defaultValue={editingStaff?.weeklyHours || editingStaff?.horasSemanales || ""}
+                              placeholder="Ej. 20"
+                              className="p-3 bg-slate-50 rounded-xl border-none w-full font-bold text-sm"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[8px] font-black text-slate-400 uppercase ml-2 mb-1">
+                              Fecha de inicio de actividades
+                            </label>
+                            <input
+                              name="fechaInicioActividades"
+                              type="date"
+                              required
+                              defaultValue={editingStaff?.fechaInicioActividades || editingStaff?.fechaIngreso || ""}
+                              className="p-3 bg-slate-50 rounded-xl border-none w-full font-bold text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="bg-violet-50 border border-violet-100 rounded-xl px-3 py-3">
+                          <p className="text-[9px] font-black uppercase text-violet-700">
+                            Antigüedad en el instituto
+                          </p>
+                          <p className="text-[11px] text-violet-600 font-semibold mt-1">
+                            Se calcula automáticamente tomando como referencia la fecha de inicio de actividades.
+                          </p>
+                        </div>
+
+                        {/* Compatibilidad con registros históricos. Estos campos no se muestran,
+                            pero no se pierden al editar personal no escolar. */}
+                        <input
+                          name="fechaIngreso"
+                          type="hidden"
+                          defaultValue={editingStaff?.fechaIngreso || ""}
+                        />
+                        <input
+                          name="antiguedadAnios"
+                          type="hidden"
+                          defaultValue={editingStaff?.antiguedadAnios || ""}
+                        />
+                        <input
+                          name="antiguedadMeses"
+                          type="hidden"
+                          defaultValue={editingStaff?.antiguedadMeses || ""}
+                        />
+                        <input
+                          name="antiguedadFechaRef"
+                          type="hidden"
+                          defaultValue={editingStaff?.antiguedadFechaRef || editingStaff?.fechaInicioActividades || editingStaff?.fechaIngreso || ""}
+                        />
+                      </div>
+                    </details>
+                  </>
+                )}
 
                 <div className="h-4"></div>
               </form>
