@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { getCachedAppConfig } from '../config';
 import {
   Plus,
   Trash2,
@@ -33,33 +34,42 @@ import {
 } from 'firebase/firestore';
 
 
-const ROLE_OPTIONS = [
+const FALLBACK_ROLE_OPTIONS = [
   'Docente',
   'Equipo Directivo',
   'Equipo Técnico',
-  'Auxiliar/Preceptor',
-  'Inclusión',
-  'Profes Especiales',
-  'Administración',
-  'Médico',
-  'Dirección Inclusión',
-  'Equipo Técnico Inclusión',
-  'DAI',
-  'Cocina',
-  'Limpieza',
-  'Mantenimiento'
+  'Administración'
 ];
 
-const EMPTY_FORM = {
+const getRoleLabel = (role, index = 0) => {
+  if (typeof role === 'string') return role.trim();
+  return (
+    role?.name ||
+    role?.shortName ||
+    role?.label ||
+    role?.id ||
+    `Rol ${index + 1}`
+  ).trim();
+};
+
+const getConfiguredRoleOptions = (config) => {
+  const roles = Array.isArray(config?.roles) ? config.roles : [];
+  return roles
+    .map((role, index) => getRoleLabel(role, index))
+    .filter(Boolean)
+    .filter((role, index, arr) => arr.indexOf(role) === index);
+};
+
+const makeEmptyForm = (defaultRole = '') => ({
   firstName: '',
   lastName: '',
   username: '',
   email: '',
   password: '',
-  role: 'Docente',
+  role: defaultRole,
   isAdmin: false,
   staffId: ''
-};
+});
 
 const cleanText = (value) => String(value || '').trim();
 
@@ -106,7 +116,8 @@ export function UsersAdminView({ db, appId }) {
   const [showPendingStaff, setShowPendingStaff] = useState(false);
 
   const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [institutionConfig, setInstitutionConfig] = useState(() => getCachedAppConfig());
+  const [form, setForm] = useState(() => makeEmptyForm(getConfiguredRoleOptions(getCachedAppConfig())[0] || ''));
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -114,6 +125,37 @@ export function UsersAdminView({ db, appId }) {
   const [csvContent, setCsvContent] = useState('');
   const [processing, setProcessing] = useState(false);
   const [savingLink, setSavingLink] = useState(false);
+
+  const configuredRoleOptions = useMemo(() => {
+    const configured = getConfiguredRoleOptions(institutionConfig);
+    return configured.length ? configured : FALLBACK_ROLE_OPTIONS;
+  }, [institutionConfig]);
+
+  const roleOptionsForForm = useMemo(() => {
+    const currentRole = cleanText(editingUser?.role || form.role);
+    if (currentRole && !configuredRoleOptions.includes(currentRole)) {
+      return [currentRole, ...configuredRoleOptions];
+    }
+    return configuredRoleOptions;
+  }, [configuredRoleOptions, editingUser, form.role]);
+
+  useEffect(() => {
+    const handleConfigUpdate = event => {
+      const next = event?.detail || getCachedAppConfig();
+      setInstitutionConfig(next);
+    };
+
+    window.addEventListener('institution-config-updated', handleConfigUpdate);
+    return () => window.removeEventListener('institution-config-updated', handleConfigUpdate);
+  }, []);
+
+  useEffect(() => {
+    if (!showModal || editingUser) return;
+    const currentRole = cleanText(form.role);
+    if (!currentRole || !configuredRoleOptions.includes(currentRole)) {
+      setField('role', configuredRoleOptions[0] || '');
+    }
+  }, [showModal, editingUser, configuredRoleOptions]);
 
   useEffect(() => {
     if (!db || !appId) return undefined;
@@ -287,7 +329,7 @@ export function UsersAdminView({ db, appId }) {
 
   const openCreate = () => {
     setEditingUser(null);
-    setForm(EMPTY_FORM);
+    setForm(makeEmptyForm(configuredRoleOptions[0] || ''));
     setShowModal(true);
   };
 
@@ -311,7 +353,7 @@ export function UsersAdminView({ db, appId }) {
   const closeModal = () => {
     setShowModal(false);
     setEditingUser(null);
-    setForm(EMPTY_FORM);
+    setForm(makeEmptyForm(configuredRoleOptions[0] || ''));
   };
 
   const setField = (field, value) => {
@@ -580,13 +622,25 @@ export function UsersAdminView({ db, appId }) {
         }
       }
 
+      const selectedRole = cleanText(form.role);
+
+      if (!selectedRole) {
+        alert('Configurá al menos un rol en Configuración → Listas y opciones → Roles.');
+        return;
+      }
+
+      if (!editingUser && configuredRoleOptions.length && !configuredRoleOptions.includes(selectedRole)) {
+        alert('El rol seleccionado ya no está disponible en la configuración institucional. Elegí uno de los roles configurados.');
+        return;
+      }
+
       const data = {
         firstName,
         lastName,
         fullName: `${firstName} ${lastName}`.trim(),
         username,
         email,
-        role: cleanText(form.role) || 'Docente',
+        role: selectedRole,
         rol: form.isAdmin ? 'admin' : 'user',
         ...(cleanText(form.password)
           ? { password: cleanText(form.password) }
@@ -818,6 +872,12 @@ export function UsersAdminView({ db, appId }) {
           email
         ] = columns;
 
+        const requestedRole = cleanText(role);
+        const matchedConfiguredRole = configuredRoleOptions.find(
+          configuredRole => configuredRole.toLowerCase() === requestedRole.toLowerCase()
+        );
+        const finalRole = matchedConfiguredRole || configuredRoleOptions[0] || 'Docente';
+
         const finalUsername =
           cleanText(username) ||
           makeUsername(firstName, lastName);
@@ -857,7 +917,7 @@ export function UsersAdminView({ db, appId }) {
             username: finalUsername.toLowerCase(),
             password: cleanText(password),
             email: cleanText(email).toLowerCase(),
-            role: cleanText(role) || 'Docente',
+            role: finalRole,
             rol: 'user',
             createdAt: serverTimestamp()
           }
@@ -1247,13 +1307,19 @@ export function UsersAdminView({ db, appId }) {
                   value={form.role}
                   onChange={event => setField('role', event.target.value)}
                   className="mt-1 w-full p-3 rounded-xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-700"
+                  disabled={roleOptionsForForm.length === 0}
                 >
-                  {ROLE_OPTIONS.map(role => (
+                  {roleOptionsForForm.map(role => (
                     <option key={role} value={role}>
                       {role}
+                      {editingUser?.role === role && !configuredRoleOptions.includes(role) ? ' (rol anterior)' : ''}
                     </option>
                   ))}
                 </select>
+
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Los roles disponibles salen de Configuración → Listas y opciones → Roles.
+                </p>
               </div>
 
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
@@ -1460,12 +1526,18 @@ export function UsersAdminView({ db, appId }) {
                         setShowPendingStaff(false);
                         setEditingUser(null);
                         setForm({
-                          ...EMPTY_FORM,
+                          ...makeEmptyForm(
+                            configuredRoleOptions.find(role =>
+                              role.toLowerCase() === String(staff.cargo1_role || staff.role || '').toLowerCase()
+                            ) || configuredRoleOptions[0] || ''
+                          ),
                           firstName: staff.firstName || '',
                           lastName: staff.lastName || '',
                           username: makeUsername(staff.firstName, staff.lastName),
                           email: staff.email || '',
-                          role: staff.cargo1_role || staff.role || 'Docente',
+                          role: configuredRoleOptions.find(role =>
+                            role.toLowerCase() === String(staff.cargo1_role || staff.role || '').toLowerCase()
+                          ) || configuredRoleOptions[0] || '',
                           staffId: staff.id
                         });
                         setShowModal(true);
