@@ -1,8 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Building2, Palette, CalendarDays, SlidersHorizontal, Save, Plus, Trash2, CheckCircle2, RotateCcw, Image as ImageIcon, ShieldCheck, FileText, Settings2, Server, Info, Database, RefreshCw, ExternalLink, Download, UploadCloud } from 'lucide-react';
-import { DEFAULT_APP_CONFIG, normalizeAppConfig, cacheAppConfig, applyBranding, PALETTES, MODULES, MODULE_CATALOG, FEATURE_LABELS, getRolePermissions, isModuleEnabled, INSTITUTION_TYPES, PLAN_OPTIONS } from '../config';
+import { DEFAULT_APP_CONFIG, normalizeAppConfig, cacheAppConfig, applyBranding, PALETTES, MODULES, MODULE_CATALOG, FEATURE_LABELS, getRolePermissions, isModuleEnabled, INSTITUTION_TYPES, PLAN_OPTIONS, INSTITUTION_MODES, getStaffModeConfig, STAFF_WEEKDAYS } from '../config';
  
+const normalizeRoleLabel = (role, index = 0) => {
+  if (typeof role === 'string') return role.trim();
+  return (
+    role?.name ||
+    role?.shortName ||
+    role?.label ||
+    role?.id ||
+    `Rol ${index + 1}`
+  );
+};
+
 const TABS = [
   { id: 'identity', label: 'Institución', icon: Building2 },
   { id: 'branding', label: 'Apariencia', icon: Palette },
@@ -78,14 +89,14 @@ export function ConfiguracionView({ db, appId, auth }) {
         if (!active) return;
         const next = normalizeAppConfig(snap.exists() ? snap.data() : DEFAULT_APP_CONFIG);
         setConfig(next);
-        setSelectedRole(next.roles?.[0] || '');
+        setSelectedRole(normalizeRoleLabel(next.roles?.[0]));
         applyBranding(next);
         cacheAppConfig(next);
       } catch (error) {
         console.warn('No se pudo cargar la configuración institucional', error);
         const next = normalizeAppConfig(DEFAULT_APP_CONFIG);
         setConfig(next);
-        setSelectedRole(next.roles?.[0] || '');
+        setSelectedRole(normalizeRoleLabel(next.roles?.[0]));
       } finally {
         if (active) setLoading(false);
       }
@@ -99,9 +110,21 @@ export function ConfiguracionView({ db, appId, auth }) {
   const updateModule = (moduleId, value) => setConfig(prev => ({ ...prev, activeModules: { ...(prev.activeModules || {}), [moduleId]: value } }));
   const updateStructure = (key, value) => update(key, value);
 
-  const roles = config.roles || [];
+  const roles = (Array.isArray(config.roles) ? config.roles : [])
+    .map((role, index) => normalizeRoleLabel(role, index))
+    .filter(Boolean);
   const rolePerms = selectedRole ? getRolePermissions(config, selectedRole) : {};
   const selectedPalette = PALETTES[config.palette] || { name: 'Personalizada', primary: config.primaryColor, secondary: config.secondaryColor, background: config.backgroundColor, text: config.textColor };
+
+  const institutionMode = config.institutionMode || INSTITUTION_MODES.SCHOOL;
+  const staffModeConfig = getStaffModeConfig(config);
+  const configuredStaffWeekdays = Array.isArray(config.staffWeekdays) && config.staffWeekdays.length
+    ? config.staffWeekdays
+    : STAFF_WEEKDAYS;
+
+  const updateInstitutionMode = (mode) => {
+    update('institutionMode', mode);
+  };
 
   const updatePermission = (moduleId, value) => {
     if (!selectedRole) return;
@@ -170,7 +193,7 @@ export function ConfiguracionView({ db, appId, auth }) {
       try {
         const next = normalizeAppConfig(JSON.parse(event.target.result));
         setConfig(next);
-        setSelectedRole(next.roles?.[0] || '');
+        setSelectedRole(normalizeRoleLabel(next.roles?.[0]));
         applyBranding(next);
       } catch {
         alert('El archivo de configuración no es válido.');
@@ -211,7 +234,7 @@ export function ConfiguracionView({ db, appId, auth }) {
     if (!confirm('¿Restaurar la configuración inicial? Esto reemplazará los cambios actuales en el formulario.')) return;
     const next = normalizeAppConfig(DEFAULT_APP_CONFIG);
     setConfig(next);
-    setSelectedRole(next.roles?.[0] || '');
+    setSelectedRole(normalizeRoleLabel(next.roles?.[0]));
     applyBranding(next);
   };
 
@@ -288,9 +311,9 @@ export function ConfiguracionView({ db, appId, auth }) {
 
     <button
       type="button"
-      onClick={() => update('institutionMode', 'school')}
+      onClick={() => updateInstitutionMode(INSTITUTION_MODES.SCHOOL)}
       className={`text-left p-4 rounded-2xl border-2 transition ${
-        (config.institutionMode || 'school') === 'school'
+        institutionMode === INSTITUTION_MODES.SCHOOL
           ? 'border-violet-600 bg-violet-50 ring-2 ring-violet-100'
           : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
@@ -306,9 +329,9 @@ export function ConfiguracionView({ db, appId, auth }) {
 
     <button
       type="button"
-      onClick={() => update('institutionMode', 'day_center')}
+      onClick={() => updateInstitutionMode(INSTITUTION_MODES.DAY_CENTER)}
       className={`text-left p-4 rounded-2xl border-2 transition ${
-        config.institutionMode === 'day_center'
+        institutionMode === INSTITUTION_MODES.DAY_CENTER
           ? 'border-violet-600 bg-violet-50 ring-2 ring-violet-100'
           : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
@@ -324,9 +347,9 @@ export function ConfiguracionView({ db, appId, auth }) {
 
     <button
       type="button"
-      onClick={() => update('institutionMode', 'clinic')}
+      onClick={() => updateInstitutionMode(INSTITUTION_MODES.CLINIC)}
       className={`text-left p-4 rounded-2xl border-2 transition ${
-        config.institutionMode === 'clinic'
+        institutionMode === INSTITUTION_MODES.CLINIC
           ? 'border-violet-600 bg-violet-50 ring-2 ring-violet-100'
           : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
@@ -342,6 +365,73 @@ export function ConfiguracionView({ db, appId, auth }) {
 
   </div>
 </div>
+
+                <div className="md:col-span-2 rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                      <Settings2 size={18} className="text-violet-600"/>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-wide text-slate-500">Personal</p>
+                      <h4 className="font-black text-slate-800 mt-1">
+                        {institutionMode === INSTITUTION_MODES.SCHOOL
+                          ? 'Configuración escolar'
+                          : institutionMode === INSTITUTION_MODES.DAY_CENTER
+                            ? 'Configuración de centro de día'
+                            : 'Configuración de consultorio'}
+                      </h4>
+                      <p className="text-sm text-slate-500 mt-1">
+                        {institutionMode === INSTITUTION_MODES.SCHOOL
+                          ? 'Personal conservará la lógica escolar: cargos, modalidad, turnos, fecha de inicio y antigüedad.'
+                          : institutionMode === INSTITUTION_MODES.DAY_CENTER
+                            ? 'Personal utilizará roles institucionales, días de asistencia, horas semanales, fecha de inicio y antigüedad. No se utilizarán Sede ni Inclusión.'
+                            : 'Personal utilizará roles institucionales, días de trabajo, horas semanales, fecha de inicio y antigüedad. No se utilizarán Sede ni Inclusión.'}
+                      </p>
+
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                          Antigüedad: {staffModeConfig.calculateSeniority ? 'activa' : 'desactivada'}
+                        </span>
+                        <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                          Roles configurables
+                        </span>
+
+                        {institutionMode === INSTITUTION_MODES.SCHOOL && (
+                          <>
+                            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                              Cargos escolares
+                            </span>
+                            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                              Turnos
+                            </span>
+                            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                              Sede / Inclusión
+                            </span>
+                          </>
+                        )}
+
+                        {institutionMode !== INSTITUTION_MODES.SCHOOL && (
+                          <>
+                            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                              Días de trabajo
+                            </span>
+                            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                              Horas semanales
+                            </span>
+                          </>
+                        )}
+
+                        <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                          Fecha de inicio
+                        </span>
+                        <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                          Antigüedad automática
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <label><span className="text-xs font-black uppercase text-slate-500">Tipo de institución</span><select value={config.institutionType || 'Otro'} onChange={e=>update('institutionType',e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 bg-white">{INSTITUTION_TYPES.map(type=><option key={type}>{type}</option>)}</select></label>
                 <label><span className="text-xs font-black uppercase text-slate-500">Año lectivo</span><input type="number" value={config.schoolYear} onChange={e=>update('schoolYear',Number(e.target.value))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>
                 {[['institutionName','Nombre completo'],['institutionShortName','Nombre corto'],['portalTitle','Título del portal'],['appName','Nombre del sistema'],['email','Correo institucional'],['phone','Teléfono'],['address','Domicilio'],['city','Localidad'],['province','Provincia'],['country','País'],['website','Sitio web']].map(([key,label]) => <label key={key}><span className="text-xs font-black uppercase text-slate-500">{label}</span><input value={config[key] || ''} onChange={e=>update(key,e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-violet-200" /></label>)}
@@ -582,7 +672,80 @@ export function ConfiguracionView({ db, appId, auth }) {
             <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4"><div><h3 className="text-lg font-black">Documentos</h3><p className="text-sm text-slate-500">Datos que aparecen en los documentos generados por el sistema.</p></div><div className="grid md:grid-cols-2 gap-4"><label><span className="text-xs font-black uppercase text-slate-500">Encabezado</span><textarea value={config.document?.header || ''} onChange={e=>updateNested('document','header',e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 min-h-24" /></label><label><span className="text-xs font-black uppercase text-slate-500">Pie de documento</span><textarea value={config.document?.footer || ''} onChange={e=>updateNested('document','footer',e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 min-h-24" /></label><label><span className="text-xs font-black uppercase text-slate-500">Nombre de firma</span><input value={config.document?.signatureName || ''} onChange={e=>updateNested('document','signatureName',e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label><span className="text-xs font-black uppercase text-slate-500">Cargo de firma</span><input value={config.document?.signatureRole || ''} onChange={e=>updateNested('document','signatureRole',e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label></div><label className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl"><input type="checkbox" checked={config.document?.showLogo !== false} onChange={e=>updateNested('document','showLogo',e.target.checked)} className="w-5 h-5 accent-violet-600"/><span className="text-sm font-semibold">Mostrar logo en documentos</span></label></section>
           </>}
 
-          {tab === 'lists' && <div className="grid gap-4"><ListEditor title="Roles" items={config.roles || []} onChange={v=>{update('roles',v); if(!selectedRole && v[0]) setSelectedRole(v[0]);}} placeholder="Ej. Docente"/><ListEditor title="Turnos" items={config.turns || []} onChange={v=>update('turns',v)} placeholder="Ej. Mañana"/><ListEditor title="Modalidades" items={config.modalities || []} onChange={v=>update('modalities',v)} placeholder="Ej. Sede"/><ListEditor title="Tipos de evento" items={config.eventTypes || []} onChange={v=>update('eventTypes',v)} placeholder="Ej. Reunión"/></div>}
+          {tab === 'lists' && (
+            <div className="grid gap-4">
+
+              <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+                <div>
+                  <h3 className="text-lg font-black">Roles del personal</h3>
+                  <p className="text-sm text-slate-500">
+                    Cargá los roles que realmente existen en esta institución. La misma lista se utilizará para crear y editar Personal, y también para configurar permisos.
+                  </p>
+                </div>
+
+                <ListEditor
+                  title="Roles"
+                  items={config.roles || []}
+                  onChange={v => {
+                    update('roles', v);
+                    if (!selectedRole && v[0]) setSelectedRole(v[0]);
+                  }}
+                  placeholder={
+                    institutionMode === INSTITUTION_MODES.SCHOOL
+                      ? 'Ej. Docente'
+                      : institutionMode === INSTITUTION_MODES.DAY_CENTER
+                        ? 'Ej. Tallerista'
+                        : 'Ej. Psicología'
+                  }
+                />
+              </section>
+
+              {institutionMode === INSTITUTION_MODES.SCHOOL && (
+                <>
+                  <ListEditor
+                    title="Turnos"
+                    items={config.turns || []}
+                    onChange={v => update('turns', v)}
+                    placeholder="Ej. Mañana"
+                  />
+
+                  <ListEditor
+                    title="Modalidades"
+                    items={config.modalities || []}
+                    onChange={v => update('modalities', v)}
+                    placeholder="Ej. Sede"
+                  />
+                </>
+              )}
+
+              {institutionMode !== INSTITUTION_MODES.SCHOOL && (
+                <ListEditor
+                  title="Días de trabajo del personal"
+                  items={configuredStaffWeekdays}
+                  onChange={v => update('staffWeekdays', v)}
+                  placeholder="Ej. Lunes"
+                />
+              )}
+
+              <ListEditor
+                title="Tipos de evento"
+                items={config.eventTypes || []}
+                onChange={v => update('eventTypes', v)}
+                placeholder="Ej. Reunión"
+              />
+
+              <div className="rounded-2xl bg-violet-50 border border-violet-100 p-4">
+                <p className="text-sm font-bold text-violet-900">
+                  {institutionMode === INSTITUTION_MODES.SCHOOL
+                    ? 'En la escuela se mantienen las opciones de turnos y modalidades que ya utiliza CENTRA.'
+                    : institutionMode === INSTITUTION_MODES.DAY_CENTER
+                      ? 'En centro de día no se utilizan Sede ni Inclusión para Personal. El equipo se organiza mediante roles, días y horas semanales.'
+                      : 'En consultorios no se utilizan Sede ni Inclusión para Personal. El equipo se organiza mediante roles, días y horas semanales.'}
+                </p>
+              </div>
+
+            </div>
+          )}
 
           {tab === 'calendar' && <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4"><div><h3 className="text-lg font-black">Días no laborables</h3><p className="text-sm text-slate-500">Podés cargar feriados, jornadas institucionales, recesos u otros días sin actividad.</p></div><div className="grid md:grid-cols-[180px_1fr_auto] gap-2"><input type="date" value={newHoliday.date} onChange={e=>setNewHoliday(v=>({...v,date:e.target.value}))} className="rounded-xl border border-slate-200 px-3 py-2.5"/><input value={newHoliday.name} onChange={e=>setNewHoliday(v=>({...v,name:e.target.value}))} placeholder="Nombre del día" className="rounded-xl border border-slate-200 px-3 py-2.5"/><button onClick={addHoliday} className="rounded-xl bg-violet-600 text-white px-4 font-bold flex items-center justify-center gap-2"><Plus size={16}/> Agregar</button></div><div className="space-y-2">{holidays.length===0?<div className="text-sm text-slate-400 py-5 text-center">No hay días cargados.</div>:holidays.map(h=><div key={h.raw} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3"><div><span className="font-bold">{h.date}</span>{h.name&&<span className="text-slate-500 ml-2">— {h.name}</span>}</div><button onClick={()=>update('holidays',config.holidays.filter(x=>x!==h.raw))} className="text-slate-400 hover:text-red-500"><Trash2 size={17}/></button></div>)}</div></section>}
 
