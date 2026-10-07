@@ -1113,6 +1113,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                         </div>
                     )}
                 </div>
+            </div>
             
             <div className="flex gap-2">
                 <button 
