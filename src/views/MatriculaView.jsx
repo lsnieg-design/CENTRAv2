@@ -1365,182 +1365,216 @@ if (
       'CENTRA → perfil de estudiante guardado correctamente'
     );
 
-    // ----------------------------------------
+      // ----------------------------------------
     // ASIGNACIÓN
     // ----------------------------------------
 
-    const oldAssignment =
-      editingStudent?.isNew
-        ? null
-        : getCurrentAssignment(
-            editingStudent
-          );
+    // La asignación de grupos desde el legajo
+    // corresponde solamente a Escuela.
+    //
+    // Centro de día:
+    // los talleres/grupos se gestionan desde GruposView
+    // y solamente se reflejan aquí.
+    //
+    // Consultorios:
+    // no utilizan esta lógica de grupos.
 
-    const scheduleType =
-      data.scheduleType || '';
+    if (institutionMode === 'school') {
 
-    const selectedJourney =
-      journeys.find(
-        journey =>
-          journey.id ===
-          scheduleType
-      );
+      const oldAssignment =
+        editingStudent?.isNew
+          ? null
+          : getCurrentAssignment(
+              editingStudent
+            );
 
-    const selectedJourneyName =
-      normalizeText(
-        selectedJourney?.name || ''
-      );
+      const scheduleType =
+        data.scheduleType || '';
 
-    const isDouble =
-      selectedJourneyName.includes(
-        'doble'
-      ) ||
-      selectedJourneyName.includes(
-        'completa'
-      );
+      const selectedJourney =
+        journeys.find(
+          journey =>
+            journey.id ===
+            scheduleType
+        );
 
-    const morningTurn =
-      turns.find(
-        turn =>
-          normalizeText(
-            turn.name
-          ).includes('manana')
-      ) ||
-      turns[0] ||
-      null;
+      const selectedJourneyName =
+        normalizeText(
+          selectedJourney?.name || ''
+        );
 
-    const afternoonTurn =
-      turns.find(
-        turn =>
-          normalizeText(
-            turn.name
-          ).includes('tarde')
-      ) ||
-      turns[1] ||
-      null;
+      const isDouble =
+        selectedJourneyName.includes(
+          'doble'
+        ) ||
+        selectedJourneyName.includes(
+          'completa'
+        );
 
-    let placements = [];
+      const morningTurn =
+        turns.find(
+          turn =>
+            normalizeText(
+              turn.name
+            ).includes('manana')
+        ) ||
+        turns[0] ||
+        null;
 
-    // Jornada doble
-    if (isDouble) {
+      const afternoonTurn =
+        turns.find(
+          turn =>
+            normalizeText(
+              turn.name
+            ).includes('tarde')
+        ) ||
+        turns[1] ||
+        null;
 
-      if (
-        data.morningGroupId &&
-        morningTurn
-      ) {
-        placements.push({
-          groupId:
-            data.morningGroupId,
+      let placements = [];
 
-          turnId:
-            morningTurn.id
-        });
+
+      // Jornada doble
+      if (isDouble) {
+
+        if (
+          data.morningGroupId &&
+          morningTurn
+        ) {
+
+          placements.push({
+            groupId:
+              data.morningGroupId,
+
+            turnId:
+              morningTurn.id
+          });
+
+        }
+
+
+        if (
+          data.afternoonGroupId &&
+          afternoonTurn
+        ) {
+
+          placements.push({
+            groupId:
+              data.afternoonGroupId,
+
+            turnId:
+              afternoonTurn.id
+          });
+
+        }
+
       }
 
-      if (
-        data.afternoonGroupId &&
-        afternoonTurn
-      ) {
-        placements.push({
-          groupId:
-            data.afternoonGroupId,
 
-          turnId:
-            afternoonTurn.id
-        });
+      // Jornada simple
+      else {
+
+        if (
+          data.simpleGroupId &&
+          data.simpleTurnId
+        ) {
+
+          placements.push({
+            groupId:
+              data.simpleGroupId,
+
+            turnId:
+              data.simpleTurnId
+          });
+
+        }
+
       }
 
-    }
 
-    // Jornada simple
-    else {
+      // ----------------------------------------
+      // COMPARACIÓN
+      // ----------------------------------------
 
-      if (
-        data.simpleGroupId &&
-        data.simpleTurnId
-      ) {
-        placements.push({
-          groupId:
-            data.simpleGroupId,
+      const normalizePlacementsForCompare =
+        value =>
+          [...(value || [])]
+            .map(
+              placement => ({
+                groupId:
+                  placement.groupId,
 
-          turnId:
-            data.simpleTurnId
-        });
-      }
+                turnId:
+                  placement.turnId
+              })
+            )
+            .sort(
+              (a, b) =>
+                `${a.turnId}-${a.groupId}`.localeCompare(
+                  `${b.turnId}-${b.groupId}`
+                )
+            );
 
-    }
 
-    // ----------------------------------------
-    // COMPARACIÓN DE ASIGNACIONES
-    // ----------------------------------------
+      const oldPlacements =
+        getPlacements(
+          oldAssignment
+        );
 
-    const normalizePlacementsForCompare =
-      value =>
-        [...(value || [])]
-          .map(
-            placement => ({
-              groupId:
-                placement.groupId,
 
-              turnId:
-                placement.turnId
-            })
+      const changedAssignment =
+        oldAssignment?.scheduleType !==
+          scheduleType ||
+        JSON.stringify(
+          normalizePlacementsForCompare(
+            oldPlacements
           )
-          .sort((a, b) =>
-            `${a.turnId}-${a.groupId}`.localeCompare(
-              `${b.turnId}-${b.groupId}`
+        ) !==
+          JSON.stringify(
+            normalizePlacementsForCompare(
+              placements
             )
           );
 
-    const oldPlacements =
-      getPlacements(
-        oldAssignment
-      );
 
-    const changedAssignment =
-      oldAssignment?.scheduleType !==
-        scheduleType ||
-      JSON.stringify(
-        normalizePlacementsForCompare(
-          oldPlacements
-        )
-      ) !==
-        JSON.stringify(
-          normalizePlacementsForCompare(
-            placements
-          )
-        );
+      // ----------------------------------------
+      // GUARDAR ASIGNACIÓN
+      // ----------------------------------------
 
-    // ----------------------------------------
-    // GUARDAR ASIGNACIÓN
-    // ----------------------------------------
+      if (changedAssignment) {
 
-    if (changedAssignment) {
+        if (oldAssignment) {
 
-      if (oldAssignment) {
-        await closeStudentGroupAssignment(
-          db,
-          appId,
-          oldAssignment.id
-        );
+          await closeStudentGroupAssignment(
+            db,
+            appId,
+            oldAssignment.id
+          );
+
+        }
+
+
+        if (
+          placements.length > 0
+        ) {
+
+          await createStudentGroupAssignment(
+            db,
+            appId,
+            {
+              studentId:
+                personId,
+
+              placements,
+
+              scheduleType
+            }
+          );
+
+        }
+
       }
 
-      if (
-        placements.length > 0
-      ) {
-        await createStudentGroupAssignment(
-          db,
-          appId,
-          {
-            studentId:
-              personId,
-
-            placements,
-
-            scheduleType
-          }
-        );
-      }
     }
 
     console.log(
@@ -5068,12 +5102,23 @@ function StudentFormModal({
       : institutionMode === 'clinic'
       ? 'Datos personales y atención'
       : 'Datos personales y escolaridad';
-const recordSectionTitle =
-  institutionMode === 'day_center'
-    ? 'Participación y jornada'
-    : institutionMode === 'clinic'
-    ? 'Atención'
-    : 'Escolaridad';
+
+  const recordSectionTitle =
+    institutionMode === 'day_center'
+      ? 'Participación y jornada'
+      : 'Escolaridad';
+
+  const [selectedJourneyId, setSelectedJourneyId] =
+    useState(
+      student?.groupAssignments?.find(
+        assignment =>
+          assignment.status === 'active' &&
+          !assignment.validTo
+      )?.scheduleType ||
+      journeys[0]?.id ||
+      ''
+    );
+
   const handlePhotoChange = event => {
     const file =
       event.target.files?.[0];
@@ -5086,12 +5131,18 @@ const recordSectionTitle =
     setPhotoPreview(previewUrl);
   };
 
+
+  /* =====================================
+     ASIGNACIÓN ACTUAL
+  ====================================== */
+
   const currentAssignment =
     student?.groupAssignments?.find(
       item =>
         item.status === 'active' &&
         !item.validTo
     ) || null;
+
 
   const currentPlacements =
     Array.isArray(
@@ -5113,10 +5164,40 @@ const recordSectionTitle =
           }))
         : [];
 
+
+  /* =====================================
+     JORNADA
+  ====================================== */
+
   const currentJourney =
     currentAssignment?.scheduleType ||
     journeys[0]?.id ||
     '';
+
+  const selectedJourney =
+    journeys.find(
+      journey =>
+        journey.id ===
+        selectedJourneyId
+    );
+
+  const selectedJourneyName =
+    normalizeText(
+      selectedJourney?.name || ''
+    );
+
+  const selectedIsDouble =
+    selectedJourneyName.includes(
+      'doble'
+    ) ||
+    selectedJourneyName.includes(
+      'completa'
+    );
+
+
+  /* =====================================
+     TURNOS
+  ====================================== */
 
   const morningTurn =
     turns.find(
@@ -5138,6 +5219,7 @@ const recordSectionTitle =
     turns[1] ||
     null;
 
+
   const currentMorning =
     currentPlacements.find(
       placement =>
@@ -5152,25 +5234,11 @@ const recordSectionTitle =
         afternoonTurn?.id
     );
 
-  const currentJourneyName =
-    journeys.find(
-      journey =>
-        journey.id ===
-        currentJourney
-    )?.name ||
-    '';
-
-  const currentIsDouble =
-    normalizeText(
-      currentJourneyName
-    ).includes('doble') ||
-    normalizeText(
-      currentJourneyName
-    ).includes('completa');
 
   const currentSimplePlacement =
     currentPlacements[0] ||
     null;
+
 
   const currentSimpleTurnId =
     currentSimplePlacement?.turnId ||
@@ -5178,31 +5246,110 @@ const recordSectionTitle =
     turns[0]?.id ||
     '';
 
+
+  /* =====================================
+     TALLERES / GRUPOS CENTRO DE DÍA
+  ====================================== */
+
+  const assignedDayCenterGroups =
+    currentPlacements
+      .map(placement => {
+
+        const group =
+          groups.find(
+            item =>
+              item.id ===
+              placement.groupId
+          );
+
+        const turn =
+          turns.find(
+            item =>
+              item.id ===
+              placement.turnId
+          );
+
+        if (!group) {
+          return null;
+        }
+
+        return {
+          groupId:
+            group.id,
+
+          groupName:
+            group.name,
+
+          turnName:
+            turn?.name || ''
+        };
+
+      })
+      .filter(Boolean)
+      .filter(
+        (item, index, array) =>
+          index ===
+          array.findIndex(
+            other =>
+              other.groupId ===
+              item.groupId &&
+              other.turnName ===
+              item.turnName
+          )
+      );
+
+
+  /* =====================================
+     CAMBIO DE JORNADA
+  ====================================== */
+
+  const handleFormChange = event => {
+
+    if (
+      event.target.name ===
+      'scheduleType'
+    ) {
+
+      setSelectedJourneyId(
+        event.target.value
+      );
+
+    }
+
+  };
+
+
   return (
     <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
 
       <form
         onSubmit={onSave}
+        onChange={handleFormChange}
         className="bg-white rounded-[28px] w-full max-w-4xl max-h-[94vh] overflow-y-auto shadow-2xl"
       >
 
-        {/* =========================
+        {/* =====================================
             ENCABEZADO
-        ========================== */}
+        ====================================== */}
 
         <div className="sticky top-0 bg-white z-20 px-6 py-5 border-b border-slate-100 flex items-center justify-between">
 
           <div>
+
             <h3 className="text-xl font-black text-slate-900">
+
               {student.isNew
                 ? `Nuevo ${personLabel}`
                 : `Editar ${personLabel}`}
+
             </h3>
 
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
               {formSubtitle}
             </p>
+
           </div>
+
 
           <button
             type="button"
@@ -5215,15 +5362,16 @@ const recordSectionTitle =
         </div>
 
 
-        {/* =========================
+        {/* =====================================
             CONTENIDO
-        ========================== */}
+        ====================================== */}
 
         <div className="p-6 space-y-5">
 
-          {/* =========================
+
+          {/* =====================================
               DATOS PERSONALES
-          ========================== */}
+          ====================================== */}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
@@ -5231,7 +5379,9 @@ const recordSectionTitle =
               Datos personales
             </SectionTitle>
 
+
             <div className="grid md:grid-cols-2 gap-3">
+
 
               <Input
                 name="firstName"
@@ -5241,6 +5391,7 @@ const recordSectionTitle =
                 }
                 required
               />
+
 
               <Input
                 name="lastName"
@@ -5252,9 +5403,7 @@ const recordSectionTitle =
               />
 
 
-              {/* =========================
-                  FOTO
-              ========================== */}
+              {/* FOTO */}
 
               <div className="md:col-span-2 mt-1">
 
@@ -5263,6 +5412,7 @@ const recordSectionTitle =
                   <div className="flex items-start justify-between gap-4">
 
                     <div>
+
                       <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
                         Foto
                       </p>
@@ -5270,6 +5420,7 @@ const recordSectionTitle =
                       <p className="text-xs text-slate-500 mt-1">
                         Subí una foto clara para identificar a la persona.
                       </p>
+
                     </div>
 
                   </div>
@@ -5278,15 +5429,21 @@ const recordSectionTitle =
                   <div className="mt-4 flex items-center gap-4">
 
                     {photoPreview ? (
+
                       <img
                         src={photoPreview}
                         alt="Vista previa"
                         className="w-24 h-24 rounded-2xl object-cover border-2 border-white shadow-sm"
                       />
+
                     ) : (
+
                       <div className="w-24 h-24 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-300">
+
                         <Camera size={28} />
+
                       </div>
+
                     )}
 
 
@@ -5321,10 +5478,6 @@ const recordSectionTitle =
               </div>
 
 
-              {/* =========================
-                  RESTO DE DATOS
-              ========================== */}
-
               <Input
                 name="dni"
                 label="DNI"
@@ -5332,6 +5485,7 @@ const recordSectionTitle =
                   student.dni
                 }
               />
+
 
               <Input
                 name="birthDate"
@@ -5342,6 +5496,7 @@ const recordSectionTitle =
                 }
               />
 
+
               <Select
                 name="gender"
                 label="Género"
@@ -5350,6 +5505,7 @@ const recordSectionTitle =
                   ''
                 }
               >
+
                 <option value="">
                   Seleccionar
                 </option>
@@ -5368,6 +5524,7 @@ const recordSectionTitle =
 
               </Select>
 
+
               <Select
                 name="active"
                 label="Estado"
@@ -5378,6 +5535,7 @@ const recordSectionTitle =
                     : 'true'
                 }
               >
+
                 <option value="true">
                   Activo
                 </option>
@@ -5393,15 +5551,16 @@ const recordSectionTitle =
           </section>
 
 
-          {/* =========================
+          {/* =====================================
               CONTACTO Y FAMILIA
-          ========================== */}
+          ====================================== */}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
             <SectionTitle>
               Contacto y familia
             </SectionTitle>
+
 
             <div className="grid md:grid-cols-2 gap-3">
 
@@ -5483,15 +5642,16 @@ const recordSectionTitle =
           </section>
 
 
-          {/* =========================
+          {/* =====================================
               SALUD Y DOCUMENTACIÓN
-          ========================== */}
+          ====================================== */}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
             <SectionTitle>
               Salud y documentación
             </SectionTitle>
+
 
             <div className="grid md:grid-cols-2 gap-3">
 
@@ -5526,244 +5686,437 @@ const recordSectionTitle =
           </section>
 
 
-          {/* =========================
-              ESCOLARIDAD
-          ========================== */}
+          {/* =====================================
+              ESCUELA
+          ====================================== */}
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          {institutionMode === 'school' && (
 
-  <SectionTitle>
-    {recordSectionTitle}
-  </SectionTitle>
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-            <div className="grid md:grid-cols-2 gap-3">
+              <SectionTitle>
+                {recordSectionTitle}
+              </SectionTitle>
 
-              <Select
-                name="level"
-                label="Nivel"
-                defaultValue={
-                  student.level || ''
-                }
-              >
-                <option value="">
-                  Seleccionar
-                </option>
 
-                {levels.map(level => (
-                  <option
-                    key={level.id}
-                    value={level.id}
-                  >
-                    {level.name}
+              <div className="grid md:grid-cols-2 gap-3">
+
+
+                <Select
+                  name="level"
+                  label="Nivel"
+                  defaultValue={
+                    student.level || ''
+                  }
+                >
+
+                  <option value="">
+                    Seleccionar
                   </option>
-                ))}
 
-              </Select>
+                  {levels.map(
+                    level => (
+                      <option
+                        key={level.id}
+                        value={level.id}
+                      >
+                        {level.name}
+                      </option>
+                    )
+                  )}
+
+                </Select>
 
 
-              <Select
-                name="scheduleType"
-                label="Jornada"
-                defaultValue={
-                  currentJourney
-                }
-              >
-                <option value="">
-                  Seleccionar
-                </option>
+                <Select
+                  name="scheduleType"
+                  label="Jornada"
+                  defaultValue={
+                    currentJourney
+                  }
+                >
 
-                {journeys.map(
-                  journey => (
-                    <option
-                      key={journey.id}
-                      value={journey.id}
+                  <option value="">
+                    Seleccionar
+                  </option>
+
+                  {journeys.map(
+                    journey => (
+                      <option
+                        key={journey.id}
+                        value={journey.id}
+                      >
+                        {journey.name}
+                      </option>
+                    )
+                  )}
+
+                </Select>
+
+              </div>
+
+
+              {/* JORNADA DOBLE */}
+
+              {selectedIsDouble ? (
+
+                <div className="mt-4 space-y-3">
+
+
+                  {/* MAÑANA */}
+
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
+
+                    <div className="flex items-center gap-2 mb-3">
+
+                      <Clock3
+                        size={16}
+                        className="text-amber-600"
+                      />
+
+                      <div>
+
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+                          Turno mañana
+                        </p>
+
+                        <p className="text-xs font-bold text-slate-500">
+                          Grupo correspondiente
+                        </p>
+
+                      </div>
+
+                    </div>
+
+
+                    <input
+                      type="hidden"
+                      name="morningTurnId"
+                      value={
+                        morningTurn?.id || ''
+                      }
+                      readOnly
+                    />
+
+
+                    <Select
+                      name="morningGroupId"
+                      label="Grupo"
+                      defaultValue={
+                        currentMorning?.groupId ||
+                        ''
+                      }
                     >
-                      {journey.name}
+
+                      <option value="">
+                        Sin asignar
+                      </option>
+
+                      {groups.map(
+                        group => (
+                          <option
+                            key={group.id}
+                            value={group.id}
+                          >
+                            {group.name}
+                          </option>
+                        )
+                      )}
+
+                    </Select>
+
+                  </div>
+
+
+                  {/* TARDE */}
+
+                  <div className="p-4 rounded-2xl bg-sky-50 border border-sky-100">
+
+                    <div className="flex items-center gap-2 mb-3">
+
+                      <Clock3
+                        size={16}
+                        className="text-sky-600"
+                      />
+
+                      <div>
+
+                        <p className="text-[10px] font-black uppercase tracking-widest text-sky-600">
+                          Turno tarde
+                        </p>
+
+                        <p className="text-xs font-bold text-slate-500">
+                          Grupo correspondiente
+                        </p>
+
+                      </div>
+
+                    </div>
+
+
+                    <input
+                      type="hidden"
+                      name="afternoonTurnId"
+                      value={
+                        afternoonTurn?.id || ''
+                      }
+                      readOnly
+                    />
+
+
+                    <Select
+                      name="afternoonGroupId"
+                      label="Grupo"
+                      defaultValue={
+                        currentAfternoon?.groupId ||
+                        ''
+                      }
+                    >
+
+                      <option value="">
+                        Sin asignar
+                      </option>
+
+                      {groups.map(
+                        group => (
+                          <option
+                            key={group.id}
+                            value={group.id}
+                          >
+                            {group.name}
+                          </option>
+                        )
+                      )}
+
+                    </Select>
+
+                  </div>
+
+                </div>
+
+              ) : (
+
+                /* JORNADA SIMPLE */
+
+                <div className="mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+
+                  <div className="flex items-center gap-2 mb-3">
+
+                    <Clock3
+                      size={16}
+                      className="text-slate-500"
+                    />
+
+                    <div>
+
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        Grupo
+                      </p>
+
+                      <p className="text-xs font-bold text-slate-500">
+                        Grupo correspondiente a la jornada
+                      </p>
+
+                    </div>
+
+                  </div>
+
+
+                  <input
+                    type="hidden"
+                    name="simpleTurnId"
+                    value={
+                      currentSimpleTurnId
+                    }
+                    readOnly
+                  />
+
+
+                  <Select
+                    name="simpleGroupId"
+                    label="Grupo"
+                    defaultValue={
+                      currentSimplePlacement?.groupId ||
+                      ''
+                    }
+                  >
+
+                    <option value="">
+                      Sin asignar
                     </option>
-                  )
+
+                    {groups.map(
+                      group => (
+                        <option
+                          key={group.id}
+                          value={group.id}
+                        >
+                          {group.name}
+                        </option>
+                      )
+                    )}
+
+                  </Select>
+
+                </div>
+
+              )}
+
+
+              <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  Cómo se guarda
+                </p>
+
+                <p className="text-xs font-bold text-slate-600 mt-1">
+
+                  {selectedIsDouble
+                    ? 'Mañana y tarde pueden tener grupos diferentes.'
+                    : 'Jornada simple: se utiliza un solo grupo.'}
+
+                </p>
+
+              </div>
+
+            </section>
+
+          )}
+
+
+          {/* =====================================
+              CENTRO DE DÍA
+          ====================================== */}
+
+          {institutionMode === 'day_center' && (
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+              <SectionTitle>
+                {recordSectionTitle}
+              </SectionTitle>
+
+
+              {/* JORNADA */}
+
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  Tipo de jornada
+                </p>
+
+                <p className="text-sm font-black text-slate-700 mt-1">
+                  {currentAssignment?.scheduleType
+                    ? currentJourneyName ||
+                      'Jornada configurada'
+                    : 'Sin jornada asignada'}
+                </p>
+
+              </div>
+
+
+              {/* TALLERES */}
+
+              <div className="mt-4 rounded-2xl bg-violet-50/60 border border-violet-100 p-4">
+
+                <div className="flex items-center justify-between gap-3">
+
+                  <div>
+
+                    <p className="text-[9px] font-black uppercase tracking-widest text-violet-600">
+                      Talleres / grupos asignados
+                    </p>
+
+                    <p className="text-xs text-slate-500 mt-1">
+                      Esta información se gestiona desde Grupos.
+                    </p>
+
+                  </div>
+
+                </div>
+
+
+                {assignedDayCenterGroups.length > 0 ? (
+
+                  <div className="flex flex-wrap gap-2 mt-4">
+
+                    {assignedDayCenterGroups.map(
+                      item => (
+
+                        <div
+                          key={`${item.groupId}-${item.turnName}`}
+                          className="px-3 py-2 rounded-xl bg-white border border-violet-100 shadow-sm"
+                        >
+
+                          <p className="text-xs font-black text-slate-700">
+                            {item.groupName}
+                          </p>
+
+                          {item.turnName && (
+
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-0.5">
+                              {item.turnName}
+                            </p>
+
+                          )}
+
+                        </div>
+
+                      )
+                    )}
+
+                  </div>
+
+                ) : (
+
+                  <div className="mt-4 p-4 rounded-xl bg-white border border-dashed border-slate-200">
+
+                    <p className="text-xs font-bold text-slate-400">
+                      Todavía no hay talleres o grupos asignados.
+                    </p>
+
+                  </div>
+
                 )}
 
-              </Select>
-
-            </div>
-
-
-            <div className="mt-4 space-y-3">
-
-              {/* MAÑANA */}
-
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
-
-                <div className="flex items-center gap-2 mb-3">
-
-                  <Clock3
-                    size={16}
-                    className="text-amber-600"
-                  />
-
-                  <div>
-
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
-                      Turno mañana
-                    </p>
-
-                    <p className="text-xs font-bold text-slate-500">
-                      Grupo correspondiente
-                    </p>
-
-                  </div>
-
-                </div>
-
-
-                <input
-                  type="hidden"
-                  name="morningTurnId"
-                  value={
-                    morningTurn?.id || ''
-                  }
-                  readOnly
-                />
-
-
-                <Select
-                  name="morningGroupId"
-                  label="Grupo"
-                  defaultValue={
-                    currentMorning?.groupId ||
-                    ''
-                  }
-                >
-                  <option value="">
-                    Sin asignar
-                  </option>
-
-                  {groups.map(
-                    group => (
-                      <option
-                        key={group.id}
-                        value={group.id}
-                      >
-                        {group.name}
-                      </option>
-                    )
-                  )}
-
-                </Select>
-
               </div>
 
 
-              {/* TARDE */}
+              <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
 
-              <div
-                className={`p-4 rounded-2xl border ${
-                  currentIsDouble
-                    ? 'bg-sky-50 border-sky-100'
-                    : 'bg-slate-50 border-slate-200'
-                }`}
-              >
+                <p className="text-[9px] font-black uppercase tracking-widest text-amber-600">
+                  Gestión de participación
+                </p>
 
-                <div className="flex items-center gap-2 mb-3">
-
-                  <Clock3
-                    size={16}
-                    className={
-                      currentIsDouble
-                        ? 'text-sky-600'
-                        : 'text-slate-400'
-                    }
-                  />
-
-                  <div>
-
-                    <p
-                      className={`text-[10px] font-black uppercase tracking-widest ${
-                        currentIsDouble
-                          ? 'text-sky-600'
-                          : 'text-slate-400'
-                      }`}
-                    >
-                      Turno tarde
-                    </p>
-
-                    <p className="text-xs font-bold text-slate-500">
-                      Para {personLabelPlural} con doble jornada
-                    </p>
-
-                  </div>
-
-                </div>
-
-
-                <input
-                  type="hidden"
-                  name="afternoonTurnId"
-                  value={
-                    afternoonTurn?.id || ''
-                  }
-                  readOnly
-                />
-
-
-                <Select
-                  name="afternoonGroupId"
-                  label="Grupo"
-                  defaultValue={
-                    currentAfternoon?.groupId ||
-                    ''
-                  }
-                >
-                  <option value="">
-                    Sin asignar
-                  </option>
-
-                  {groups.map(
-                    group => (
-                      <option
-                        key={group.id}
-                        value={group.id}
-                      >
-                        {group.name}
-                      </option>
-                    )
-                  )}
-
-                </Select>
+                <p className="text-xs font-bold text-slate-600 mt-1">
+                  Los talleres y grupos se asignan desde el módulo Grupos y se reflejan automáticamente en este legajo.
+                </p>
 
               </div>
 
-            </div>
+            </section>
+
+          )}
 
 
-            <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+          {/* =====================================
+              CONSULTORIOS
+          ====================================== */}
 
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                Cómo se guarda
-              </p>
-
-              <p className="text-xs font-bold text-slate-600 mt-1">
-
-                {currentIsDouble
-                  ? 'Mañana y tarde pueden tener grupos diferentes.'
-                  : 'Jornada simple: se utiliza un solo grupo.'}
-
-              </p>
-
-            </div>
-
-          </section>
+          {/* En consultorios no se muestra
+              escolaridad, jornada ni grupos. */}
 
 
-          {/* =========================
+          {/* =====================================
               OBSERVACIONES
-          ========================== */}
+          ====================================== */}
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
             <SectionTitle>
               Observaciones
             </SectionTitle>
+
 
             <textarea
               name="notes"
@@ -5780,9 +6133,9 @@ const recordSectionTitle =
         </div>
 
 
-        {/* =========================
+        {/* =====================================
             PIE
-        ========================== */}
+        ====================================== */}
 
         <div className="sticky bottom-0 bg-white border-t border-slate-100 p-4 flex gap-2 justify-end z-20">
 
@@ -5793,6 +6146,7 @@ const recordSectionTitle =
           >
             Cancelar
           </button>
+
 
           <button
             type="submit"
