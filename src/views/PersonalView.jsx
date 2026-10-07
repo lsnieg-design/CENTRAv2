@@ -13,12 +13,13 @@ import {
 } from 'lucide-react';
 import { 
   doc, updateDoc, collection, query, orderBy, onSnapshot, 
-  addDoc, serverTimestamp, where, deleteDoc 
+  addDoc, serverTimestamp, where, deleteDoc, deleteField 
 } from 'firebase/firestore';
 
 export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL }) {
   const [staffList, setStaffList] = useState([]);
   const [students, setStudents] = useState([]);
+  const [users, setUsers] = useState([]);
   const uniqueTurns = TURNS_LIST;
   
   const [staffFilterText, setStaffFilterText] = useState('');
@@ -107,16 +108,70 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
   };
 
   useEffect(() => {
-    const qStaff = query(collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'), orderBy('lastName', 'asc'));
-    const unsubStaff = onSnapshot(qStaff, (snap) => { setStaffList(snap.docs.map(d => ({ id: d.id, ...d.data() }))); });
+    if (!db || !appId) return;
 
-    const qStudents = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'), where('isActive', '==', true));
-    const unsubStudents = onSnapshot(qStudents, (snap) => { 
-        setStudents(snap.docs.map(d => ({ id: d.id, ...d.data() }))); 
+    const qStaff = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'),
+      orderBy('lastName', 'asc')
+    );
+    const unsubStaff = onSnapshot(qStaff, (snap) => {
+      setStaffList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    return () => { unsubStaff(); unsubStudents(); };
-  }, []);
+    const qStudents = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'students'),
+      where('isActive', '==', true)
+    );
+    const unsubStudents = onSnapshot(qStudents, (snap) => {
+      setStudents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    const qUsers = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'users'),
+      orderBy('fullName', 'asc')
+    );
+    const unsubUsers = onSnapshot(qUsers, (snap) => {
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => {
+      unsubStaff();
+      unsubStudents();
+      unsubUsers();
+    };
+  }, [db, appId]);
+
+  const getLinkedUserId = (staff) => {
+    if (!staff) return '';
+    if (staff.userId) return staff.userId;
+    const legacyUser = users.find(item => item.legajoId === staff.id);
+    return legacyUser?.id || '';
+  };
+
+  const getLinkedUser = (staff) => {
+    const userId = getLinkedUserId(staff);
+    return users.find(item => item.id === userId) || null;
+  };
+
+  const linkedUserIds = new Set(
+    staffList
+      .map(staff => getLinkedUserId(staff))
+      .filter(Boolean)
+  );
+
+  const getAvailableUsersForStaff = (staff) => {
+    const currentUserId = getLinkedUserId(staff);
+    return users
+      .filter(item => {
+        if (item.id === currentUserId) return true;
+        const legacyLinked = item.legajoId;
+        if (legacyLinked && legacyLinked !== staff?.id) return false;
+        const staffLinked = staffList.find(other => other.userId === item.id);
+        if (staffLinked && staffLinked.id !== staff?.id) return false;
+        return true;
+      })
+      .sort((a, b) => `${a.lastName || ''} ${a.firstName || ''}`.localeCompare(`${b.lastName || ''} ${b.firstName || ''}`, 'es'));
+  };
 
   const filteredStaff = staffList.filter(s => {
       const txt = staffFilterText.toLowerCase();
@@ -421,38 +476,102 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
     e.preventDefault();
     const fd = new FormData(e.target);
     const d = Object.fromEntries(fd.entries());
-    
-    delete d.id; 
+
+    delete d.id;
+
+    const selectedUserId = String(d.userId || '').trim();
+    delete d.userId;
+
+    const currentUserId = getLinkedUserId(editingStaff);
+    const targetUser = selectedUserId
+      ? users.find(item => item.id === selectedUserId)
+      : null;
+
+    // Todo registro de Personal debe quedar asociado a una cuenta CENTRA.
+    if (!selectedUserId) {
+      alert('Este registro de Personal necesita una cuenta de CENTRA vinculada. Seleccioná un usuario antes de guardar.');
+      return;
+    }
+
+    if (!targetUser) {
+      alert('La cuenta seleccionada ya no existe. Volvé a elegirla.');
+      return;
+    }
+
+    const alreadyLinkedStaff = staffList.find(staff => {
+      if (editingStaff?.id && staff.id === editingStaff.id) return false;
+      return getLinkedUserId(staff) === selectedUserId;
+    });
+
+    if (alreadyLinkedStaff) {
+      alert(`La cuenta de ${targetUser.fullName || targetUser.username} ya está vinculada a otro registro de Personal.`);
+      return;
+    }
 
     d.photoUrl = photoPreview || editingStaff?.photoUrl || '';
-    
-    if(!d.cargo2_name || d.cargo2_name.trim() === '') { 
-        d.cargo2_role = ''; d.cargo2_turn = ''; d.cargo2_type = ''; 
-        d.cargo2_revista = ''; d.cargo2_ingreso = ''; d.cargo2_name = ''; 
-        d.cargo2_subsidized = 'false'; d.cargo2_en_papeles = 'false'; d.cargo2_baja = '';
+
+    if (!d.cargo2_name || d.cargo2_name.trim() === '') {
+      d.cargo2_role = '';
+      d.cargo2_turn = '';
+      d.cargo2_type = '';
+      d.cargo2_revista = '';
+      d.cargo2_ingreso = '';
+      d.cargo2_name = '';
+      d.cargo2_subsidized = 'false';
+      d.cargo2_en_papeles = 'false';
+      d.cargo2_baja = '';
     }
 
     try {
-        setProcessing(true);
-        if (editingStaff?.id) {
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'staff_records', editingStaff.id), d);
-            if (viewingStaff?.id === editingStaff.id) {
-                setViewingStaff({ ...viewingStaff, ...d });
-            }
-        } else {
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'), { 
-                ...d, 
-                createdAt: serverTimestamp() 
-            });
+      setProcessing(true);
+
+      let staffId = editingStaff?.id || '';
+
+      if (editingStaff?.id) {
+        await updateDoc(
+          doc(db, 'artifacts', appId, 'public', 'data', 'staff_records', editingStaff.id),
+          { ...d, userId: selectedUserId, updatedAt: serverTimestamp() }
+        );
+
+        if (currentUserId && currentUserId !== selectedUserId) {
+          await updateDoc(
+            doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUserId),
+            { legajoId: deleteField() }
+          );
         }
-        setShowStaffForm(false); 
-        setEditingStaff(null); 
-        setPhotoPreview(null);
-        alert("✅ Legajo actualizado con éxito");
-    } catch (err) { 
-        alert("Error: " + err.message); 
+      } else {
+        const staffRef = await addDoc(
+          collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'),
+          { ...d, userId: selectedUserId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
+        );
+        staffId = staffRef.id;
+      }
+
+      // Mantener siempre la relación bidireccional Usuario <-> Personal.
+      await updateDoc(
+        doc(db, 'artifacts', appId, 'public', 'data', 'users', selectedUserId),
+        { legajoId: staffId }
+      );
+
+      const nextStaff = {
+        ...(editingStaff || {}),
+        ...d,
+        id: staffId,
+        userId: selectedUserId
+      };
+
+      if (viewingStaff?.id === staffId) {
+        setViewingStaff(nextStaff);
+      }
+
+      setShowStaffForm(false);
+      setEditingStaff(null);
+      setPhotoPreview(null);
+      alert('✅ Registro de Personal actualizado y vinculado a su usuario de CENTRA.');
+    } catch (err) {
+      alert('Error: ' + err.message);
     } finally {
-        setProcessing(false);
+      setProcessing(false);
     }
   };
 
@@ -811,6 +930,15 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                             <div className="flex gap-2 items-center flex-wrap">
                                 <h4 className="font-bold text-gray-800 text-sm uppercase truncate">{s.lastName}, {s.firstName}</h4>
                                 <span className={`text-[8px] px-2 py-0.5 rounded-md font-black uppercase ${s.modality === 'Inclusión' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>{s.modality || 'Sede'}</span>
+                                {getLinkedUser(s) ? (
+                                  <span className="text-[8px] px-2 py-0.5 rounded-md font-black uppercase bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                                    <CheckCircle2 size={10}/> Usuario vinculado
+                                  </span>
+                                ) : (
+                                  <span className="text-[8px] px-2 py-0.5 rounded-md font-black uppercase bg-amber-100 text-amber-700 flex items-center gap-1">
+                                    <AlertCircle size={10}/> Sin usuario
+                                  </span>
+                                )}
                                 {estaDadoDeBajaTotal && <span className="bg-red-100 text-red-700 text-[9px] font-black px-2 py-0.5 rounded-lg border border-red-200">BAJA</span>}
                                 {needsRoleFix && <span className="bg-red-100 text-red-700 text-[9px] font-black px-2 py-0.5 rounded-lg border border-red-200 animate-pulse">⚠️ ASIGNAR ROL</span>}
                             </div>
@@ -882,6 +1010,25 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                         <div className="grid grid-cols-2 gap-3">
                             <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm"><p className="text-[9px] text-gray-400 font-bold uppercase mb-1">Nacimiento</p><p className="font-black text-slate-800 text-xs">{getSafeDate(viewingStaff.birthDate)}</p></div>
                             <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm"><p className="text-[9px] text-gray-400 font-bold uppercase mb-1">Celular</p><p className="font-black text-slate-800 text-xs">{viewingStaff.phone || '-'}</p></div>
+                        </div>
+
+                        <div className={`${getLinkedUser(viewingStaff) ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'} p-4 rounded-2xl border shadow-sm`}>
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-[9px] font-black uppercase ${getLinkedUser(viewingStaff) ? 'text-emerald-700' : 'text-amber-700'}">Cuenta de CENTRA</p>
+                                    {getLinkedUser(viewingStaff) ? (
+                                      <>
+                                        <p className="font-black text-slate-800 text-sm mt-1">{getLinkedUser(viewingStaff).fullName || `${getLinkedUser(viewingStaff).firstName || ''} ${getLinkedUser(viewingStaff).lastName || ''}`.trim()}</p>
+                                        <p className="text-[9px] text-slate-500 font-semibold">{getLinkedUser(viewingStaff).username || getLinkedUser(viewingStaff).email || 'Cuenta vinculada'}</p>
+                                      </>
+                                    ) : (
+                                      <p className="font-black text-amber-800 text-sm mt-1">Sin usuario vinculado</p>
+                                    )}
+                                </div>
+                                <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase ${getLinkedUser(viewingStaff) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                  {getLinkedUser(viewingStaff) ? 'VINCULADO' : 'PENDIENTE'}
+                                </span>
+                            </div>
                         </div>
 
                         <div className="bg-violet-50 p-4 rounded-2xl border border-violet-100 shadow-sm space-y-3">
@@ -1020,18 +1167,44 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
               {/* FORMULARIO */}
               <form id="staffForm" onSubmit={handleSaveStaff} className="overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar flex-1">
                 
-                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-2">
-                    <p className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2">
-                        <LinkIcon size={14}/> Conexión de Seguridad y Grupos
-                    </p>
-                    <input 
-                        name="userId" 
-                        defaultValue={editingStaff?.userId || ""} 
-                        placeholder="ID de Usuario vinculado para login y grupos..." 
-                        className="p-3 bg-white rounded-xl w-full font-mono text-[10px] outline-none border border-blue-200 focus:ring-2 ring-blue-100"
-                    />
-                    <p className="text-[7px] text-blue-400 font-bold italic uppercase px-1">
-                        * Este ID conecta el legajo con el usuario y detecta automáticamente sus grupos asignados.
+                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-[10px] font-black text-blue-700 uppercase flex items-center gap-2">
+                                <LinkIcon size={14}/> Cuenta de CENTRA
+                            </p>
+                            <p className="text-[9px] text-blue-500 font-semibold mt-1">
+                                Todo el personal debe tener una cuenta para ingresar a CENTRA.
+                            </p>
+                        </div>
+                        {getLinkedUser(editingStaff) ? (
+                          <span className="shrink-0 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg text-[8px] font-black uppercase flex items-center gap-1">
+                            <CheckCircle2 size={12}/> Vinculado
+                          </span>
+                        ) : (
+                          <span className="shrink-0 bg-amber-100 text-amber-700 px-2 py-1 rounded-lg text-[8px] font-black uppercase">
+                            Pendiente
+                          </span>
+                        )}
+                    </div>
+
+                    <select
+                        name="userId"
+                        defaultValue={getLinkedUserId(editingStaff)}
+                        required
+                        className="p-3 bg-white rounded-xl w-full font-bold text-sm outline-none border border-blue-200 focus:ring-2 ring-blue-200"
+                    >
+                        <option value="">Seleccionar usuario de CENTRA...</option>
+                        {getAvailableUsersForStaff(editingStaff).map(account => (
+                            <option key={account.id} value={account.id}>
+                                {account.lastName || ''}, {account.firstName || account.fullName || account.username}
+                                {account.role ? ` — ${account.role}` : ''}
+                            </option>
+                        ))}
+                    </select>
+
+                    <p className="text-[8px] text-blue-500 font-medium">
+                        No se guardan IDs manualmente. La vinculación queda registrada en ambos lados: usuario y Personal.
                     </p>
                 </div>
 
@@ -1246,10 +1419,25 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                   <button 
                     type="button" 
                     onClick={async () => {
-                      if(confirm("¿Eliminar definitivamente?")) {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'staff_records', editingStaff.id)); 
-                        setShowStaffForm(false); 
+                      if (!confirm("¿Eliminar definitivamente este registro de Personal? La cuenta de CENTRA no se eliminará; solamente quedará desvinculada.")) return;
+                      try {
+                        const linkedUserId = getLinkedUserId(editingStaff);
+
+                        await deleteDoc(
+                          doc(db, 'artifacts', appId, 'public', 'data', 'staff_records', editingStaff.id)
+                        );
+
+                        if (linkedUserId) {
+                          await updateDoc(
+                            doc(db, 'artifacts', appId, 'public', 'data', 'users', linkedUserId),
+                            { legajoId: deleteField() }
+                          );
+                        }
+
+                        setShowStaffForm(false);
                         setViewingStaff(null);
+                      } catch (error) {
+                        alert('No se pudo eliminar el registro: ' + error.message);
                       }
                     }} 
                     className="w-full py-2 text-red-400 font-bold text-[9px] uppercase hover:text-red-500 transition tracking-tighter"
