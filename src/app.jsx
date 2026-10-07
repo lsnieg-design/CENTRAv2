@@ -201,7 +201,18 @@ export default function App() {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (error) { console.error("Auth error:", error); }
+     } catch (error) {
+  console.error("AUTH ERROR REAL:", {
+    code: error?.code,
+    message: error?.message
+  });
+
+  alert(
+    `Error de autenticación Firebase:\n\n` +
+    `Código: ${error?.code || 'sin código'}\n` +
+    `Mensaje: ${error?.message || 'sin mensaje'}`
+  );
+}
     };
     initAuth();
 
