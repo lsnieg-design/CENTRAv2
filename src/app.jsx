@@ -15,6 +15,7 @@ import { EvaluationsView } from './views/EvaluationsView';
 import { ConfiguracionView } from './views/ConfiguracionView';
 import { InformesView } from './views/InformesView';
 import { InformesExternosView } from './views/InformesExternosView';
+import { getCachedAppConfig, normalizeAppConfig, applyBranding } from './config';
 
 import { 
   Calendar as CalendarIcon, CheckSquare, Settings, User, FileText, CheckCircle, 
@@ -25,11 +26,11 @@ import {
   Smartphone, GraduationCap, Search, X, UploadCloud, PieChart, Eye, Edit3, Trophy,
   Folder, MessageSquare, Globe, BookOpen, Lightbulb, ChevronDown, PlusCircle, Printer,
   AlignLeft, AlignCenter, AlignRight, AlignJustify, Phone, CheckCircle2, Clock3, UserCheck,
-  ChevronUp, ClipboardCheck
+  ChevronUp, ClipboardCheck, EyeOff
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken} from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { 
   getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, 
   updateDoc, setDoc, deleteDoc, where, getDocs, getDoc, serverTimestamp, arrayUnion, arrayRemove, limit,increment 
@@ -145,20 +146,24 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-function SplashScreen() {
+function SplashScreen({ config = getCachedAppConfig() }) {
+  const primary = config?.primaryColor || '#6d28d9';
+  const secondary = config?.secondaryColor || '#f97316';
+  const logo = config?.logoUrl || LOGO_URL;
+  const title = config?.portalTitle || `Portal ${config?.institutionShortName || config?.institutionName || 'Institucional'}`;
+
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-violet-600 to-indigo-700 z-[9999] flex flex-col items-center justify-center animate-out fade-out duration-1000 fill-mode-forwards">
-      <div className="bg-white p-6 rounded-[40px] shadow-2xl animate-bounce">
-        <img 
-          src="https://static.wixstatic.com/media/1a42ff_3511de5c6129483cba538636cff31b1d~mv2.png/v1/crop/x_0,y_79,w_500,h_343/fill/w_143,h_98,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/logo%20sin%20fondo.png" 
-          alt="Logo" 
-          className="w-32 h-auto" 
-        />
+    <div
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center"
+      style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
+    >
+      <div className="bg-white p-6 rounded-[40px] shadow-2xl">
+        <img src={logo} alt="Logo institucional" className="w-32 h-32 object-contain" />
       </div>
-      <h1 className="mt-8 text-3xl font-black text-white tracking-widest uppercase italic animate-pulse">
-        Juntos a la Par
+      <h1 className="mt-8 text-3xl font-black text-white tracking-tight uppercase text-center px-6">
+        {title}
       </h1>
-      <p className="text-white/60 text-xs font-bold mt-2 uppercase tracking-[4px]">Cargando Sistema...</p>
+      <p className="text-white/70 text-xs font-bold mt-2 uppercase tracking-[4px]">Cargando sistema...</p>
     </div>
   );
 }
@@ -186,70 +191,176 @@ function NotificationsView({ notifications }) {
 export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [appConfig, setAppConfig] = useState(() => getCachedAppConfig());
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState(false);
-  const [minTimePassed, setMinTimePassed] = useState(false);
 
+  // La configuración institucional se carga antes del login.
+  // Así logo, nombre y colores funcionan también cuando nadie inició sesión.
   useEffect(() => {
-    setTimeout(() => setMinTimePassed(true), 2500);
-    if (!auth) { setConfigError(true); setLoading(false); return; }
+    let active = true;
 
-    const initAuth = async () => {
+    const loadInstitutionConfig = async () => {
+      const cached = getCachedAppConfig();
+      if (active) {
+        setAppConfig(cached);
+        applyBranding(cached);
+      }
+
+      if (!db || !appId) {
+        setConfigError(true);
+        setLoading(false);
+        return;
+      }
+
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'institution');
+        const snap = await getDoc(ref);
+        const next = normalizeAppConfig(snap.exists() ? snap.data() : cached);
+
+        if (!active) return;
+
+        setAppConfig(next);
+        applyBranding(next);
+        try {
+          localStorage.setItem('institution_app_config', JSON.stringify(next));
+        } catch {}
+      } catch (error) {
+        console.warn('No se pudo cargar la configuración institucional:', error);
+        // Si Firestore falla, seguimos con el cache local si existe.
+        if (active) {
+          setAppConfig(cached);
+          applyBranding(cached);
         }
-     } catch (error) {
-  console.error("AUTH ERROR REAL:", {
-    code: error?.code,
-    message: error?.message
-  });
-
-  alert(
-    `Error de autenticación Firebase:\n\n` +
-    `Código: ${error?.code || 'sin código'}\n` +
-    `Mensaje: ${error?.message || 'sin mensaje'}`
-  );
-}
+      } finally {
+        if (active) setLoading(false);
+      }
     };
-    initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setFirebaseUser(user);
-      const savedProfile = localStorage.getItem('schoolApp_profile');
-      if (savedProfile) setCurrentUserProfile(JSON.parse(savedProfile));
-      setLoading(false);
+    loadInstitutionConfig();
+    return () => { active = false; };
+  }, []);
+
+  // Firebase Authentication queda como fuente real de identidad.
+  // Ya no iniciamos sesión anónima automáticamente.
+  useEffect(() => {
+    if (!auth) return;
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseAuthUser) => {
+      setFirebaseUser(firebaseAuthUser);
+
+      if (!firebaseAuthUser) {
+        setCurrentUserProfile(null);
+        localStorage.removeItem('schoolApp_profile');
+        return;
+      }
+
+      try {
+        const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+        let profileSnap = await getDocs(
+          query(usersRef, where('uid', '==', firebaseAuthUser.uid), limit(1))
+        );
+
+        // Compatibilidad con perfiles creados antes de migrar a Firebase Auth.
+        if (profileSnap.empty && firebaseAuthUser.email) {
+          profileSnap = await getDocs(
+            query(usersRef, where('email', '==', firebaseAuthUser.email.toLowerCase()), limit(1))
+          );
+        }
+
+        if (profileSnap.empty) {
+          console.error('AUTH OK, pero no existe perfil institucional para:', firebaseAuthUser.uid);
+          await signOut(auth).catch(() => {});
+          setCurrentUserProfile(null);
+          alert('La cuenta de Firebase existe, pero todavía no tiene un perfil institucional en CENTRA.');
+          return;
+        }
+
+        const userDoc = profileSnap.docs[0];
+        const userData = userDoc.data();
+        const profile = {
+          ...userData,
+          id: userDoc.id,
+          uid: firebaseAuthUser.uid,
+          email: firebaseAuthUser.email || userData.email || '',
+          isAdmin: userData.rol === 'admin' || userData.rol === 'super-admin'
+        };
+
+        // Vinculamos una cuenta antigua con su UID de Firebase la primera vez.
+        if (userData.uid !== firebaseAuthUser.uid) {
+          await updateDoc(userDoc.ref, {
+            uid: firebaseAuthUser.uid,
+            lastLogin: serverTimestamp()
+          });
+        } else {
+          await updateDoc(userDoc.ref, { lastLogin: serverTimestamp() });
+        }
+
+        setCurrentUserProfile(profile);
+        localStorage.setItem('schoolApp_profile', JSON.stringify(profile));
+      } catch (error) {
+        console.error('Error cargando perfil institucional:', error);
+        await signOut(auth).catch(() => {});
+        setCurrentUserProfile(null);
+        alert(`La cuenta ingresó a Firebase, pero no se pudo cargar el perfil institucional.\n\n${error?.message || 'Error desconocido'}`);
+      }
     });
+
     return () => unsubscribe();
   }, []);
 
-  const handleLogin = (profileData) => { setCurrentUserProfile(profileData); localStorage.setItem('schoolApp_profile', JSON.stringify(profileData)); };
-  const handleLogout = () => { setCurrentUserProfile(null); localStorage.removeItem('schoolApp_profile'); };
+  const handleLogout = async () => {
+    try {
+      if (auth?.currentUser) await signOut(auth);
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    } finally {
+      setCurrentUserProfile(null);
+      localStorage.removeItem('schoolApp_profile');
+    }
+  };
 
-  if (loading) return <div className="flex items-center justify-center h-screen bg-violet-50"><div className="animate-spin rounded-full h-12 w-12 border-b-4 border-violet-600"></div></div>;
-  if (configError) return <div className="flex flex-col items-center justify-center h-screen bg-red-50 p-6 text-center"><AlertCircle className="text-red-500 w-16 h-16 mb-4" /><h1 className="text-xl font-bold text-red-700">Error de Configuración</h1></div>;
-  if (!currentUserProfile) return <LoginScreen onLogin={handleLogin} />;
+  if (loading) return <SplashScreen config={appConfig} />;
+  if (configError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen p-6 text-center" style={{ background: appConfig.backgroundColor }}>
+        <AlertCircle className="w-16 h-16 mb-4" style={{ color: appConfig.primaryColor }} />
+        <h1 className="text-xl font-black" style={{ color: appConfig.textColor }}>No se pudo iniciar CENTRA</h1>
+        <p className="text-sm text-slate-500 mt-2">Revisá la configuración de Firebase.</p>
+      </div>
+    );
+  }
 
-  
- return <MainApp user={currentUserProfile} onLogout={handleLogout} />;
+  if (!currentUserProfile) {
+    return <LoginScreen auth={auth} db={db} appId={appId} config={appConfig} />;
+  }
+
+  return <MainApp user={currentUserProfile} onLogout={handleLogout} />;
 }
 
-
-function LoginScreen({ onLogin }) {
+function LoginScreen({ auth, db, appId, config }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showRecover, setShowRecover] = useState(false);
   const [recoverUser, setRecoverUser] = useState('');
   const [recoverStatus, setRecoverStatus] = useState('idle');
-  
+
   const [showInstall, setShowInstall] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isIos, setIsIos] = useState(false);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+  const primary = config?.primaryColor || '#6d28d9';
+  const secondary = config?.secondaryColor || '#f97316';
+  const background = config?.backgroundColor || '#f8fafc';
+  const text = config?.textColor || '#1e293b';
+  const logo = config?.logoUrl || LOGO_URL;
+  const institutionName = config?.institutionName || 'Mi Institución';
+  const shortName = config?.institutionShortName || institutionName;
+  const portalTitle = config?.portalTitle || `Portal ${shortName}`;
 
   useEffect(() => {
     const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -262,128 +373,189 @@ function LoginScreen({ onLogin }) {
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    if (ios && !isStandalone) {
-        setTimeout(() => setShowInstall(true), 2000);
-    }
+    if (ios && !isStandalone) setTimeout(() => setShowInstall(true), 2000);
 
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, [isStandalone]);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') setShowInstall(false);
-      setDeferredPrompt(null);
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') setShowInstall(false);
+    setDeferredPrompt(null);
+  };
+
+  const resolveEmail = async (value) => {
+    const clean = value.trim().toLowerCase();
+    if (clean.includes('@')) return clean;
+
+    if (!db || !appId) throw new Error('Firestore no está disponible.');
+
+    const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+    const snapshot = await getDocs(
+      query(usersRef, where('username', '==', clean), limit(1))
+    );
+
+    if (snapshot.empty) {
+      throw new Error('USER_NOT_FOUND');
     }
+
+    const userData = snapshot.docs[0].data();
+    if (!userData.email) {
+      throw new Error('USER_WITHOUT_EMAIL');
+    }
+
+    return String(userData.email).trim().toLowerCase();
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); setError(''); setChecking(true);
-    if (username === 'admin' && password === 'admin123') {
-      onLogin({ id: 'super-admin', firstName: 'Super', lastName: 'Admin', fullName: 'Super Admin', role: 'Equipo Directivo', rol: 'super-admin', isAdmin: true, username: 'admin' }); return;
-    }
+    e.preventDefault();
+    setError('');
+    setChecking(true);
+
     try {
-      const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
-      const q = query(usersRef, where('username', '==', username.toLowerCase()), where('password', '==', password));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0]; const userData = userDoc.data();
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userDoc.id), { lastLogin: serverTimestamp() });
-        const esAdmin = userData.rol === 'admin';
-        onLogin({ ...userData, id: userDoc.id, isAdmin: esAdmin });
-      } else { setError('Usuario o contraseña incorrectos.'); }
-    } catch (err) { setError('Error de conexión.'); } finally { setChecking(false); }
+      if (!auth) throw new Error('AUTH_UNAVAILABLE');
+
+      const email = await resolveEmail(username);
+      await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged se encarga de cargar el perfil institucional.
+    } catch (err) {
+      console.error('LOGIN ERROR:', { code: err?.code, message: err?.message });
+
+      if (err?.message === 'USER_NOT_FOUND') {
+        setError('No encontramos ese usuario. Revisá el usuario o correo.');
+      } else if (err?.message === 'USER_WITHOUT_EMAIL') {
+        setError('Esta cuenta todavía no tiene un correo asociado.');
+      } else if (err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password' || err?.code === 'auth/user-not-found') {
+        setError('Usuario o contraseña incorrectos.');
+      } else if (err?.code === 'auth/too-many-requests') {
+        setError('Hubo demasiados intentos. Esperá unos minutos y volvé a probar.');
+      } else if (err?.code === 'auth/operation-not-allowed') {
+        setError('El acceso con correo y contraseña todavía no está habilitado en Firebase Authentication.');
+      } else {
+        setError(err?.message || 'No se pudo iniciar sesión.');
+      }
+    } finally {
+      setChecking(false);
+    }
   };
 
   const handleRequestReset = async (e) => {
-    e.preventDefault(); if(!recoverUser.trim()) return; setRecoverStatus('sending');
+    e.preventDefault();
+    if (!recoverUser.trim()) return;
+    setRecoverStatus('sending');
+
     try {
-        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'users'), where('username', '==', recoverUser));
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) { setRecoverStatus('error'); setTimeout(() => setRecoverStatus('idle'), 3000); return; }
-        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'requests'), { type: 'password_reset', username: recoverUser, status: 'pending', createdAt: serverTimestamp() });
-        setRecoverStatus('sent');
-    } catch (error) { setRecoverStatus('error'); }
+      const email = await resolveEmail(recoverUser);
+      if (!auth) throw new Error('AUTH_UNAVAILABLE');
+
+      await sendPasswordResetEmail(auth, email);
+      setRecoverStatus('sent');
+    } catch (error) {
+      console.error('RESET ERROR:', error);
+      setRecoverStatus('error');
+      setTimeout(() => setRecoverStatus('idle'), 4000);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-900 to-fuchsia-900 flex items-center justify-center p-6 relative">
-      
+    <div
+      className="min-h-screen flex items-center justify-center p-6 relative"
+      style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
+    >
       {!isStandalone && showInstall && (
-         <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-500">
-             <div className="bg-white rounded-[35px] shadow-2xl p-6 w-full max-w-sm text-center mb-4 md:mb-0 border-t-8 border-violet-500 relative">
-                 <button onClick={() => setShowInstall(false)} className="absolute top-4 right-4 text-gray-300 hover:text-gray-500"><X size={24}/></button>
-                 
-                 <div className="flex justify-center mb-4">
-                    <div className="bg-violet-100 p-4 rounded-full animate-bounce">
-                        <Smartphone className="text-violet-600" size={40} />
-                    </div>
-                 </div>
-                 
-                 <h3 className="text-2xl font-black text-gray-800 mb-2 leading-tight">¡Instalá la App! 📲</h3>
-                 <p className="text-sm text-gray-500 mb-6 font-medium">Para tener acceso rápido y recibir notificaciones importantes, instalá la app en tu celular.</p>
-                 
-                 <div className="space-y-3">
-                     {!isIos ? (
-                         <button onClick={handleInstallClick} className="w-full bg-violet-600 text-white font-bold py-4 px-4 rounded-2xl shadow-xl hover:bg-violet-700 transition flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
-                             <Download size={20}/> Instalar Ahora
-                         </button>
-                     ) : (
-                         <div className="text-left bg-gray-50 p-4 rounded-2xl border border-gray-100 text-xs text-gray-600 space-y-3">
-                             <p className="font-bold text-violet-600 text-center uppercase tracking-wider mb-2">Cómo instalar en iPhone:</p>
-                             <div className="flex items-center gap-3">
-                                 <div className="bg-white p-2 rounded-lg shadow-sm text-blue-500"><Share size={18}/></div>
-                                 <span>1. Tocá el botón <b>Compartir</b> (abajo al medio).</span>
-                             </div>
-                             <div className="flex items-center gap-3">
-                                 <div className="bg-white p-2 rounded-lg shadow-sm text-gray-600"><PlusSquare size={18}/></div>
-                                 <span>2. Buscá y elegí <b>"Agregar a Inicio"</b>.</span>
-                             </div>
-                             <div className="flex items-center gap-3">
-                                 <div className="bg-white p-2 rounded-lg shadow-sm font-bold text-blue-500 text-[10px]">Add</div>
-                                 <span>3. Dale a <b>Agregar</b> (arriba derecha).</span>
-                             </div>
-                         </div>
-                     )}
-                     <button onClick={() => setShowInstall(false)} className="text-gray-400 font-bold text-xs uppercase hover:text-gray-600 mt-2">Usar navegador por ahora</button>
-                 </div>
-             </div>
-         </div>
+        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[35px] shadow-2xl p-6 w-full max-w-sm text-center mb-4 md:mb-0 relative" style={{ borderTop: `8px solid ${primary}` }}>
+            <button onClick={() => setShowInstall(false)} className="absolute top-4 right-4 text-gray-300 hover:text-gray-500"><X size={24}/></button>
+            <div className="flex justify-center mb-4">
+              <div className="p-4 rounded-full animate-bounce" style={{ background: `${primary}18`, color: primary }}>
+                <Smartphone size={40} />
+              </div>
+            </div>
+            <h3 className="text-2xl font-black text-gray-800 mb-2 leading-tight">¡Instalá la App!</h3>
+            <p className="text-sm text-gray-500 mb-6 font-medium">Para tener acceso rápido y recibir notificaciones importantes, instalá la app en tu celular.</p>
+            <div className="space-y-3">
+              {!isIos ? (
+                <button onClick={handleInstallClick} className="w-full text-white font-bold py-4 px-4 rounded-2xl shadow-xl transition flex items-center justify-center gap-2 text-sm uppercase tracking-wide" style={{ background: primary }}>
+                  <Download size={20}/> Instalar Ahora
+                </button>
+              ) : (
+                <div className="text-left bg-gray-50 p-4 rounded-2xl border border-gray-100 text-xs text-gray-600 space-y-3">
+                  <p className="font-bold text-center uppercase tracking-wider mb-2" style={{ color: primary }}>Cómo instalar en iPhone:</p>
+                  <div className="flex items-center gap-3"><div className="bg-white p-2 rounded-lg shadow-sm text-blue-500"><Share size={18}/></div><span>1. Tocá el botón <b>Compartir</b>.</span></div>
+                  <div className="flex items-center gap-3"><div className="bg-white p-2 rounded-lg shadow-sm"><PlusSquare size={18}/></div><span>2. Elegí <b>Agregar a Inicio</b>.</span></div>
+                  <div className="flex items-center gap-3"><div className="bg-white p-2 rounded-lg shadow-sm font-bold text-blue-500 text-[10px]">Add</div><span>3. Tocá <b>Agregar</b>.</span></div>
+                </div>
+              )}
+              <button onClick={() => setShowInstall(false)} className="text-gray-400 font-bold text-xs uppercase hover:text-gray-600 mt-2">Usar navegador por ahora</button>
+            </div>
+          </div>
+        </div>
       )}
 
-      <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md border-t-8 border-orange-500 relative z-0">
+      <div className="rounded-3xl shadow-2xl p-8 w-full max-w-md relative z-0" style={{ background, color: text }}>
         <div className="text-center mb-8">
-            <div className="flex justify-center mb-4"><img src="https://static.wixstatic.com/media/1a42ff_3511de5c6129483cba538636cff31b1d~mv2.png/v1/crop/x_0,y_79,w_500,h_343/fill/w_143,h_98,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/logo%20sin%20fondo.png" alt="Logo" className="h-24 w-auto object-contain drop-shadow-md" /></div>
-            <h1 className="text-2xl font-extrabold text-violet-900 tracking-tight uppercase">PORTAL INSTITUCIONAL<br/><span className="text-orange-500">JUNTOS A LA PAR</span></h1>
+          <div className="flex justify-center mb-5">
+            <div className="w-28 h-28 rounded-3xl bg-white p-3 shadow-sm flex items-center justify-center">
+              <img src={logo} alt={`Logo de ${institutionName}`} className="max-w-full max-h-full object-contain" />
+            </div>
+          </div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] opacity-60 mb-2">{institutionName}</p>
+          <h1 className="text-2xl font-black tracking-tight uppercase" style={{ color: primary }}>{portalTitle}</h1>
         </div>
 
         {!showRecover ? (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div><label className="block text-xs font-bold text-violet-900 uppercase mb-2 ml-1">Usuario</label><div className="relative group"><User className="absolute left-3 top-3.5 text-violet-300" size={18} /><input type="text" required className="w-full pl-10 pr-4 py-3 bg-violet-50 border border-violet-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-400" placeholder="Nombre de usuario" value={username} onChange={(e) => setUsername(e.target.value)} /></div></div>
-            <div><label className="block text-xs font-bold text-violet-900 uppercase mb-2 ml-1">Contraseña</label><div className="relative group"><Lock className="absolute left-3 top-3.5 text-violet-300" size={18} /><input type="password" required className="w-full pl-10 pr-4 py-3 bg-violet-50 border border-violet-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-400" placeholder="••••••" value={password} onChange={(e) => setPassword(e.target.value)} /></div></div>
-            <div className="flex justify-end"><button type="button" onClick={() => setShowRecover(true)} className="text-xs font-bold text-violet-600 hover:text-orange-500 transition">¿Olvidaste tu contraseña?</button></div>
-            {error && <div className="bg-red-50 text-red-600 text-sm p-4 rounded-xl flex items-center gap-3 border border-red-100">{error}</div>}
-            <button type="submit" disabled={checking} className="w-full bg-gradient-to-r from-violet-600 to-violet-800 text-white py-4 rounded-xl font-bold text-lg hover:from-orange-500 hover:to-orange-600 transition duration-300 shadow-xl disabled:opacity-70 flex justify-center items-center">{checking ? <RefreshCw className="animate-spin" /> : 'Ingresar al Portal'}</button>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-xs font-black uppercase mb-2 ml-1" style={{ color: primary }}>Usuario o correo electrónico</label>
+              <div className="relative group">
+                <User className="absolute left-3 top-3.5 opacity-40" size={18} />
+                <input type="text" required autoComplete="username" className="w-full pl-10 pr-4 py-3 rounded-xl outline-none border border-black/10 focus:ring-2" style={{ background: `${primary}0D`, color: text, '--tw-ring-color': primary }} placeholder="usuario o correo" value={username} onChange={(e) => setUsername(e.target.value)} />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black uppercase mb-2 ml-1" style={{ color: primary }}>Contraseña</label>
+              <div className="relative group">
+                <Lock className="absolute left-3 top-3.5 opacity-40" size={18} />
+                <input type={showPassword ? 'text' : 'password'} required autoComplete="current-password" className="w-full pl-10 pr-12 py-3 rounded-xl outline-none border border-black/10 focus:ring-2" style={{ background: `${primary}0D`, color: text, '--tw-ring-color': primary }} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <button type="button" onClick={() => setShowPassword(value => !value)} className="absolute right-3 top-2.5 p-1.5 rounded-lg opacity-50 hover:opacity-100 transition" style={{ color: primary }} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+                  {showPassword ? <EyeOff size={20}/> : <Eye size={20}/>} 
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setShowRecover(true)} className="text-xs font-bold transition" style={{ color: primary }}>¿Olvidaste tu contraseña?</button>
+            </div>
+
+            {error && <div className="bg-red-50 text-red-600 text-sm p-4 rounded-xl border border-red-100">{error}</div>}
+
+            <button type="submit" disabled={checking} className="w-full text-white py-4 rounded-xl font-black text-lg transition shadow-xl disabled:opacity-70 flex justify-center items-center" style={{ background: primary }}>
+              {checking ? <RefreshCw className="animate-spin" /> : 'Ingresar al Portal'}
+            </button>
           </form>
         ) : (
           <div className="animate-in fade-in slide-in-from-right">
-              <div className="bg-violet-50 p-6 rounded-2xl text-center mb-6 border border-violet-100">
-                <Key className="mx-auto text-violet-500 mb-2" size={40} />
-                <h3 className="font-bold text-violet-900 text-lg mb-2">Solicitar Blanqueo</h3>
-                <p className="text-sm text-gray-600 mb-4">Ingresa tu usuario para notificar a administración.</p>
-                {recoverStatus === 'sent' ? (
-                    <div className="bg-green-100 text-green-700 p-3 rounded-xl mb-4 text-sm font-bold flex items-center justify-center gap-2"><CheckCircle size={18} /> ¡Solicitud Enviada!</div>
-                ) : (
-                    <form onSubmit={handleRequestReset} className="mb-4">
-                        <input className="w-full p-3 bg-white border border-violet-200 rounded-xl mb-3 text-center focus:ring-2 focus:ring-orange-400 outline-none" placeholder="Tu Usuario" value={recoverUser} onChange={(e) => setRecoverUser(e.target.value)} required />
-                        <button type="submit" disabled={recoverStatus === 'sending'} className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition flex items-center justify-center gap-2">{recoverStatus === 'sending' ? <RefreshCw className="animate-spin" size={18} /> : <><Send size={18} /> Enviar Solicitud</>}</button>
-                        {recoverStatus === 'error' && <p className="text-xs text-red-500 mt-2 font-bold">Error de red o usuario incorrecto.</p>}
-                    </form>
-                )}
-              </div>
-              <button onClick={() => {setShowRecover(false); setRecoverStatus('idle');}} className="w-full text-gray-500 font-bold py-3 hover:text-gray-700 transition">Volver al inicio</button>
+            <div className="p-6 rounded-2xl text-center mb-6 border" style={{ background: `${primary}0D`, borderColor: `${primary}25` }}>
+              <Key className="mx-auto mb-2" style={{ color: primary }} size={40} />
+              <h3 className="font-black text-lg mb-2" style={{ color: primary }}>Restablecer contraseña</h3>
+              <p className="text-sm text-gray-600 mb-4">Ingresá tu usuario o correo y te enviaremos un enlace para crear una nueva contraseña.</p>
+
+              {recoverStatus === 'sent' ? (
+                <div className="bg-green-100 text-green-700 p-3 rounded-xl mb-4 text-sm font-bold flex items-center justify-center gap-2"><CheckCircle size={18} /> ¡Correo enviado!</div>
+              ) : (
+                <form onSubmit={handleRequestReset} className="mb-4">
+                  <input className="w-full p-3 bg-white border border-black/10 rounded-xl mb-3 text-center outline-none" placeholder="Tu usuario o correo" value={recoverUser} onChange={(e) => setRecoverUser(e.target.value)} required />
+                  <button type="submit" disabled={recoverStatus === 'sending'} className="w-full text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2" style={{ background: secondary }}>
+                    {recoverStatus === 'sending' ? <RefreshCw className="animate-spin" size={18} /> : <><Send size={18} /> Enviar enlace</>}
+                  </button>
+                  {recoverStatus === 'error' && <p className="text-xs text-red-500 mt-2 font-bold">No pudimos encontrar una cuenta con esos datos.</p>}
+                </form>
+              )}
+            </div>
+            <button onClick={() => {setShowRecover(false); setRecoverStatus('idle');}} className="w-full text-gray-500 font-bold py-3 hover:text-gray-700 transition">Volver al inicio</button>
           </div>
         )}
       </div>
@@ -419,16 +591,7 @@ function MainApp({ user: initialUser, onLogout }) {
   const [announcements, setAnnouncements] = useState([]);
   const [groupMessages, setGroupMessages] = useState([]);
   const [students, setStudents] = useState([]);
-  const [appConfig, setAppConfig] = useState({
-    institutionName: 'Juntos a la Par',
-    institutionShortName: 'Juntos a la Par',
-    appName: 'CENTRA',
-    logoUrl: LOGO_URL,
-    turns: TURNS_LIST,
-    roles: VALID_ROLES_OFFICIAL,
-    features: {},
-    activeModules: {}
-  });
+  const [appConfig, setAppConfig] = useState(() => normalizeAppConfig(getCachedAppConfig()));
 
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -463,16 +626,7 @@ function MainApp({ user: initialUser, onLogout }) {
   const canAccessInformesExternos = ['Equipo Directivo', 'Equipo Técnico', 'Equipo Técnico Inclusión', 'Administración', 'admin', 'super-admin'].includes(user?.role) || user?.rol === 'admin';
   const showPrivateMenu = isAdminRole || isMedicalRole || canAccessSocial || isTechTeamRole;
 
-  const normalizeConfig = (data = {}) => ({
-    institutionName: data.institutionName || 'Juntos a la Par',
-    institutionShortName: data.institutionShortName || data.institutionName || 'Juntos a la Par',
-    appName: data.appName || 'CENTRA',
-    logoUrl: data.logoUrl || LOGO_URL,
-    turns: Array.isArray(data.turns) && data.turns.length ? data.turns : TURNS_LIST,
-    roles: Array.isArray(data.roles) && data.roles.length ? data.roles : VALID_ROLES_OFFICIAL,
-    features: data.features || {},
-    activeModules: data.activeModules || {}
-  });
+  const normalizeConfig = (data = {}) => normalizeAppConfig(data);
 
   const hasModule = (moduleId) => {
     if (moduleId === 'configuracion') return isSuperAdmin;
@@ -900,11 +1054,14 @@ function MainApp({ user: initialUser, onLogout }) {
 
   const isWideTab = ['groups', 'calendar', 'matricula', 'resources', 'users', 'admin', 'personal'].includes(activeTab);
   const brandLogo = appConfig.logoUrl || LOGO_URL;
-  const institutionName = appConfig.institutionShortName || appConfig.institutionName || 'Juntos a la Par';
+  const institutionName = appConfig.institutionShortName || appConfig.institutionName || 'Mi Institución';
+  const primaryColor = appConfig.primaryColor || '#6d28d9';
+  const secondaryColor = appConfig.secondaryColor || '#f97316';
+  const backgroundColor = appConfig.backgroundColor || '#f8fafc';
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full bg-gray-50 font-sans text-slate-800 overflow-hidden relative">
-      <header className="bg-violet-800 text-white shadow-lg px-4 py-3 flex justify-between items-center z-50 sticky top-0 shrink-0">
+    <div className="flex flex-col h-[100dvh] w-full font-sans text-slate-800 overflow-hidden relative" style={{ background: backgroundColor }}>
+      <header className="text-white shadow-lg px-4 py-3 flex justify-between items-center z-50 sticky top-0 shrink-0" style={{ background: primaryColor }}>
         <div className="flex items-center space-x-3 min-w-0">
           <img src={brandLogo} alt="Logo" className="w-10 h-8 object-contain" />
           <div className="min-w-0">
@@ -914,10 +1071,10 @@ function MainApp({ user: initialUser, onLogout }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={() => { setShowSearch(true); closeAllMenus(); }} className="p-2 rounded-full bg-violet-900/50 hover:bg-orange-500 transition" title="Buscar"><Search size={20} /></button>
+          <button onClick={() => { setShowSearch(true); closeAllMenus(); }} className="p-2 rounded-full bg-black/15 hover:bg-black/25 transition" title="Buscar"><Search size={20} /></button>
 
           <div ref={notifPanelRef} className="relative">
-            <button onClick={() => { setShowNotifPanel(value => !value); setShowProfileMenu(false); setShowMoreMenu(false); }} className={`relative p-2 rounded-full transition ${showNotifPanel ? 'bg-orange-500' : 'bg-violet-900/50'}`} title="Notificaciones">
+            <button onClick={() => { setShowNotifPanel(value => !value); setShowProfileMenu(false); setShowMoreMenu(false); }} className={`relative p-2 rounded-full transition ${showNotifPanel ? 'bg-black/25' : 'bg-black/15'}`} title="Notificaciones">
               <Bell size={20} />
               {unreadNotificationCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold min-w-4 h-4 px-1 flex items-center justify-center rounded-full animate-pulse border border-white">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span>}
             </button>
