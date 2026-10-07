@@ -5036,36 +5036,39 @@ function StudentFormModal({
   levels,
   turns,
   journeys,
-    institutionConfig,
+  institutionConfig,
   onClose,
   onSave,
   saving
 }) {
-    const [photoPreview, setPhotoPreview] =
+
+  const [photoPreview, setPhotoPreview] =
     useState(student?.photoUrl || '');
-const institutionMode =
-  institutionConfig?.institutionMode || 'school';
 
-const personLabel =
-  institutionMode === 'day_center'
-    ? 'concurrente'
-    : institutionMode === 'clinic'
-    ? 'paciente'
-    : 'estudiante';
+  const institutionMode =
+    institutionConfig?.institutionMode || 'school';
 
-const personLabelPlural =
-  institutionMode === 'day_center'
-    ? 'concurrentes'
-    : institutionMode === 'clinic'
-    ? 'pacientes'
-    : 'estudiantes';
+  const personLabel =
+    institutionMode === 'day_center'
+      ? 'concurrente'
+      : institutionMode === 'clinic'
+      ? 'paciente'
+      : 'estudiante';
 
-const formSubtitle =
-  institutionMode === 'day_center'
-    ? 'Datos personales y participación'
-    : institutionMode === 'clinic'
-    ? 'Datos personales y atención'
-    : 'Datos personales y escolaridad';
+  const personLabelPlural =
+    institutionMode === 'day_center'
+      ? 'concurrentes'
+      : institutionMode === 'clinic'
+      ? 'pacientes'
+      : 'estudiantes';
+
+  const formSubtitle =
+    institutionMode === 'day_center'
+      ? 'Datos personales y participación'
+      : institutionMode === 'clinic'
+      ? 'Datos personales y atención'
+      : 'Datos personales y escolaridad';
+
   const handlePhotoChange = event => {
     const file =
       event.target.files?.[0];
@@ -5077,113 +5080,118 @@ const formSubtitle =
 
     setPhotoPreview(previewUrl);
   };
-const currentAssignment =
-  student?.groupAssignments?.find(
-    item =>
-      item.status === 'active' &&
-      !item.validTo
-  ) || null;
 
-const currentPlacements =
-  Array.isArray(
-    currentAssignment?.placements
-  ) &&
-  currentAssignment.placements.length > 0
-    ? currentAssignment.placements
-    : currentAssignment?.groupId
-      ? (
-          Array.isArray(
-            currentAssignment?.turnIds
-          )
-            ? currentAssignment.turnIds
-            : []
-        ).map(turnId => ({
-          groupId:
-            currentAssignment.groupId,
-          turnId
-        }))
-      : [];
+  const currentAssignment =
+    student?.groupAssignments?.find(
+      item =>
+        item.status === 'active' &&
+        !item.validTo
+    ) || null;
 
-const currentJourney =
-  currentAssignment?.scheduleType ||
-  journeys[0]?.id ||
-  '';
+  const currentPlacements =
+    Array.isArray(
+      currentAssignment?.placements
+    ) &&
+    currentAssignment.placements.length > 0
+      ? currentAssignment.placements
+      : currentAssignment?.groupId
+        ? (
+            Array.isArray(
+              currentAssignment?.turnIds
+            )
+              ? currentAssignment.turnIds
+              : []
+          ).map(turnId => ({
+            groupId:
+              currentAssignment.groupId,
+            turnId
+          }))
+        : [];
 
-const morningTurn =
-  turns.find(
-    turn =>
-      normalizeText(
-        turn.name
-      ).includes('manana')
-  ) ||
-  turns[0] ||
-  null;
+  const currentJourney =
+    currentAssignment?.scheduleType ||
+    journeys[0]?.id ||
+    '';
 
-const afternoonTurn =
-  turns.find(
-    turn =>
-      normalizeText(
-        turn.name
-      ).includes('tarde')
-  ) ||
-  turns[1] ||
-  null;
+  const morningTurn =
+    turns.find(
+      turn =>
+        normalizeText(
+          turn.name
+        ).includes('manana')
+    ) ||
+    turns[0] ||
+    null;
 
-const currentMorning =
-  currentPlacements.find(
-    placement =>
-      placement.turnId ===
-      morningTurn?.id
-  );
+  const afternoonTurn =
+    turns.find(
+      turn =>
+        normalizeText(
+          turn.name
+        ).includes('tarde')
+    ) ||
+    turns[1] ||
+    null;
 
-const currentAfternoon =
-  currentPlacements.find(
-    placement =>
-      placement.turnId ===
-      afternoonTurn?.id
-  );
+  const currentMorning =
+    currentPlacements.find(
+      placement =>
+        placement.turnId ===
+        morningTurn?.id
+    );
 
-const currentJourneyName =
-  journeys.find(
-    journey =>
-      journey.id ===
-      currentJourney
-  )?.name ||
-  '';
+  const currentAfternoon =
+    currentPlacements.find(
+      placement =>
+        placement.turnId ===
+        afternoonTurn?.id
+    );
 
-const currentIsDouble =
-  normalizeText(
-    currentJourneyName
-  ).includes('doble') ||
-  normalizeText(
-    currentJourneyName
-  ).includes('completa');
+  const currentJourneyName =
+    journeys.find(
+      journey =>
+        journey.id ===
+        currentJourney
+    )?.name ||
+    '';
 
-const currentSimplePlacement =
-  currentPlacements[0] ||
-  null;
+  const currentIsDouble =
+    normalizeText(
+      currentJourneyName
+    ).includes('doble') ||
+    normalizeText(
+      currentJourneyName
+    ).includes('completa');
 
-const currentSimpleTurnId =
-  currentSimplePlacement?.turnId ||
-  morningTurn?.id ||
-  turns[0]?.id ||
-  '';
+  const currentSimplePlacement =
+    currentPlacements[0] ||
+    null;
+
+  const currentSimpleTurnId =
+    currentSimplePlacement?.turnId ||
+    morningTurn?.id ||
+    turns[0]?.id ||
+    '';
 
   return (
     <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
 
       <form
         onSubmit={onSave}
-        className="bg-white rounded-[28px] w-full max-w-3xl max-h-[94vh] overflow-y-auto shadow-2xl"
+        className="bg-white rounded-[28px] w-full max-w-4xl max-h-[94vh] overflow-y-auto shadow-2xl"
       >
 
-        <div className="sticky top-0 bg-white z-10 px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+        {/* =========================
+            ENCABEZADO
+        ========================== */}
+
+        <div className="sticky top-0 bg-white z-20 px-6 py-5 border-b border-slate-100 flex items-center justify-between">
 
           <div>
             <h3 className="text-xl font-black text-slate-900">
               {student.isNew
-  ? `Nuevo ${personLabel}`
-  : `Editar ${personLabel}`}
+                ? `Nuevo ${personLabel}`
+                : `Editar ${personLabel}`}
             </h3>
 
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
@@ -5194,18 +5202,25 @@ const currentSimpleTurnId =
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-100 text-slate-500"
+            className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition"
           >
             <X size={20} />
           </button>
 
         </div>
 
+
+        {/* =========================
+            CONTENIDO
+        ========================== */}
+
         <div className="p-6 space-y-5">
 
-          {/* DATOS BÁSICOS */}
+          {/* =========================
+              DATOS PERSONALES
+          ========================== */}
 
-          <section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
             <SectionTitle>
               Datos personales
@@ -5230,6 +5245,80 @@ const currentSimpleTurnId =
                 }
                 required
               />
+
+
+              {/* =========================
+                  FOTO
+              ========================== */}
+
+              <div className="md:col-span-2 mt-1">
+
+                <div className="rounded-2xl border border-violet-100 bg-violet-50/50 p-4">
+
+                  <div className="flex items-start justify-between gap-4">
+
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
+                        Foto
+                      </p>
+
+                      <p className="text-xs text-slate-500 mt-1">
+                        Subí una foto clara para identificar a la persona.
+                      </p>
+                    </div>
+
+                  </div>
+
+
+                  <div className="mt-4 flex items-center gap-4">
+
+                    {photoPreview ? (
+                      <img
+                        src={photoPreview}
+                        alt="Vista previa"
+                        className="w-24 h-24 rounded-2xl object-cover border-2 border-white shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-24 h-24 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-300">
+                        <Camera size={28} />
+                      </div>
+                    )}
+
+
+                    <div>
+
+                      <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-bold cursor-pointer hover:bg-violet-700 transition shadow-sm">
+
+                        <Camera size={16} />
+
+                        Elegir foto
+
+                        <input
+                          type="file"
+                          name="photoFile"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handlePhotoChange}
+                        />
+
+                      </label>
+
+                      <p className="text-xs text-slate-400 mt-2">
+                        JPG, PNG o WEBP
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+
+              {/* =========================
+                  RESTO DE DATOS
+              ========================== */}
 
               <Input
                 name="dni"
@@ -5259,15 +5348,19 @@ const currentSimpleTurnId =
                 <option value="">
                   Seleccionar
                 </option>
+
                 <option value="F">
                   Mujer
                 </option>
+
                 <option value="M">
                   Varón
                 </option>
+
                 <option value="X">
                   Otro
                 </option>
+
               </Select>
 
               <Select
@@ -5283,18 +5376,23 @@ const currentSimpleTurnId =
                 <option value="true">
                   Activo
                 </option>
+
                 <option value="false">
                   Inactivo
                 </option>
+
               </Select>
 
             </div>
 
           </section>
 
-          {/* CONTACTO */}
 
-          <section>
+          {/* =========================
+              CONTACTO Y FAMILIA
+          ========================== */}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
             <SectionTitle>
               Contacto y familia
@@ -5379,9 +5477,12 @@ const currentSimpleTurnId =
 
           </section>
 
-          {/* SALUD */}
 
-          <section>
+          {/* =========================
+              SALUD Y DOCUMENTACIÓN
+          ========================== */}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
             <SectionTitle>
               Salud y documentación
@@ -5415,256 +5516,245 @@ const currentSimpleTurnId =
                 }
               />
 
-              <div className="space-y-2">
-  <label className="text-xs font-black uppercase text-slate-500">
-    Foto
-  </label>
+            </div>
 
-  <div className="flex items-center gap-4">
-    {photoPreview ? (
-  <img
-    src={photoPreview}
-    alt="Vista previa"
-    className="w-20 h-20 rounded-2xl object-cover border border-slate-200"
-  />
-) : (
-  <div className="w-20 h-20 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
-    <Camera size={24} />
-  </div>
-)}
+          </section>
 
-    <div>
-      <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-bold cursor-pointer hover:bg-violet-700 transition">
-        <span>📷</span>
-        Elegir foto
 
-        <input
-  type="file"
-  name="photoFile"
-  accept="image/*"
-  className="hidden"
-  onChange={handlePhotoChange}
-/>
-      </label>
+          {/* =========================
+              ESCOLARIDAD
+          ========================== */}
 
-      <p className="text-xs text-slate-400 mt-2">
-        JPG, PNG o WEBP
-      </p>
-    </div>
-  </div>
-</div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+            <SectionTitle>
+              Escolaridad
+            </SectionTitle>
+
+            <div className="grid md:grid-cols-2 gap-3">
+
+              <Select
+                name="level"
+                label="Nivel"
+                defaultValue={
+                  student.level || ''
+                }
+              >
+                <option value="">
+                  Seleccionar
+                </option>
+
+                {levels.map(level => (
+                  <option
+                    key={level.id}
+                    value={level.id}
+                  >
+                    {level.name}
+                  </option>
+                ))}
+
+              </Select>
+
+
+              <Select
+                name="scheduleType"
+                label="Jornada"
+                defaultValue={
+                  currentJourney
+                }
+              >
+                <option value="">
+                  Seleccionar
+                </option>
+
+                {journeys.map(
+                  journey => (
+                    <option
+                      key={journey.id}
+                      value={journey.id}
+                    >
+                      {journey.name}
+                    </option>
+                  )
+                )}
+
+              </Select>
+
+            </div>
+
+
+            <div className="mt-4 space-y-3">
+
+              {/* MAÑANA */}
+
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
+
+                <div className="flex items-center gap-2 mb-3">
+
+                  <Clock3
+                    size={16}
+                    className="text-amber-600"
+                  />
+
+                  <div>
+
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+                      Turno mañana
+                    </p>
+
+                    <p className="text-xs font-bold text-slate-500">
+                      Grupo correspondiente
+                    </p>
+
+                  </div>
+
+                </div>
+
+
+                <input
+                  type="hidden"
+                  name="morningTurnId"
+                  value={
+                    morningTurn?.id || ''
+                  }
+                  readOnly
+                />
+
+
+                <Select
+                  name="morningGroupId"
+                  label="Grupo"
+                  defaultValue={
+                    currentMorning?.groupId ||
+                    ''
+                  }
+                >
+                  <option value="">
+                    Sin asignar
+                  </option>
+
+                  {groups.map(
+                    group => (
+                      <option
+                        key={group.id}
+                        value={group.id}
+                      >
+                        {group.name}
+                      </option>
+                    )
+                  )}
+
+                </Select>
+
+              </div>
+
+
+              {/* TARDE */}
+
+              <div
+                className={`p-4 rounded-2xl border ${
+                  currentIsDouble
+                    ? 'bg-sky-50 border-sky-100'
+                    : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+
+                <div className="flex items-center gap-2 mb-3">
+
+                  <Clock3
+                    size={16}
+                    className={
+                      currentIsDouble
+                        ? 'text-sky-600'
+                        : 'text-slate-400'
+                    }
+                  />
+
+                  <div>
+
+                    <p
+                      className={`text-[10px] font-black uppercase tracking-widest ${
+                        currentIsDouble
+                          ? 'text-sky-600'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      Turno tarde
+                    </p>
+
+                    <p className="text-xs font-bold text-slate-500">
+                      Para {personLabelPlural} con doble jornada
+                    </p>
+
+                  </div>
+
+                </div>
+
+
+                <input
+                  type="hidden"
+                  name="afternoonTurnId"
+                  value={
+                    afternoonTurn?.id || ''
+                  }
+                  readOnly
+                />
+
+
+                <Select
+                  name="afternoonGroupId"
+                  label="Grupo"
+                  defaultValue={
+                    currentAfternoon?.groupId ||
+                    ''
+                  }
+                >
+                  <option value="">
+                    Sin asignar
+                  </option>
+
+                  {groups.map(
+                    group => (
+                      <option
+                        key={group.id}
+                        value={group.id}
+                      >
+                        {group.name}
+                      </option>
+                    )
+                  )}
+
+                </Select>
+
+              </div>
+
+            </div>
+
+
+            <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                Cómo se guarda
+              </p>
+
+              <p className="text-xs font-bold text-slate-600 mt-1">
+
+                {currentIsDouble
+                  ? 'Mañana y tarde pueden tener grupos diferentes.'
+                  : 'Jornada simple: se utiliza un solo grupo.'}
+
+              </p>
 
             </div>
 
           </section>
 
-       <section>
-  <SectionTitle>
-    Escolaridad
-  </SectionTitle>
 
-  <div className="grid md:grid-cols-2 gap-3">
+          {/* =========================
+              OBSERVACIONES
+          ========================== */}
 
-    <Select
-      name="level"
-      label="Nivel"
-      defaultValue={
-        student.level || ''
-      }
-    >
-      <option value="">
-        Seleccionar
-      </option>
-
-      {levels.map(level => (
-        <option
-          key={level.id}
-          value={level.id}
-        >
-          {level.name}
-        </option>
-      ))}
-    </Select>
-
-    <Select
-      name="scheduleType"
-      label="Jornada"
-      defaultValue={
-        currentJourney
-      }
-    >
-      <option value="">
-        Seleccionar
-      </option>
-
-      {journeys.map(
-        journey => (
-          <option
-            key={journey.id}
-            value={journey.id}
-          >
-            {journey.name}
-          </option>
-        )
-      )}
-    </Select>
-
-  </div>
-
-  <div className="mt-4 space-y-3">
-
-    {/* MAÑANA */}
-
-    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
-
-      <div className="flex items-center gap-2 mb-3">
-        <Clock3
-          size={16}
-          className="text-amber-600"
-        />
-
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
-            Turno mañana
-          </p>
-
-          <p className="text-xs font-bold text-slate-500">
-            Grupo correspondiente
-          </p>
-        </div>
-      </div>
-
-      <input
-        type="hidden"
-        name="morningTurnId"
-        value={
-          morningTurn?.id || ''
-        }
-        readOnly
-      />
-
-      <Select
-        name="morningGroupId"
-        label="Grupo"
-        defaultValue={
-          currentMorning?.groupId ||
-          ''
-        }
-      >
-        <option value="">
-          Sin asignar
-        </option>
-
-        {groups.map(
-          group => (
-            <option
-              key={group.id}
-              value={group.id}
-            >
-              {group.name}
-            </option>
-          )
-        )}
-      </Select>
-
-    </div>
-
-    {/* TARDE */}
-
-    <div
-      className={`p-4 rounded-2xl border ${
-        currentIsDouble
-          ? 'bg-sky-50 border-sky-100'
-          : 'bg-slate-50 border-slate-200'
-      }`}
-    >
-
-      <div className="flex items-center gap-2 mb-3">
-
-        <Clock3
-          size={16}
-          className={
-            currentIsDouble
-              ? 'text-sky-600'
-              : 'text-slate-400'
-          }
-        />
-
-        <div>
-          <p
-            className={`text-[10px] font-black uppercase tracking-widest ${
-              currentIsDouble
-                ? 'text-sky-600'
-                : 'text-slate-400'
-            }`}
-          >
-            Turno tarde
-          </p>
-
-          <p className="text-xs font-bold text-slate-500">
-            Para {personLabelPlural} con doble jornada
-          </p>
-        </div>
-
-      </div>
-
-      <input
-        type="hidden"
-        name="afternoonTurnId"
-        value={
-          afternoonTurn?.id || ''
-        }
-        readOnly
-      />
-
-      <Select
-        name="afternoonGroupId"
-        label="Grupo"
-        defaultValue={
-          currentAfternoon?.groupId ||
-          ''
-        }
-      >
-        <option value="">
-          Sin asignar
-        </option>
-
-        {groups.map(
-          group => (
-            <option
-              key={group.id}
-              value={group.id}
-            >
-              {group.name}
-            </option>
-          )
-        )}
-      </Select>
-
-    </div>
-
-  </div>
-
-  <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-
-    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-      Cómo se guarda
-    </p>
-
-    <p className="text-xs font-bold text-slate-600 mt-1">
-
-      {currentIsDouble
-        ? 'Mañana y tarde pueden tener grupos diferentes.'
-        : 'Jornada simple: se utiliza un solo grupo.'}
-
-    </p>
-
-  </div>
-
-</section>
-          {/* OBSERVACIONES */}
-
-          <section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
             <SectionTitle>
               Observaciones
@@ -5684,12 +5774,17 @@ const currentSimpleTurnId =
 
         </div>
 
-        <div className="sticky bottom-0 bg-white border-t border-slate-100 p-4 flex gap-2 justify-end">
+
+        {/* =========================
+            PIE
+        ========================== */}
+
+        <div className="sticky bottom-0 bg-white border-t border-slate-100 p-4 flex gap-2 justify-end z-20">
 
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-3 rounded-xl bg-slate-100 text-slate-600 font-black text-xs"
+            className="px-5 py-3 rounded-xl bg-slate-100 text-slate-600 font-black text-xs hover:bg-slate-200 transition"
           >
             Cancelar
           </button>
@@ -5697,12 +5792,15 @@ const currentSimpleTurnId =
           <button
             type="submit"
             disabled={saving}
-            className="px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black text-xs flex items-center gap-2 disabled:opacity-60"
+            className="px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black text-xs flex items-center gap-2 disabled:opacity-60 transition"
           >
+
             <Save size={16} />
+
             {saving
-  ? 'Guardando...'
-  : `Guardar ${personLabel}`}
+              ? 'Guardando...'
+              : `Guardar ${personLabel}`}
+
           </button>
 
         </div>
