@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getCachedAppConfig, normalizeAppConfig } from '../config';
+import { normalizeAppConfig } from '../config';
 import {
   Plus,
   Trash2,
@@ -110,8 +110,8 @@ export function UsersAdminView({ db, appId }) {
   const [showPendingStaff, setShowPendingStaff] = useState(false);
 
   const [editingUser, setEditingUser] = useState(null);
-  const [institutionConfig, setInstitutionConfig] = useState(() => getCachedAppConfig());
-  const [form, setForm] = useState(() => makeEmptyForm(getConfiguredRoleOptions(getCachedAppConfig())[0] || ''));
+  const [institutionConfig, setInstitutionConfig] = useState(() => normalizeAppConfig({}));
+  const [form, setForm] = useState(() => makeEmptyForm(''));
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -160,7 +160,8 @@ export function UsersAdminView({ db, appId }) {
 
   useEffect(() => {
     const handleConfigUpdate = event => {
-      const next = event?.detail || getCachedAppConfig();
+      const next = event?.detail;
+      if (!next) return;
       setInstitutionConfig(normalizeAppConfig(next));
     };
 
