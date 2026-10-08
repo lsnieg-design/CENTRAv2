@@ -1,8 +1,7 @@
 import {
-  getCachedAppConfig,
+  normalizeAppConfig,
   getInstitutionName,
-  INSTITUTION_MODES,
-  STAFF_WEEKDAYS
+  INSTITUTION_MODES
 } from '../config';
 import React, { useState, useEffect } from 'react';
 import { 
@@ -21,30 +20,44 @@ import {
   addDoc, serverTimestamp, where, deleteDoc, deleteField 
 } from 'firebase/firestore';
 
-export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL }) {
+export function PersonalView({ user, db, appId }) {
   const [staffList, setStaffList] = useState([]);
   const [students, setStudents] = useState([]);
   const [users, setUsers] = useState([]);
 
-  // La configuración institucional determina cómo se presenta Personal.
-  // Se parte del cache actual y se actualiza en vivo cuando Configuración guarda cambios.
-  const [institutionConfig, setInstitutionConfig] = useState(() => getCachedAppConfig());
+  // La configuración institucional es la única fuente de verdad para Personal.
+  // Se carga desde Firestore y se actualiza en tiempo real.
+  const [institutionConfig, setInstitutionConfig] = useState(() => normalizeAppConfig({}));
 
   useEffect(() => {
-    const handleConfigUpdate = (event) => {
-      if (event?.detail) {
-        setInstitutionConfig(event.detail);
-      } else {
-        setInstitutionConfig(getCachedAppConfig());
+    if (!db || !appId) return undefined;
+
+    const configRef = doc(
+      db,
+      'artifacts',
+      appId,
+      'public',
+      'data',
+      'config',
+      'institution'
+    );
+
+    const unsubscribe = onSnapshot(
+      configRef,
+      (snap) => {
+        if (!snap.exists()) return;
+        setInstitutionConfig(normalizeAppConfig(snap.data()));
+      },
+      (error) => {
+        console.warn(
+          'No se pudo cargar la configuración institucional en Personal:',
+          error
+        );
       }
-    };
+    );
 
-    window.addEventListener('institution-config-updated', handleConfigUpdate);
-
-    return () => {
-      window.removeEventListener('institution-config-updated', handleConfigUpdate);
-    };
-  }, []);
+    return () => unsubscribe();
+  }, [db, appId]);
 
   const institutionMode = institutionConfig?.institutionMode || INSTITUTION_MODES.SCHOOL;
   const isSchool = institutionMode === INSTITUTION_MODES.SCHOOL;
@@ -52,28 +65,54 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
   const isClinic = institutionMode === INSTITUTION_MODES.CLINIC;
   const isNonSchool = !isSchool;
 
-  // Los roles vienen de la configuración institucional.
-  // Se mantiene compatibilidad con los roles recibidos por props y con configuraciones antiguas.
-  const configuredRoles = Array.isArray(institutionConfig?.roles) && institutionConfig.roles.length
-    ? institutionConfig.roles
-    : (Array.isArray(VALID_ROLES_OFFICIAL) ? VALID_ROLES_OFFICIAL : []);
-
-  const roleOptions = configuredRoles
+  // Roles y turnos salen exclusivamente de la configuración institucional.
+  const roleOptions = (
+    Array.isArray(institutionConfig?.roles)
+      ? institutionConfig.roles
+      : []
+  )
     .map((role, index) => {
-      if (typeof role === 'string') return role;
-      return role?.name || role?.shortName || role?.label || role?.id || `Rol ${index + 1}`;
-    })
-    .filter(Boolean);
+      if (typeof role === 'string') return role.trim();
 
-  const turnOptions = (Array.isArray(institutionConfig?.turns) && institutionConfig.turns.length
-    ? institutionConfig.turns
-    : (Array.isArray(TURNS_LIST) ? TURNS_LIST : [])
+      return (
+        role?.name ||
+        role?.shortName ||
+        role?.label ||
+        role?.id ||
+        `Rol ${index + 1}`
+      ).trim();
+    })
+    .filter(Boolean)
+    .filter(
+      (role, index, arr) =>
+        arr.indexOf(role) === index
+    );
+
+  const turnOptions = (
+    Array.isArray(institutionConfig?.turns)
+      ? institutionConfig.turns
+      : []
   )
     .map((turn, index) => {
-      if (typeof turn === 'string') return { id: turn, name: turn };
+      if (typeof turn === 'string') {
+        return {
+          id: turn,
+          name: turn
+        };
+      }
+
       return {
-        id: turn?.name || turn?.shortName || turn?.id || `turno_${index + 1}`,
-        name: turn?.shortName || turn?.name || turn?.label || `Turno ${index + 1}`
+        id:
+          turn?.name ||
+          turn?.shortName ||
+          turn?.id ||
+          `turno_${index + 1}`,
+
+        name:
+          turn?.shortName ||
+          turn?.name ||
+          turn?.label ||
+          `Turno ${index + 1}`
       };
     })
     .filter(turn => turn.name);
@@ -112,16 +151,17 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
   const canAccess = ['admin', 'super-admin', 'Administración', 'Equipo Directivo'].includes(user.role) || user.rol === 'admin';
 
-  const VALID_ROLES = roleOptions.length ? roleOptions : [
-      "Docente", "Preceptora", "Auxiliar", "Profe Especial", "Equipo Técnico", "Equipo Directivo",
-      "Dirección Inclusión", "Equipo Técnico Inclusión", "DAI",
-      "Cocina", "Limpieza", "Mantenimiento", "Administración"
-  ];
-
   const getNormRole = (r) => {
       if (!r) return '';
+
       const clean = String(r).trim();
-      const match = VALID_ROLES.find(v => String(v).toLowerCase() === clean.toLowerCase());
+
+      const match = roleOptions.find(
+        v =>
+          String(v).toLowerCase() ===
+          clean.toLowerCase()
+      );
+
       return match || clean;
   };
 
@@ -433,7 +473,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                       <div class="field"><span class="label">Identificador</span><span class="value">${linked?.username || linked?.email || '-'}</span></div>
                   </div>
 
-                  <div class="footer">${getInstitutionName()} - Ficha de Personal generada el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</div>
+                  <div class="footer">${getInstitutionName(institutionConfig)} - Ficha de Personal generada el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</div>
               </div>`;
           });
 
@@ -556,7 +596,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
               <div class="section-title" style="margin-bottom: 15px;">Detalle de Cargos</div>
               ${c1Html}
               ${c2Html}
-              <div class="footer">${getInstitutionName()} - Legajo Docente generado el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</div>
+              <div class="footer">${getInstitutionName(institutionConfig)} - Legajo Docente generado el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</div>
           </div>`;
       });
       html += '</body></html>';
@@ -572,7 +612,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
       if (!lista || lista.length === 0) return alert("No hay personal para imprimir.");
 
       if (isNonSchool) {
-          const LOGO_APP = getCachedAppConfig().logoUrl || '/icon-192.png';
+          const LOGO_APP = institutionConfig?.logoUrl || '/icon-192.png';
 
           let html = `<html><head><title>Planilla de Personal</title>
           <style>
@@ -632,7 +672,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
           return;
       }
       
-      const LOGO_APP = getCachedAppConfig().logoUrl || '/icon-192.png';
+      const LOGO_APP = institutionConfig?.logoUrl || '/icon-192.png';
 
       let html = `<html><head><title>Planilla Personalizada</title>
       <style>
@@ -649,7 +689,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
       <table class="header-table"><tr>
           <td><img src="${LOGO_APP}" style="height:40px;"></td>
           <td style="text-align:center;"><h1 style="margin:0; font-size:18px; color:#6d28d9;">Planilla de Personal Institucional</h1></td>
-          <td style="text-align:right; font-weight:bold;">Ciclo 2026</td>
+          <td style="text-align:right; font-weight:bold;">Ciclo ${institutionConfig.schoolYear || new Date().getFullYear()}</td>
       </tr></table>
       <table class="data-table">
           <thead><tr>
@@ -898,8 +938,8 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
           const hasC1 = Boolean((s.cargo1_name && s.cargo1_name.trim()) || c1Role || c1Turn);
           const hasC2 = Boolean((s.cargo2_name && s.cargo2_name.trim()) || c2Role || c2Turn);
 
-          const c1IsUnassigned = !hasC1 || !VALID_ROLES.includes(c1Role);
-          const c2IsUnassigned = hasC2 && !VALID_ROLES.includes(c2Role);
+          const c1IsUnassigned = !hasC1 || !roleOptions.includes(c1Role);
+          const c2IsUnassigned = hasC2 && !roleOptions.includes(c2Role);
 
           let c1MatchesRole = filterRoles.length === 0 || (filterRoles.includes('sin-asignar') && c1IsUnassigned) || filterRoles.includes(c1Role);
           let c2MatchesRole = filterRoles.length === 0 || (filterRoles.includes('sin-asignar') && c2IsUnassigned) || filterRoles.includes(c2Role);
@@ -1081,7 +1121,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
       html += `</tbody></table>
       <p style="text-align: right; font-size: 9px; margin-top: 20px; color: #94a3b8;">
-          ${getInstitutionName()} - Generado el ${new Date().toLocaleString('es-AR')}
+          ${getInstitutionName(institutionConfig)} - Generado el ${new Date().toLocaleString('es-AR')}
       </p></body></html>`;
 
       const iframe = document.createElement('iframe');
@@ -1197,7 +1237,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                 >
                     <option value="default">+ Agregar Rol...</option>
                     <option value="sin-asignar">⚠️ Sin Asignar / Error</option>
-                    {VALID_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
 
                 {isSchool && (
@@ -1270,11 +1310,11 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
 
                 const schoolNeedsRoleFix =
                     !hasC1 ||
-                    !VALID_ROLES.includes(c1Role) ||
-                    (hasC2 && !VALID_ROLES.includes(c2Role));
+                    !roleOptions.includes(c1Role) ||
+                    (hasC2 && !roleOptions.includes(c2Role));
 
                 const nonSchoolRole = getNormRole(s.role || s.cargo1_role);
-                const nonSchoolNeedsRoleFix = !nonSchoolRole || !VALID_ROLES.includes(nonSchoolRole);
+                const nonSchoolNeedsRoleFix = !nonSchoolRole || !roleOptions.includes(nonSchoolRole);
 
                 const needsRoleFix = isSchool ? schoolNeedsRoleFix : nonSchoolNeedsRoleFix;
                 const workDays = getStaffWorkDays(s);
@@ -1839,7 +1879,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <select name="cargo2_role" defaultValue={editingStaff?.cargo2_role || ""} className="p-3 bg-slate-50 rounded-xl border-none font-bold text-xs w-full">
                             <option value="">Rol Cargo 2...</option>
-                            {VALID_ROLES.map(r => (
+                            {roleOptions.map(r => (
                               <option key={r} value={r}>{r}</option>
                             ))}
                           </select>
@@ -1936,7 +1976,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                             className="p-3 bg-slate-50 rounded-xl border-none font-bold text-sm w-full"
                           >
                             <option value="">Seleccionar rol / función...</option>
-                            {VALID_ROLES.map(r => (
+                            {roleOptions.map(r => (
                               <option key={r} value={r}>{r}</option>
                             ))}
                           </select>
@@ -1948,7 +1988,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                           </label>
 
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {(institutionConfig?.staffWeekdays || STAFF_WEEKDAYS).map(day => {
+                            {(institutionConfig?.staffWeekdays || []).map(day => {
                               const checkedDays = getStaffWorkDays(editingStaff);
                               return (
                                 <label key={day} className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-violet-50 hover:border-violet-200">
@@ -2145,7 +2185,7 @@ export function PersonalView({ user, db, appId, TURNS_LIST, VALID_ROLES_OFFICIAL
                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">1. Seleccionar Personal</p>
                             </div>
                             <div className="overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                                {VALID_ROLES.map(rol => {
+                                {roleOptions.map(rol => {
                                     const staffEnRol = staffList.filter(s => getNormRole(s.cargo1_role || s.role) === rol);
                                     if (staffEnRol.length === 0) return null;
                                     return (
