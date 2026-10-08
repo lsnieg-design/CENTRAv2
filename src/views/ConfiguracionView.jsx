@@ -31,7 +31,43 @@ const TABS = [
   { id: 'system', label: 'Sistema', icon: Server }
 ];
 
-function ListEditor({ title, items = [], onChange, placeholder, description, allowReorder = true, allowEdit = true }) {
+const getListItemLabel = (item, index = 0) => {
+  if (typeof item === 'string' || typeof item === 'number') {
+    return String(item).trim();
+  }
+
+  if (item && typeof item === 'object') {
+    return String(
+      item.name ??
+      item.label ??
+      item.shortName ??
+      item.title ??
+      item.id ??
+      `Opción ${index + 1}`
+    ).trim();
+  }
+
+  return '';
+};
+
+const updateListItemLabel = (item, value) => {
+  if (item && typeof item === 'object') {
+    if (Object.prototype.hasOwnProperty.call(item, 'name')) {
+      return { ...item, name: value };
+    }
+    if (Object.prototype.hasOwnProperty.call(item, 'label')) {
+      return { ...item, label: value };
+    }
+    if (Object.prototype.hasOwnProperty.call(item, 'shortName')) {
+      return { ...item, shortName: value };
+    }
+    return { ...item, name: value };
+  }
+
+  return value;
+};
+
+function ListEditor({ items = [], title, onChange, placeholder, description, allowReorder = true, allowEdit = true }) {
   const [value, setValue] = useState('');
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingValue, setEditingValue] = useState('');
@@ -39,14 +75,20 @@ function ListEditor({ title, items = [], onChange, placeholder, description, all
   const add = () => {
     const clean = value.trim();
     if (!clean) return;
-    if (items.some(item => String(item).trim().toLowerCase() === clean.toLowerCase())) return;
+
+    const duplicated = items.some(
+      (item, index) => getListItemLabel(item, index).toLowerCase() === clean.toLowerCase()
+    );
+
+    if (duplicated) return;
+
     onChange([...items, clean]);
     setValue('');
   };
 
   const startEdit = (index) => {
     setEditingIndex(index);
-    setEditingValue(String(items[index] || ''));
+    setEditingValue(getListItemLabel(items[index], index));
   };
 
   const cancelEdit = () => {
@@ -56,13 +98,14 @@ function ListEditor({ title, items = [], onChange, placeholder, description, all
 
   const saveEdit = () => {
     if (editingIndex === null) return;
+
     const clean = editingValue.trim();
     if (!clean) return;
 
     const duplicated = items.some(
       (item, index) =>
         index !== editingIndex &&
-        String(item).trim().toLowerCase() === clean.toLowerCase()
+        getListItemLabel(item, index).toLowerCase() === clean.toLowerCase()
     );
 
     if (duplicated) {
@@ -70,7 +113,11 @@ function ListEditor({ title, items = [], onChange, placeholder, description, all
       return;
     }
 
-    onChange(items.map((item, index) => index === editingIndex ? clean : item));
+    onChange(
+      items.map((item, index) =>
+        index === editingIndex ? updateListItemLabel(item, clean) : item
+      )
+    );
     cancelEdit();
   };
 
@@ -84,8 +131,8 @@ function ListEditor({ title, items = [], onChange, placeholder, description, all
   };
 
   const removeItem = (index) => {
-    const item = items[index];
-    if (!confirm(`¿Quitar "${item}" de esta lista?`)) return;
+    const itemLabel = getListItemLabel(items[index], index);
+    if (!confirm(`¿Quitar "${itemLabel}" de esta lista?`)) return;
 
     onChange(items.filter((_, itemIndex) => itemIndex !== index));
     if (editingIndex === index) cancelEdit();
@@ -126,10 +173,11 @@ function ListEditor({ title, items = [], onChange, placeholder, description, all
         <div className="space-y-2">
           {items.map((item, index) => {
             const isEditing = editingIndex === index;
+            const itemLabel = getListItemLabel(item, index);
 
             return (
               <div
-                key={`${String(item)}-${index}`}
+                key={item && typeof item === 'object' && item.id != null ? `${item.id}-${index}` : `${itemLabel}-${index}`}
                 className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5"
               >
                 {isEditing ? (
@@ -164,7 +212,7 @@ function ListEditor({ title, items = [], onChange, placeholder, description, all
                 ) : (
                   <>
                     <span className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">
-                      {item}
+                      {itemLabel}
                     </span>
 
                     {allowReorder && (
@@ -229,6 +277,140 @@ function StatusBadge({ ok, children }) {
   );
 }
 
+
+function EventTypeEditor({ eventTypes = [], eventTypeSettings = {}, onChange }) {
+  const [newName, setNewName] = useState('');
+
+  const formatId = (value) =>
+    String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toUpperCase();
+
+  const fallbackColor = (index) => {
+    const colors = ['#64748b', '#8b5cf6', '#3b82f6', '#14b8a6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#22c55e', '#f97316'];
+    return colors[index % colors.length];
+  };
+
+  const updateType = (typeId, field, value) => {
+    const nextSettings = {
+      ...(eventTypeSettings || {}),
+      [typeId]: {
+        ...((eventTypeSettings || {})[typeId] || {}),
+        [field]: value
+      }
+    };
+    onChange(eventTypes, nextSettings);
+  };
+
+  const addType = () => {
+    const name = newName.trim();
+    if (!name) return;
+
+    let id = formatId(name);
+    if (!id) return;
+
+    let suffix = 2;
+    while (eventTypes.includes(id)) {
+      id = `${formatId(name)}_${suffix++}`;
+    }
+
+    onChange(
+      [...eventTypes, id],
+      {
+        ...(eventTypeSettings || {}),
+        [id]: {
+          name,
+          color: fallbackColor(eventTypes.length)
+        }
+      }
+    );
+    setNewName('');
+  };
+
+  const removeType = (typeId) => {
+    if (eventTypes.length <= 1) {
+      alert('El calendario necesita al menos una categoría.');
+      return;
+    }
+
+    const label = eventTypeSettings?.[typeId]?.name || typeId;
+    if (!confirm(`¿Quitar “${label}” de las categorías del calendario? Los eventos históricos que ya usen esta categoría conservarán su dato, pero dejará de aparecer como opción para nuevos eventos.`)) return;
+
+    const nextTypes = eventTypes.filter(type => type !== typeId);
+    const nextSettings = { ...(eventTypeSettings || {}) };
+    delete nextSettings[typeId];
+    onChange(nextTypes, nextSettings);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+      <div>
+        <h3 className="text-lg font-black text-slate-800">Etiquetas del calendario</h3>
+        <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+          Estas categorías definen las opciones que aparecen en el calendario. Podés cambiar el nombre visible y el color sin tocar el código. Los identificadores internos se mantienen separados para no romper eventos existentes.
+        </p>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addType()}
+          placeholder="Ej. Reuniones con familias"
+          className="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+        />
+        <button
+          type="button"
+          onClick={addType}
+          className="px-4 rounded-xl bg-violet-600 text-white font-black text-sm flex items-center gap-2"
+        >
+          <Plus size={16} /> Agregar
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {eventTypes.map((typeId, index) => {
+          const setting = eventTypeSettings?.[typeId] || {};
+          const label = setting.name || String(typeId).replaceAll('_', ' ');
+
+          return (
+            <div key={typeId} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center p-3 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="min-w-0">
+                <input
+                  value={label}
+                  onChange={e => updateType(typeId, 'name', e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-violet-200"
+                />
+                <p className="text-[9px] text-slate-400 font-mono mt-1 uppercase">ID: {typeId}</p>
+              </div>
+
+              <input
+                type="color"
+                value={setting.color || fallbackColor(index)}
+                onChange={e => updateType(typeId, 'color', e.target.value)}
+                className="h-10 w-12 rounded-xl border border-slate-200 bg-white p-1"
+                title={`Color de ${label}`}
+              />
+
+              <button
+                type="button"
+                onClick={() => removeType(typeId)}
+                className="w-10 h-10 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
+                title={`Quitar ${label}`}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ConfiguracionView({ db, appId, auth }) {
   const [tab, setTab] = useState('identity');
   const [config, setConfig] = useState(DEFAULT_APP_CONFIG);
@@ -273,6 +455,14 @@ export function ConfiguracionView({ db, appId, auth }) {
   const updateNested = (key, field, value) => setConfig(prev => ({ ...prev, [key]: { ...(prev[key] || {}), [field]: value } }));
   const updateModule = (moduleId, value) => setConfig(prev => ({ ...prev, activeModules: { ...(prev.activeModules || {}), [moduleId]: value } }));
   const updateStructure = (key, value) => update(key, value);
+
+  const handleEventTypesChange = (nextEventTypes, nextEventTypeSettings) => {
+    setConfig(prev => ({
+      ...prev,
+      eventTypes: nextEventTypes,
+      eventTypeSettings: nextEventTypeSettings
+    }));
+  };
 
   const roles = (Array.isArray(config.roles) ? config.roles : [])
     .map((role, index) => normalizeRoleLabel(role, index))
@@ -935,10 +1125,71 @@ export function ConfiguracionView({ db, appId, auth }) {
             </div>
           </section>}
 
-          {tab === 'permissions' && <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
-            <div><h3 className="text-lg font-black">Usuarios y permisos</h3><p className="text-sm text-slate-500">Definí qué módulos puede utilizar cada rol. Los roles se gestionan desde Listas y opciones.</p></div>
-            <div className="grid md:grid-cols-[220px_1fr] gap-5"><div className="space-y-2">{roles.map(role=><button key={role} onClick={()=>setSelectedRole(role)} className={`w-full text-left px-4 py-3 rounded-xl font-bold text-sm ${selectedRole===role?'bg-violet-50 text-violet-700':'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>{role}</button>)}</div><div><div className="flex items-center justify-between gap-3 mb-3"><h4 className="font-black">Módulos de {selectedRole || 'rol'}</h4><div className="flex gap-2"><button onClick={allowAll} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200">Dar todos</button><button onClick={removeAll} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200">Quitar todos</button></div></div><div className="grid sm:grid-cols-2 gap-2">{MODULES.map(([id,label])=><label key={id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200"><span className="text-sm font-semibold">{label}</span><input type="checkbox" checked={!!rolePerms[id]} onChange={e=>updatePermission(id,e.target.checked)} className="w-5 h-5 accent-violet-600"/></label>)}</div><div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">Los administradores de instalación conservan acceso total. Estos permisos controlan los roles institucionales configurados en CENTRA.</div></div></div>
-          </section>}
+          {tab === 'permissions' && (
+            <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
+              <div>
+                <h3 className="text-lg font-black">Usuarios y permisos</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Acá configurás los permisos de cada <strong>tipo de usuario institucional</strong>. Los tipos que aparecen en esta pantalla son exactamente los que definiste en Listas y opciones → Roles.
+                </p>
+              </div>
+
+              {roles.length === 0 ? (
+                <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+                  Primero configurá al menos un tipo de usuario en <strong>Listas y opciones → Roles</strong>.
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-[240px_1fr] gap-5">
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Tipos de usuario</p>
+                    {roles.map(role => {
+                      const permissions = getRolePermissions(config, role);
+                      const enabledCount = MODULES.filter(([id]) => permissions[id]).length;
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => setSelectedRole(role)}
+                          className={`w-full text-left px-4 py-3 rounded-xl font-bold text-sm transition border ${selectedRole === role ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-slate-50 text-slate-600 border-transparent hover:bg-slate-100'}`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="truncate">{role}</span>
+                            <span className="text-[9px] font-black bg-white border border-slate-200 rounded-full px-2 py-1 text-slate-400 shrink-0">{enabledCount}/{MODULES.length}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Permisos del tipo de usuario</p>
+                        <h4 className="font-black text-slate-800 mt-1">{selectedRole || 'Elegí un tipo de usuario'}</h4>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button type="button" onClick={allowAll} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200 bg-white">Dar todos</button>
+                        <button type="button" onClick={removeAll} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200 bg-white">Quitar todos</button>
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {MODULES.map(([id, label]) => (
+                        <label key={id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200">
+                          <span className="text-sm font-semibold">{label}</span>
+                          <input type="checkbox" checked={!!rolePerms[id]} onChange={e => updatePermission(id, e.target.checked)} className="w-5 h-5 accent-violet-600" />
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 rounded-2xl bg-blue-50 border border-blue-200 p-4 text-xs text-blue-800 leading-relaxed">
+                      <strong>Importante:</strong> el tipo de usuario institucional (por ejemplo, Docente, Tallerista o Psicología) es independiente del nivel técnico de administración de CENTRA. La administración de la instalación se controla por separado al crear o editar una cuenta.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           {tab === 'labels' && <>
             <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4"><div><h3 className="text-lg font-black">Nombres del sistema</h3><p className="text-sm text-slate-500">Adaptá el vocabulario a la forma en que trabaja la institución.</p></div><div className="grid md:grid-cols-2 gap-4">{Object.entries(config.labels || {}).map(([key,value])=><label key={key}><span className="text-xs font-black uppercase text-slate-500">{key}</span><input value={value || ''} onChange={e=>updateNested('labels',key,e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>)}</div></section>
@@ -1019,13 +1270,10 @@ export function ConfiguracionView({ db, appId, auth }) {
                 </>
               )}
 
-              <ListEditor
-                title="Tipos de evento"
-                items={config.eventTypes || []}
-                onChange={v => update('eventTypes', v)}
-                placeholder="Ej. Reunión"
-                description="Categorías utilizadas por el calendario y los eventos institucionales."
-              />
+              <div className="rounded-2xl bg-blue-50 border border-blue-200 p-4">
+                <p className="text-sm font-black text-blue-900">Las etiquetas del calendario se configuran en Configuración → Calendario.</p>
+                <p className="text-xs text-blue-700 mt-1 leading-relaxed">Ahí podés agregar categorías, cambiar el nombre visible y definir sus colores. Así evitamos tener dos lugares distintos modificando la misma lista.</p>
+              </div>
 
               <div className="rounded-2xl bg-violet-50 border border-violet-100 p-4">
                 <p className="text-sm font-bold text-violet-900">
@@ -1040,7 +1288,30 @@ export function ConfiguracionView({ db, appId, auth }) {
             </div>
           )}
 
-{tab === 'calendar' && <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4"><div><h3 className="text-lg font-black">Días no laborables</h3><p className="text-sm text-slate-500">Podés cargar feriados, jornadas institucionales, recesos u otros días sin actividad.</p></div><div className="grid md:grid-cols-[180px_1fr_auto] gap-2"><input type="date" value={newHoliday.date} onChange={e=>setNewHoliday(v=>({...v,date:e.target.value}))} className="rounded-xl border border-slate-200 px-3 py-2.5"/><input value={newHoliday.name} onChange={e=>setNewHoliday(v=>({...v,name:e.target.value}))} placeholder="Nombre del día" className="rounded-xl border border-slate-200 px-3 py-2.5"/><button onClick={addHoliday} className="rounded-xl bg-violet-600 text-white px-4 font-bold flex items-center justify-center gap-2"><Plus size={16}/> Agregar</button></div><div className="space-y-2">{holidays.length===0?<div className="text-sm text-slate-400 py-5 text-center">No hay días cargados.</div>:holidays.map(h=><div key={h.raw} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3"><div><span className="font-bold">{h.date}</span>{h.name&&<span className="text-slate-500 ml-2">— {h.name}</span>}</div><button onClick={()=>update('holidays',config.holidays.filter(x=>x!==h.raw))} className="text-slate-400 hover:text-red-500"><Trash2 size={17}/></button></div>)}</div></section>}
+{tab === 'calendar' && (
+            <section className="space-y-4">
+              <EventTypeEditor
+                eventTypes={config.eventTypes || []}
+                eventTypeSettings={config.eventTypeSettings || {}}
+                onChange={handleEventTypesChange}
+              />
+
+              <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+                <div>
+                  <h3 className="text-lg font-black">Días no laborables</h3>
+                  <p className="text-sm text-slate-500">Podés cargar feriados, jornadas institucionales, recesos u otros días sin actividad.</p>
+                </div>
+                <div className="grid md:grid-cols-[180px_1fr_auto] gap-2">
+                  <input type="date" value={newHoliday.date} onChange={e=>setNewHoliday(v=>({...v,date:e.target.value}))} className="rounded-xl border border-slate-200 px-3 py-2.5"/>
+                  <input value={newHoliday.name} onChange={e=>setNewHoliday(v=>({...v,name:e.target.value}))} placeholder="Nombre del día" className="rounded-xl border border-slate-200 px-3 py-2.5"/>
+                  <button type="button" onClick={addHoliday} className="rounded-xl bg-violet-600 text-white px-4 font-bold flex items-center justify-center gap-2"><Plus size={16}/> Agregar</button>
+                </div>
+                <div className="space-y-2">
+                  {holidays.length===0 ? <div className="text-sm text-slate-400 py-5 text-center">No hay días cargados.</div> : holidays.map(h=><div key={h.raw} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3"><div><span className="font-bold">{h.date}</span>{h.name&&<span className="text-slate-500 ml-2">— {h.name}</span>}</div><button type="button" onClick={()=>update('holidays',config.holidays.filter(x=>x!==h.raw))} className="text-slate-400 hover:text-red-500"><Trash2 size={17}/></button></div>)}
+                </div>
+              </section>
+            </section>
+          )}
 
           {tab === 'system' && <section className="space-y-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
