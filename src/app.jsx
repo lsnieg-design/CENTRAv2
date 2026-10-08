@@ -546,15 +546,21 @@ function LoginScreen({ auth, db, appId, config }) {
 }
 
 function NavButton({ active, onClick, icon, label }) {
+  const primary = 'var(--app-primary, #6d28d9)';
+  const soft = 'var(--app-primary-soft, #f3e8ff)';
   return (
-    <button 
-      onClick={onClick} 
-      className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 ${active ? 'text-orange-500 transform -translate-y-1' : 'text-gray-400 hover:text-violet-600'}`}
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-200 ${active ? 'transform -translate-y-0.5' : 'text-gray-400'}`}
+      style={{ color: active ? primary : undefined }}
     >
-      <div className={`relative p-2 rounded-2xl ${active ? 'bg-orange-50' : 'bg-transparent'}`}>
+      <div
+        className="relative p-2 rounded-2xl transition-colors duration-200"
+        style={{ background: active ? soft : 'transparent' }}
+      >
         {icon}
       </div>
-      <span className={`text-[10px] font-bold ${active ? 'text-violet-900' : 'text-gray-400'}`}>{label}</span>
+      <span className="text-[10px] font-bold" style={{ color: active ? primary : '#9ca3af' }}>{label}</span>
     </button>
   );
 }
@@ -607,7 +613,9 @@ function MainApp({ user: initialUser, onLogout }) {
   // Los permisos de módulos salen de Configuración > Usuarios y permisos.
   // Así un rol nuevo puede funcionar sin tener que editar App.jsx.
   const hasModule = (moduleId) => {
-    if (moduleId === 'configuracion') return isSuperAdmin;
+    // El super-admin de la instalación conserva acceso total.
+    // Los permisos configurables se aplican a los usuarios institucionales comunes.
+    if (isSuperAdmin) return true;
     return canAccessModule(appConfig, user?.role, moduleId);
   };
 
@@ -1032,6 +1040,10 @@ function MainApp({ user: initialUser, onLogout }) {
   const secondaryColor = appConfig.secondaryColor || '#f97316';
   const backgroundColor = appConfig.backgroundColor || '#f8fafc';
 
+  useEffect(() => {
+    applyBranding(appConfig);
+  }, [appConfig]);
+
   return (
     <div className="flex flex-col h-[100dvh] w-full font-sans text-slate-800 overflow-hidden relative" style={{ background: backgroundColor }}>
       <header className="text-white shadow-lg px-4 py-3 flex justify-between items-center z-50 sticky top-0 shrink-0" style={{ background: primaryColor }}>
@@ -1039,7 +1051,7 @@ function MainApp({ user: initialUser, onLogout }) {
           <img src={brandLogo} alt="Logo" className="w-10 h-8 object-contain" />
           <div className="min-w-0">
             <h1 className="font-bold text-sm leading-tight truncate max-w-[180px]">{institutionName}</h1>
-            <p className="text-[10px] text-orange-200 uppercase font-bold truncate">{user?.firstName || user?.fullName}</p>
+            <p className="text-[10px] text-white/70 uppercase font-bold truncate">{user?.firstName || user?.fullName}</p>
           </div>
         </div>
 
@@ -1081,7 +1093,7 @@ function MainApp({ user: initialUser, onLogout }) {
           </div>
 
           <div ref={profileMenuRef} className="relative">
-            <button onClick={() => { setShowProfileMenu(value => !value); setShowNotifPanel(false); setShowMoreMenu(false); }} className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold border-2 border-orange-400 overflow-hidden cursor-pointer active:scale-95 transition shadow-sm" title="Mi perfil">
+            <button onClick={() => { setShowProfileMenu(value => !value); setShowNotifPanel(false); setShowMoreMenu(false); }} className="w-10 h-10 rounded-full flex items-center justify-center font-bold overflow-hidden cursor-pointer active:scale-95 transition shadow-sm" style={{ background: `${secondaryColor}18`, color: secondaryColor, border: `2px solid ${secondaryColor}` }} title="Mi perfil">
               {user?.photoUrl ? <img src={user.photoUrl} className="w-full h-full object-cover" alt="Tu perfil"/> : user?.firstName?.[0] || user?.fullName?.[0] || 'U'}
             </button>
             {showProfileMenu && (
@@ -1108,7 +1120,7 @@ function MainApp({ user: initialUser, onLogout }) {
 
       {showNotifRequest && <div className="fixed inset-0 z-[400] flex items-end md:items-center justify-center bg-black/60 p-4 backdrop-blur-sm"><div className="bg-white rounded-[30px] p-6 w-full max-w-sm shadow-2xl text-center border-t-8 border-orange-500 mb-20 md:mb-0"><Bell size={32} className="text-orange-500 mx-auto mb-4"/><h3 className="text-xl font-black text-gray-800">¡No te pierdas nada!</h3><p className="text-sm text-gray-500 mb-6">Activá los avisos del dispositivo para complementar la campanita de CENTRA.</p><div className="flex flex-col gap-3"><button onClick={enableNotifications} className="w-full bg-violet-600 text-white font-bold py-3 rounded-xl">ACTIVAR AVISOS</button><button onClick={() => setShowNotifRequest(false)} className="text-gray-400 text-xs font-bold uppercase">Ahora no</button></div></div></div>}
 
-      <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : 'px-4 max-w-4xl'}`}>
+      <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : activeTab === 'dashboard' ? 'px-4 md:px-6 max-w-6xl' : 'px-4 max-w-5xl'}`}>
         {activeTab === 'dashboard' && <DashboardView user={user} db={db} appId={appId} tasks={tasks} events={events} announcements={announcements} setActiveTab={setActiveTab} />}
         {activeTab === 'calendar' && hasModule('calendar') && <CalendarView events={events} user={user} db={db} appId={appId} canEdit={canManageContent} />}
         {activeTab === 'tasks' && hasModule('tasks') && <TasksView tasks={tasks} user={user} db={db} appId={appId} />}
@@ -1129,11 +1141,11 @@ function MainApp({ user: initialUser, onLogout }) {
         {activeTab === 'configuracion' && isSuperAdmin && <ConfiguracionView db={db} appId={appId} auth={auth} />}
       </main>
 
-      <nav className="fixed bottom-0 w-full bg-white border-t border-violet-100 h-16 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-safe shrink-0 text-center">
-        <div className="grid grid-cols-5 h-full max-w-3xl mx-auto px-2 relative">
+      <nav className="fixed bottom-0 w-full bg-white h-16 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-safe shrink-0 text-center" style={{ borderTop: `1px solid ${primaryColor}18` }}>
+        <div className="grid grid-cols-5 h-full max-w-5xl mx-auto px-2 md:px-6 relative">
           <NavButton active={activeTab === 'dashboard'} onClick={() => navigate('dashboard')} icon={<LayoutDashboard size={20}/>} label="Inicio" />
           {hasModule('tasks') ? <NavButton active={activeTab === 'tasks'} onClick={() => navigate('tasks')} icon={<CheckSquare size={20}/>} label="Tareas" /> : <div/>}
-          {hasModule('groups') ? <div className="relative -top-5 flex justify-center"><button onClick={() => navigate('groups')} className={`w-14 h-14 rounded-full flex flex-col items-center justify-center shadow-xl border-4 border-gray-50 transition-all transform active:scale-95 ${activeTab === 'groups' ? 'bg-orange-500 text-white scale-110' : 'bg-violet-600 text-white'}`}><Grid size={24}/></button><span className="absolute -bottom-4 text-[9px] font-black text-violet-900 uppercase tracking-wide whitespace-nowrap">Organización</span></div> : <div/>}
+          {hasModule('groups') ? <div className="relative -top-5 flex justify-center"><button onClick={() => navigate('groups')} className={`w-14 h-14 rounded-full flex flex-col items-center justify-center shadow-xl border-4 border-gray-50 transition-all transform active:scale-95 ${activeTab === 'groups' ? 'text-white scale-110' : 'text-white'}`} style={{ background: activeTab === 'groups' ? secondaryColor : primaryColor }}><Grid size={24}/></button><span className="absolute -bottom-4 text-[9px] font-black uppercase tracking-wide whitespace-nowrap" style={{ color: primaryColor }}>Organización</span></div> : <div/>}
           {hasModule('calendar') ? <NavButton active={activeTab === 'calendar'} onClick={() => navigate('calendar')} icon={<CalendarIcon size={20}/>} label="Agenda" /> : <div/>}
 
           <div ref={moreMenuRef} className="relative">
