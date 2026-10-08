@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getCachedAppConfig } from '../config';
+import { getCachedAppConfig, normalizeAppConfig } from '../config';
 import {
   Plus,
   Trash2,
@@ -134,9 +134,34 @@ export function UsersAdminView({ db, appId }) {
   }, [configuredRoleOptions, editingUser, form.role]);
 
   useEffect(() => {
+    if (!db || !appId) return undefined;
+
+    const configRef = doc(
+      db,
+      'artifacts',
+      appId,
+      'public',
+      'data',
+      'config',
+      'institution'
+    );
+
+    const unsubscribe = onSnapshot(
+      configRef,
+      snap => {
+        if (!snap.exists()) return;
+        setInstitutionConfig(normalizeAppConfig(snap.data()));
+      },
+      error => console.warn('No se pudo escuchar la configuración institucional:', error)
+    );
+
+    return () => unsubscribe();
+  }, [db, appId]);
+
+  useEffect(() => {
     const handleConfigUpdate = event => {
       const next = event?.detail || getCachedAppConfig();
-      setInstitutionConfig(next);
+      setInstitutionConfig(normalizeAppConfig(next));
     };
 
     window.addEventListener('institution-config-updated', handleConfigUpdate);
@@ -1317,7 +1342,7 @@ export function UsersAdminView({ db, appId }) {
                 </select>
 
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Los roles disponibles salen de Configuración → Listas y opciones → Roles.
+                  Esta lista sale directamente de Configuración → Listas y opciones → Roles. Si agregás o quitás un tipo de usuario, el selector se actualiza automáticamente.
                 </p>
               </div>
 
@@ -1371,10 +1396,10 @@ export function UsersAdminView({ db, appId }) {
                 />
                 <div>
                   <p className="text-sm font-black text-orange-800">
-                    Permisos de administrador
+                    Administrador de la instalación
                   </p>
                   <p className="text-[10px] text-orange-700 mt-0.5">
-                    Permite acceder a funciones administrativas según la configuración de CENTRA.
+                    Es un nivel técnico de administración de CENTRA, independiente del tipo de usuario institucional elegido arriba.
                   </p>
                 </div>
               </label>
