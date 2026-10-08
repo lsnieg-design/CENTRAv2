@@ -19,7 +19,6 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import {
-  getCachedAppConfig,
   canAccessModule
 } from '../config';
 
@@ -88,9 +87,9 @@ export function CalendarView({
   canEdit = false,
   user,
   db,
-  appId
+  appId,
+  appConfig = {}
 }) {
-  const appConfig = getCachedAppConfig();
 
   const role = user?.role || user?.rol || '';
 
@@ -154,10 +153,7 @@ export function CalendarView({
   );
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState(() => {
-    if (typeof window === 'undefined') return 'month';
-    return localStorage.getItem('centra_calendar_view') || 'month';
-  });
+  const [viewMode, setViewMode] = useState('month');
 
   const [selectedDayEvents, setSelectedDayEvents] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -1271,10 +1267,6 @@ export function CalendarView({
                 type="button"
                 onClick={() => {
                   setViewMode('week');
-                  localStorage.setItem(
-                    'centra_calendar_view',
-                    'week'
-                  );
                 }}
                 className={`px-3 py-2 rounded-lg text-xs font-bold ${
                   viewMode ===
@@ -1290,10 +1282,6 @@ export function CalendarView({
                 type="button"
                 onClick={() => {
                   setViewMode('month');
-                  localStorage.setItem(
-                    'centra_calendar_view',
-                    'month'
-                  );
                 }}
                 className={`px-3 py-2 rounded-lg text-xs font-bold ${
                   viewMode ===
