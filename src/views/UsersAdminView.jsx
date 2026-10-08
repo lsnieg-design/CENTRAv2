@@ -34,12 +34,6 @@ import {
 } from 'firebase/firestore';
 
 
-const FALLBACK_ROLE_OPTIONS = [
-  'Docente',
-  'Equipo Directivo',
-  'Equipo Técnico',
-  'Administración'
-];
 
 const getRoleLabel = (role, index = 0) => {
   if (typeof role === 'string') return role.trim();
@@ -128,7 +122,7 @@ export function UsersAdminView({ db, appId }) {
 
   const configuredRoleOptions = useMemo(() => {
     const configured = getConfiguredRoleOptions(institutionConfig);
-    return configured.length ? configured : FALLBACK_ROLE_OPTIONS;
+    return configured;
   }, [institutionConfig]);
 
   const roleOptionsForForm = useMemo(() => {
@@ -343,7 +337,7 @@ export function UsersAdminView({ db, appId }) {
       username: user.username || '',
       email: user.email || '',
       password: user.password || '',
-      role: user.role || 'Docente',
+      role: user.role || configuredRoleOptions[0] || '',
       isAdmin: user.rol === 'admin',
       staffId: linkedStaff?.id || getLinkedStaffId(user) || ''
     });
@@ -876,7 +870,12 @@ export function UsersAdminView({ db, appId }) {
         const matchedConfiguredRole = configuredRoleOptions.find(
           configuredRole => configuredRole.toLowerCase() === requestedRole.toLowerCase()
         );
-        const finalRole = matchedConfiguredRole || configuredRoleOptions[0] || 'Docente';
+        const finalRole = matchedConfiguredRole || '';
+
+        if (!finalRole) {
+          skipped += 1;
+          continue;
+        }
 
         const finalUsername =
           cleanText(username) ||
@@ -1438,7 +1437,7 @@ export function UsersAdminView({ db, appId }) {
                 value={csvContent}
                 onChange={event => setCsvContent(event.target.value)}
                 className="w-full h-48 p-4 border border-slate-200 rounded-2xl text-xs font-mono outline-none focus:ring-2 ring-emerald-200"
-                placeholder={`Lucía,Snieg,lucia.snieg,123456,Equipo Directivo,lucia@institucion.com\nMaría,Pérez,maria.perez,123456,Docente,maria@institucion.com`}
+                placeholder={`Nombre,Apellido,nombre.apellido,Contraseña,${configuredRoleOptions[0] || 'Rol configurado'},correo@institucion.com\nMaría,Pérez,maria.perez,Contraseña,${configuredRoleOptions[1] || configuredRoleOptions[0] || 'Rol configurado'},maria@institucion.com`}
               />
 
               <div className="flex gap-2">
