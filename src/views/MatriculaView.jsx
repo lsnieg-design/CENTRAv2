@@ -885,9 +885,9 @@ const formSubtitle =
         byJourney[journey] =
           (byJourney[journey] || 0) + 1;
 
-        (
-          assignment?.turnIds || []
-        ).forEach(turnId => {
+        getPlacementTurnIds(
+  assignment
+).forEach(turnId => {
           const label =
             turns.find(
               turn =>
