@@ -1224,64 +1224,8 @@ export function GroupsView({
         entry
       );
 
-      if (
-        normalizeText(type) ===
-        'ausentismo'
-      ) {
-        try {
-          await addDoc(
-            BASE(
-              db,
-              appId,
-              'social_cases'
-            ),
-            {
-              studentId:
-                student.personId,
-              dni:
-                student.dni || '',
-              studentName:
-                `${student.lastName || ''}, ${student.firstName || ''}`.trim(),
-              level:
-                student.level ||
-                'SEDE',
-              reason:
-                'REPORTE DESDE ORGANIZACIÓN: Ausentismo detectado.',
-              status:
-                'Pendiente',
-              createdAt:
-                serverTimestamp(),
-              updatedAt:
-                serverTimestamp(),
-              steps: {
-                llamada: {
-                  done: false
-                },
-                continuidad: {
-                  sent: false
-                }
-              },
-              history: [
-                {
-                  date:
-                    new Date().toISOString(),
-                  text:
-                    'Registro automático por ausentismo.',
-                  author:
-                    user?.fullName ||
-                    user?.firstName ||
-                    'Sistema'
-                }
-              ]
-            }
-          );
-        } catch (socialError) {
-          console.error(
-            'No se pudo abrir caso social:',
-            socialError
-          );
-        }
-      }
+      // El ausentismo queda registrado únicamente en la bitácora.
+      // Ya no se generan automáticamente casos en módulos retirados.
     } catch (error) {
       console.error(
         'Error guardando Bitácora:',
