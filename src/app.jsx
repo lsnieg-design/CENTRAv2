@@ -5,15 +5,12 @@ import { DashboardView } from './views/DashboardView';
 import { ResourcesView } from './views/ResourcesView';
 import { TasksView } from './views/TasksView';
 import { CalendarView } from './views/CalendarView';
-import { MedicalView } from './views/MedicalView';
 import { MatriculaView } from './views/MatriculaView';
 import { AdministracionView } from './views/AdministracionView';
-import { SocialView } from './views/SocialView';
 import { UsersAdminView } from './views/UsersAdminView';
 import { ProyectoView } from './views/ProyectoView';
 import { EvaluationsView } from './views/EvaluationsView';
 import { ConfiguracionView } from './views/ConfiguracionView';
-import { InformesView } from './views/InformesView';
 import { InformesExternosView } from './views/InformesExternosView';
 import { normalizeAppConfig, applyBranding, getRolePermissions, canAccessModule } from './config';
 
@@ -22,7 +19,7 @@ import {
   Download, RefreshCw, Plus, Trash2, Users, AlertCircle, LogOut, Briefcase, 
   Lock, List, Grid, ChevronLeft, ChevronRight, Bell, Check, HelpCircle, Mail, Camera, MapPin, 
   Send, Key, Filter, LayoutDashboard, Link as LinkIcon, ExternalLink, Zap,
-  AlertTriangle, Clock, Shield, Crown, Activity, Share, PlusSquare, 
+  AlertTriangle, Clock, Shield, Crown, Share, PlusSquare, 
   Smartphone, GraduationCap, Search, X, UploadCloud, PieChart, Eye, Edit3, Trophy,
   Folder, MessageSquare, Globe, BookOpen, Lightbulb, ChevronDown, PlusCircle, Printer,
   AlignLeft, AlignCenter, AlignRight, AlignJustify, Phone, CheckCircle2, Clock3, UserCheck,
@@ -642,21 +639,16 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
   const canManageContent = isSuperAdmin || !!rolePermissions.admin;
   const isAdminRole = hasModule('admin') || hasModule('personal');
   const isTechTeamRole = hasModule('evaluations');
-  const isMedicalRole = hasModule('medical');
-  const canAccessSocial = hasModule('social');
   const canAccessInformesExternos = hasModule('informes_externos');
   const showPrivateMenu = isSuperAdmin || [
-    'admin', 'personal', 'informes_externos', 'evaluations', 'social', 'medical'
+    'admin', 'personal', 'informes_externos', 'evaluations'
   ].some(hasModule);
 
 
   useEffect(() => {
     if (!hasModule('personal') && activeTab === 'personal') setActiveTab('dashboard');
     if (!hasModule('admin') && activeTab === 'admin') setActiveTab('dashboard');
-    if (!hasModule('medical') && activeTab === 'medical') setActiveTab('dashboard');
-    if (!hasModule('social') && activeTab === 'social') setActiveTab('dashboard');
     if (!hasModule('evaluations') && activeTab === 'evaluations') setActiveTab('dashboard');
-    if (!hasModule('informes') && activeTab === 'informes') setActiveTab('dashboard');
     if (!hasModule('informes_externos') && activeTab === 'informes_externos') setActiveTab('dashboard');
   }, [appConfig.activeModules, appConfig.features, activeTab]);
 
@@ -1148,12 +1140,11 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
 
       <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : 'px-4 md:px-6 max-w-7xl'}`}>
         {activeTab === 'dashboard' && <DashboardView user={user} db={db} appId={appId} tasks={tasks} events={events} announcements={announcements} setActiveTab={setActiveTab} />}
-        {activeTab === 'calendar' && hasModule('calendar') && <CalendarView events={events} user={user} db={db} appId={appId} canEdit={canManageContent} />}
+        {activeTab === 'calendar' && hasModule('calendar') && <CalendarView events={events} user={user} db={db} appId={appId} appConfig={appConfig} canEdit={canManageContent} />}
         {activeTab === 'tasks' && hasModule('tasks') && <TasksView tasks={tasks} user={user} db={db} appId={appId} />}
         {activeTab === 'matricula' && hasModule('matricula') && <MatriculaView user={user} db={db} appId={appId} initStudentId={selectedStudentId} />}
         {activeTab === 'groups' && hasModule('groups') && <GroupsView user={user} db={db} appId={appId} setActiveTab={setActiveTab} onSelectStudent={setSelectedStudentId} />}
         {activeTab === 'resources' && hasModule('resources') && <ResourcesView resources={resources} canEdit={canManageContent} db={db} appId={appId} user={user} />}
-        {activeTab === 'social' && hasModule('social') && canAccessSocial && <SocialView user={user} db={db} appId={appId} />}
         {activeTab === 'profile' && <SelfProfileView user={user} db={db} appId={appId} onUpdated={setUser} />}
         
         {activeTab === 'evaluations' && hasModule('evaluations') && isTechTeamRole && <EvaluationsView user={user} db={db} appId={appId} />}
@@ -1161,8 +1152,6 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
         {activeTab === 'users' && isSuperAdmin && hasModule('users') && db && <UsersAdminView db={db} appId={appId} />}
         {activeTab === 'personal' && isAdminRole && hasModule('personal') && db && <PersonalView user={user} db={db} appId={appId} TURNS_LIST={appConfig.turns} VALID_ROLES_OFFICIAL={appConfig.roles} />}
         {activeTab === 'admin' && isAdminRole && hasModule('admin') && db && <AdministracionView user={user} db={db} appId={appId} />}
-        {activeTab === 'medical' && isMedicalRole && hasModule('medical') && db && <MedicalView user={user} db={db} appId={appId} />}
-        {activeTab === 'informes' && hasModule('informes') && <InformesView user={user} students={students} db={db} appId={appId} />}
         {activeTab === 'informes_externos' && hasModule('informes_externos') && canAccessInformesExternos && <InformesExternosView user={user} db={db} appId={appId} />}
         {activeTab === 'configuracion' && isSuperAdmin && <ConfiguracionView db={db} appId={appId} auth={auth} />}
       </main>
@@ -1175,19 +1164,16 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
           {hasModule('calendar') ? <NavButton active={activeTab === 'calendar'} onClick={() => navigate('calendar')} icon={<CalendarIcon size={20}/>} label="Agenda" /> : <div/>}
 
           <div ref={moreMenuRef} className="relative">
-            <NavButton active={['matricula','resources','proyecto','admin','personal','medical','social','users','informes','informes_externos','evaluations','configuracion'].includes(activeTab)} onClick={() => { setShowMoreMenu(value => !value); setShowProfileMenu(false); setShowNotifPanel(false); }} icon={<List size={20}/>} label="Más" />
+            <NavButton active={['matricula','resources','proyecto','admin','personal','users','informes_externos','evaluations','configuracion'].includes(activeTab)} onClick={() => { setShowMoreMenu(value => !value); setShowProfileMenu(false); setShowNotifPanel(false); }} icon={<List size={20}/>} label="Más" />
             {showMoreMenu && <div className="absolute bottom-16 right-0 bg-white rounded-3xl shadow-2xl border border-gray-100 p-2 w-72 animate-in slide-in-from-bottom-5 zoom-in-95 origin-bottom-right z-[100] max-h-[75vh] overflow-y-auto custom-scrollbar">
               {hasModule('matricula') && <button onClick={() => navigate('matricula')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><GraduationCap size={18} className="text-violet-500"/> Legajos</button>}
               {hasModule('resources') && <button onClick={() => navigate('resources')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><LinkIcon size={18} className="text-green-500"/> Recursos</button>}
               
-              {hasModule('informes') && <button onClick={() => navigate('informes')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><ClipboardCheck size={18} className="text-violet-500"/> Informes pedagógicos</button>}
               {showPrivateMenu && <div className="mt-2 pt-2 border-t border-gray-100 space-y-1"><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 mb-1">Gestión</p>
                 {isAdminRole && hasModule('admin') && <button onClick={() => navigate('admin')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><FileText size={18} className="text-blue-500"/> Administración</button>}
                 {isAdminRole && hasModule('personal') && <button onClick={() => navigate('personal')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><Users size={18} className="text-violet-500"/> Personal</button>}
                 {canAccessInformesExternos && hasModule('informes_externos') && <button onClick={() => navigate('informes_externos')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><ExternalLink size={18} className="text-pink-500"/> Informes externos</button>}
                 {isTechTeamRole && hasModule('evaluations') && <button onClick={() => navigate('evaluations')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><ClipboardCheck size={18} className="text-orange-600"/> Evaluación de áreas</button>}
-                {canAccessSocial && hasModule('social') && <button onClick={() => navigate('social')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><Users size={18} className="text-blue-500"/> Trabajo Social</button>}
-                {isMedicalRole && hasModule('medical') && <button onClick={() => navigate('medical')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><Activity size={18} className="text-red-500"/> Área médica</button>}
                 {isSuperAdmin && hasModule('users') && <button onClick={() => navigate('users')} className="w-full text-left p-3 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-700 transition"><Shield size={18} className="text-red-500"/> Gestión de usuarios</button>}
                 {isSuperAdmin && <button onClick={() => navigate('configuracion')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-violet-700 transition border-t border-violet-100 mt-1 pt-3"><Settings size={18} className="text-violet-600"/> Configuración de la app</button>}
               </div>}
