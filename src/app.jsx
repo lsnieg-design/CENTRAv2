@@ -443,8 +443,10 @@ function LoginScreen({ auth, db, appId, config }) {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-6 relative"
-      style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
+      className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden"
+      style={{
+        background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 48%, ${background} 100%)`
+      }}
     >
       {!isStandalone && showInstall && (
         <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -476,7 +478,7 @@ function LoginScreen({ auth, db, appId, config }) {
         </div>
       )}
 
-      <div className="rounded-3xl shadow-2xl p-8 w-full max-w-md relative z-0" style={{ background, color: text }}>
+      <div className="rounded-3xl shadow-2xl p-8 w-full max-w-md relative z-0 bg-white" style={{ color: text }}>
         <div className="text-center mb-8">
           <div className="flex justify-center mb-5">
             <div className="w-28 h-28 rounded-3xl bg-white p-3 shadow-sm flex items-center justify-center">
@@ -1120,7 +1122,7 @@ function MainApp({ user: initialUser, onLogout }) {
 
       {showNotifRequest && <div className="fixed inset-0 z-[400] flex items-end md:items-center justify-center bg-black/60 p-4 backdrop-blur-sm"><div className="bg-white rounded-[30px] p-6 w-full max-w-sm shadow-2xl text-center border-t-8 border-orange-500 mb-20 md:mb-0"><Bell size={32} className="text-orange-500 mx-auto mb-4"/><h3 className="text-xl font-black text-gray-800">¡No te pierdas nada!</h3><p className="text-sm text-gray-500 mb-6">Activá los avisos del dispositivo para complementar la campanita de CENTRA.</p><div className="flex flex-col gap-3"><button onClick={enableNotifications} className="w-full bg-violet-600 text-white font-bold py-3 rounded-xl">ACTIVAR AVISOS</button><button onClick={() => setShowNotifRequest(false)} className="text-gray-400 text-xs font-bold uppercase">Ahora no</button></div></div></div>}
 
-      <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : 'px-4 max-w-4xl'}`}>
+      <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : 'px-4 md:px-6 max-w-7xl'}`}>
         {activeTab === 'dashboard' && <DashboardView user={user} db={db} appId={appId} tasks={tasks} events={events} announcements={announcements} setActiveTab={setActiveTab} />}
         {activeTab === 'calendar' && hasModule('calendar') && <CalendarView events={events} user={user} db={db} appId={appId} canEdit={canManageContent} />}
         {activeTab === 'tasks' && hasModule('tasks') && <TasksView tasks={tasks} user={user} db={db} appId={appId} />}
