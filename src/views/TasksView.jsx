@@ -26,7 +26,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
-import { getCachedAppConfig, isModuleEnabled } from '../config';
+import { isModuleEnabled } from '../config';
 
 const FALLBACK_STATUSES = [
   { key: 'pending', label: 'Pendiente' },
@@ -76,8 +76,13 @@ function matchesRole(targetRoles = [], role = '') {
   return targetRoles.some(target => String(target).toLowerCase() === String(role).toLowerCase());
 }
 
-export function TasksView({ tasks = [], user, db, appId }) {
-  const appConfig = getCachedAppConfig();
+export function TasksView({
+  tasks = [],
+  user,
+  db,
+  appId,
+  appConfig = {}
+}) {
   const taskSettings = appConfig.taskSettings || {};
   const roles = appConfig.roles || [];
   const teams = appConfig.teams || [];
