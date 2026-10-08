@@ -551,7 +551,7 @@ function NavButton({ active, onClick, icon, label }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-200 ${active ? 'transform -translate-y-0.5' : 'text-gray-400'}`}
+      className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 ${active ? 'transform -translate-y-1' : 'text-gray-400 hover:opacity-80'}`}
       style={{ color: active ? primary : undefined }}
     >
       <div
@@ -1098,7 +1098,7 @@ function MainApp({ user: initialUser, onLogout }) {
             </button>
             {showProfileMenu && (
               <div className="absolute right-0 mt-3 w-72 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden z-[110]">
-                <div className="p-4 bg-gradient-to-br from-violet-800 to-violet-700 text-white">
+                <div className="p-4 text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})` }}>
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 overflow-hidden flex items-center justify-center font-black">{user?.photoUrl ? <img src={user.photoUrl} className="w-full h-full object-cover" alt=""/> : user?.firstName?.[0] || user?.fullName?.[0] || 'U'}</div>
                     <div className="min-w-0"><p className="font-black truncate">{user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`}</p><p className="text-[10px] text-violet-200 uppercase font-bold mt-0.5 truncate">{user?.role || user?.rol || 'Usuario'}</p>{user?.email && <p className="text-[10px] text-white/70 mt-1 truncate">{user.email}</p>}</div>
@@ -1120,7 +1120,7 @@ function MainApp({ user: initialUser, onLogout }) {
 
       {showNotifRequest && <div className="fixed inset-0 z-[400] flex items-end md:items-center justify-center bg-black/60 p-4 backdrop-blur-sm"><div className="bg-white rounded-[30px] p-6 w-full max-w-sm shadow-2xl text-center border-t-8 border-orange-500 mb-20 md:mb-0"><Bell size={32} className="text-orange-500 mx-auto mb-4"/><h3 className="text-xl font-black text-gray-800">¡No te pierdas nada!</h3><p className="text-sm text-gray-500 mb-6">Activá los avisos del dispositivo para complementar la campanita de CENTRA.</p><div className="flex flex-col gap-3"><button onClick={enableNotifications} className="w-full bg-violet-600 text-white font-bold py-3 rounded-xl">ACTIVAR AVISOS</button><button onClick={() => setShowNotifRequest(false)} className="text-gray-400 text-xs font-bold uppercase">Ahora no</button></div></div></div>}
 
-      <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : activeTab === 'dashboard' ? 'px-4 md:px-6 max-w-6xl' : 'px-4 max-w-5xl'}`}>
+      <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : 'px-4 max-w-4xl'}`}>
         {activeTab === 'dashboard' && <DashboardView user={user} db={db} appId={appId} tasks={tasks} events={events} announcements={announcements} setActiveTab={setActiveTab} />}
         {activeTab === 'calendar' && hasModule('calendar') && <CalendarView events={events} user={user} db={db} appId={appId} canEdit={canManageContent} />}
         {activeTab === 'tasks' && hasModule('tasks') && <TasksView tasks={tasks} user={user} db={db} appId={appId} />}
@@ -1142,7 +1142,7 @@ function MainApp({ user: initialUser, onLogout }) {
       </main>
 
       <nav className="fixed bottom-0 w-full bg-white h-16 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-safe shrink-0 text-center" style={{ borderTop: `1px solid ${primaryColor}18` }}>
-        <div className="grid grid-cols-5 h-full max-w-5xl mx-auto px-2 md:px-6 relative">
+        <div className="grid grid-cols-5 h-full max-w-3xl mx-auto px-2 relative">
           <NavButton active={activeTab === 'dashboard'} onClick={() => navigate('dashboard')} icon={<LayoutDashboard size={20}/>} label="Inicio" />
           {hasModule('tasks') ? <NavButton active={activeTab === 'tasks'} onClick={() => navigate('tasks')} icon={<CheckSquare size={20}/>} label="Tareas" /> : <div/>}
           {hasModule('groups') ? <div className="relative -top-5 flex justify-center"><button onClick={() => navigate('groups')} className={`w-14 h-14 rounded-full flex flex-col items-center justify-center shadow-xl border-4 border-gray-50 transition-all transform active:scale-95 ${activeTab === 'groups' ? 'text-white scale-110' : 'text-white'}`} style={{ background: activeTab === 'groups' ? secondaryColor : primaryColor }}><Grid size={24}/></button><span className="absolute -bottom-4 text-[9px] font-black uppercase tracking-wide whitespace-nowrap" style={{ color: primaryColor }}>Organización</span></div> : <div/>}
