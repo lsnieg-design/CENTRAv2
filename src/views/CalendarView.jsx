@@ -23,24 +23,6 @@ import {
   canAccessModule
 } from '../config';
 
-const DEFAULT_EVENT_STYLES = [
-  ['ACTO', 'Acto', 'bg-orange-50 text-orange-800 border-orange-200'],
-  ['CUMPLEAÑOS', 'Cumpleaños', 'bg-pink-50 text-pink-800 border-pink-200'],
-  ['SALIDAS EDUCATIVAS', 'Salida', 'bg-emerald-50 text-emerald-800 border-emerald-200'],
-  ['ENCUENTROS CON FAMILIAS', 'Familias', 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200'],
-  ['REUNIONES', 'Reunión', 'bg-violet-50 text-violet-800 border-violet-200'],
-  ['CALENDARIO ACADÉMICO', 'Académico', 'bg-blue-50 text-blue-800 border-blue-200'],
-  ['EFEMÉRIDES', 'Efeméride', 'bg-cyan-50 text-cyan-800 border-cyan-200'],
-  ['TAREAS ADMINISTRATIVAS', 'Administrativo', 'bg-slate-100 text-slate-700 border-slate-200'],
-  ['FERIADO', 'Feriado', 'bg-red-50 text-red-800 border-red-200'],
-  ['TECNICO', 'Privado', 'bg-teal-50 text-teal-800 border-teal-200'],
-  ['GENERAL', 'General', 'bg-slate-50 text-slate-700 border-slate-200']
-];
-
-const STYLE_BY_TYPE = Object.fromEntries(
-  DEFAULT_EVENT_STYLES.map(([id, label, className]) => [id, { label, className }])
-);
-
 const formatMonth = (date) => {
   const value = date.toLocaleDateString('es-AR', {
     month: 'long',
@@ -130,20 +112,26 @@ export function CalendarView({
       '#f97316'
     ];
 
+    const settings = appConfig?.eventTypeSettings || {};
+
     const normalized = configuredEventTypes
       .map((item, index) => {
-        if (typeof item === 'string') {
-          return {
-            id: item,
-            name: item.replaceAll('_', ' '),
-            color: fallbackColors[index % fallbackColors.length]
-          };
-        }
+        const id = typeof item === 'string'
+          ? item
+          : item?.id || `EVENTO_${index}`;
+
+        const setting = settings[id] || {};
 
         return {
-          id: item?.id || `EVENTO_${index}`,
-          name: item?.name || item?.label || `Evento ${index + 1}`,
-          color: item?.color || fallbackColors[index % fallbackColors.length]
+          id,
+          name:
+            setting.name ||
+            (typeof item === 'object' ? item?.name || item?.label : '') ||
+            String(id).replaceAll('_', ' '),
+          color:
+            setting.color ||
+            (typeof item === 'object' ? item?.color : '') ||
+            fallbackColors[index % fallbackColors.length]
         };
       })
       .filter(item => item.id !== 'TECNICO');
@@ -151,13 +139,13 @@ export function CalendarView({
     if (!normalized.some(item => item.id === 'GENERAL')) {
       normalized.unshift({
         id: 'GENERAL',
-        name: 'General',
-        color: '#64748b'
+        name: settings.GENERAL?.name || 'General',
+        color: settings.GENERAL?.color || '#64748b'
       });
     }
 
     return normalized;
-  }, [configuredEventTypes]);
+  }, [configuredEventTypes, appConfig?.eventTypeSettings]);
 
   const eventTypes = eventTypeConfig.map(item => item.id);
 
@@ -1006,9 +994,9 @@ export function CalendarView({
               : ''
           }`}
         >
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1.5">
             <span
-              className={`text-[11px] font-black rounded-full w-6 h-6 flex items-center justify-center ${
+              className={`text-xs font-black rounded-full w-7 h-7 flex items-center justify-center ${
                 isToday
                   ? 'bg-violet-600 text-white'
                   : 'text-slate-500'
@@ -1024,27 +1012,27 @@ export function CalendarView({
             )}
           </div>
 
-          <div className="space-y-1 overflow-hidden mt-1">
+          <div className="space-y-1 overflow-hidden">
             {dayEvents
               .slice(0, 4)
               .map((event, index) => (
                 <div
-  key={`${
-    event.id ||
-    event.title
-  }-${index}`}
-  className="w-full min-w-0 h-6 flex items-center gap-1 rounded-md px-2 text-[9px] md:text-[10px] truncate font-semibold border"
-  style={getEventStyle(
-    event.type,
-    eventTypeById
-  )}
-  title={event.title}
->
-  <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-current" />
-  <span className="truncate">
-    {event.title}
-  </span>
-</div>
+                  key={`${
+                    event.id ||
+                    event.title
+                  }-${index}`}
+                  className="w-full min-w-0 text-[9px] md:text-[10px] rounded-lg px-2 py-1.5 truncate font-semibold border"
+                  style={getEventStyle(
+                    event.type,
+                    eventTypeById
+                  )}
+                  title={event.title}
+                >
+                  <span className="font-black mr-1">
+                    •
+                  </span>
+                  {event.title}
+                </div>
               ))}
 
             {dayEvents.length > 4 && (
