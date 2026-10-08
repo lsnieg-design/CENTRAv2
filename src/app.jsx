@@ -15,7 +15,7 @@ import { EvaluationsView } from './views/EvaluationsView';
 import { ConfiguracionView } from './views/ConfiguracionView';
 import { InformesView } from './views/InformesView';
 import { InformesExternosView } from './views/InformesExternosView';
-import { getCachedAppConfig, normalizeAppConfig, applyBranding, getRolePermissions, canAccessModule } from './config';
+import { normalizeAppConfig, applyBranding, getRolePermissions, canAccessModule } from './config';
 
 import { 
   Calendar as CalendarIcon, CheckSquare, Settings, User, FileText, CheckCircle, 
@@ -128,7 +128,7 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-function SplashScreen({ config = getCachedAppConfig() }) {
+function SplashScreen({ config }) {
   const primary = config?.primaryColor || '#6d28d9';
   const secondary = config?.secondaryColor || '#f97316';
   const logo = config?.logoUrl || LOGO_URL;
@@ -173,54 +173,44 @@ function NotificationsView({ notifications }) {
 export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
-  const [appConfig, setAppConfig] = useState(() => getCachedAppConfig());
+  const [appConfig, setAppConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState(false);
 
-  // La configuración institucional se carga antes del login.
-  // Así logo, nombre y colores funcionan también cuando nadie inició sesión.
+  // La configuración institucional se carga directamente desde Firestore.
+  // No se guarda una copia en el navegador: Firestore es la única fuente de verdad.
   useEffect(() => {
-    let active = true;
+    if (!db || !appId) {
+      setConfigError(true);
+      setLoading(false);
+      return undefined;
+    }
 
-    const loadInstitutionConfig = async () => {
-      const cached = getCachedAppConfig();
-      if (active) {
-        setAppConfig(cached);
-        applyBranding(cached);
-      }
+    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'institution');
 
-      if (!db || !appId) {
+    const unsubscribe = onSnapshot(
+      ref,
+      snap => {
+        try {
+          const next = normalizeAppConfig(snap.exists() ? snap.data() : {});
+          setAppConfig(next);
+          applyBranding(next);
+          setConfigError(false);
+          setLoading(false);
+        } catch (error) {
+          console.error('No se pudo normalizar la configuración institucional:', error);
+          setConfigError(true);
+          setLoading(false);
+        }
+      },
+      error => {
+        console.error('No se pudo cargar la configuración institucional:', error);
         setConfigError(true);
         setLoading(false);
-        return;
       }
+    );
 
-      try {
-        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'institution');
-        const snap = await getDoc(ref);
-        const next = normalizeAppConfig(snap.exists() ? snap.data() : cached);
-
-        if (!active) return;
-
-        setAppConfig(next);
-        applyBranding(next);
-        try {
-          localStorage.setItem('institution_app_config', JSON.stringify(next));
-        } catch {}
-      } catch (error) {
-        console.warn('No se pudo cargar la configuración institucional:', error);
-        // Si Firestore falla, seguimos con el cache local si existe.
-        if (active) {
-          setAppConfig(cached);
-          applyBranding(cached);
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    loadInstitutionConfig();
-    return () => { active = false; };
+    return () => unsubscribe();
   }, []);
 
   // Firebase Authentication queda como fuente real de identidad.
@@ -233,7 +223,6 @@ export default function App() {
 
       if (!firebaseAuthUser) {
         setCurrentUserProfile(null);
-        localStorage.removeItem('schoolApp_profile');
         return;
       }
 
@@ -279,7 +268,6 @@ export default function App() {
         }
 
         setCurrentUserProfile(profile);
-        localStorage.setItem('schoolApp_profile', JSON.stringify(profile));
       } catch (error) {
         console.error('Error cargando perfil institucional:', error);
         await signOut(auth).catch(() => {});
@@ -298,26 +286,28 @@ export default function App() {
       console.error('Error al cerrar sesión:', error);
     } finally {
       setCurrentUserProfile(null);
-      localStorage.removeItem('schoolApp_profile');
     }
   };
 
   if (loading) return <SplashScreen config={appConfig} />;
   if (configError) {
+    const safeConfig = appConfig || normalizeAppConfig({});
     return (
-      <div className="flex flex-col items-center justify-center h-screen p-6 text-center" style={{ background: appConfig.backgroundColor }}>
-        <AlertCircle className="w-16 h-16 mb-4" style={{ color: appConfig.primaryColor }} />
-        <h1 className="text-xl font-black" style={{ color: appConfig.textColor }}>No se pudo iniciar CENTRA</h1>
+      <div className="flex flex-col items-center justify-center h-screen p-6 text-center" style={{ background: safeConfig.backgroundColor }}>
+        <AlertCircle className="w-16 h-16 mb-4" style={{ color: safeConfig.primaryColor }} />
+        <h1 className="text-xl font-black" style={{ color: safeConfig.textColor }}>No se pudo iniciar CENTRA</h1>
         <p className="text-sm text-slate-500 mt-2">Revisá la configuración de Firebase.</p>
       </div>
     );
   }
 
+  if (!appConfig) return <SplashScreen config={normalizeAppConfig({})} />;
+
   if (!currentUserProfile) {
     return <LoginScreen auth={auth} db={db} appId={appId} config={appConfig} />;
   }
 
-  return <MainApp user={currentUserProfile} onLogout={handleLogout} />;
+  return <MainApp user={currentUserProfile} onLogout={handleLogout} appConfig={appConfig} />;
 }
 
 function LoginScreen({ auth, db, appId, config }) {
@@ -568,7 +558,7 @@ function NavButton({ active, onClick, icon, label }) {
 }
 
 // --- APP PRINCIPAL ---
-function MainApp({ user: initialUser, onLogout }) {
+function MainApp({ user: initialUser, onLogout, appConfig }) {
   const [user, setUser] = useState(initialUser);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedStudentId, setSelectedStudentId] = useState(null);
@@ -581,7 +571,6 @@ function MainApp({ user: initialUser, onLogout }) {
   const [announcements, setAnnouncements] = useState([]);
   const [groupMessages, setGroupMessages] = useState([]);
   const [students, setStudents] = useState([]);
-  const [appConfig, setAppConfig] = useState(() => normalizeAppConfig(getCachedAppConfig()));
 
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -593,13 +582,41 @@ function MainApp({ user: initialUser, onLogout }) {
   const [showMaintenanceAlert, setShowMaintenanceAlert] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstallable, setIsInstallable] = useState(false);
-  const [seenAutoNotificationIds, setSeenAutoNotificationIds] = useState(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(`centra_seen_auto_notifications_${initialUser?.id || 'user'}`) || '[]'));
-    } catch {
-      return new Set();
+  const [seenAutoNotificationIds, setSeenAutoNotificationIds] = useState(() => new Set());
+
+  // El estado de "leída" de las notificaciones automáticas también vive en Firestore.
+  useEffect(() => {
+    if (!db || !appId || !initialUser?.id) {
+      setSeenAutoNotificationIds(new Set());
+      return undefined;
     }
-  });
+
+    const preferencesRef = doc(
+      db,
+      'artifacts',
+      appId,
+      'public',
+      'data',
+      'user_preferences',
+      initialUser.id
+    );
+
+    const unsubscribe = onSnapshot(
+      preferencesRef,
+      snap => {
+        const ids = snap.exists() && Array.isArray(snap.data()?.seenAutoNotificationIds)
+          ? snap.data().seenAutoNotificationIds
+          : [];
+        setSeenAutoNotificationIds(new Set(ids));
+      },
+      error => {
+        console.warn('No se pudieron cargar las preferencias de notificaciones:', error);
+        setSeenAutoNotificationIds(new Set());
+      }
+    );
+
+    return () => unsubscribe();
+  }, [initialUser?.id, db, appId]);
 
   const moreMenuRef = useRef(null);
   const profileMenuRef = useRef(null);
@@ -632,27 +649,6 @@ function MainApp({ user: initialUser, onLogout }) {
     'admin', 'personal', 'informes_externos', 'evaluations', 'social', 'medical'
   ].some(hasModule);
 
-  const normalizeConfig = (data = {}) => normalizeAppConfig(data);
-
-  useEffect(() => {
-    if (!db || !appId) return;
-    const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'institution');
-    const unsub = onSnapshot(configRef, (snap) => {
-      if (snap.exists()) {
-        const next = normalizeConfig(snap.data());
-        setAppConfig(next);
-        try { localStorage.setItem('institution_app_config', JSON.stringify(next)); } catch {}
-      }
-    }, (error) => console.warn('No se pudo escuchar la configuración institucional:', error));
-    return () => unsub();
-  }, [db, appId, user?.id, isSuperAdmin]);
-
-  useEffect(() => {
-    try {
-      const cached = JSON.parse(localStorage.getItem('institution_app_config') || 'null');
-      if (cached) setAppConfig(normalizeConfig(cached));
-    } catch {}
-  }, []);
 
   useEffect(() => {
     if (!hasModule('personal') && activeTab === 'personal') setActiveTab('dashboard');
@@ -941,18 +937,34 @@ function MainApp({ user: initialUser, onLogout }) {
   const unreadNotifications = allNotifications.filter(n => !n.read);
   const unreadNotificationCount = unreadNotifications.length;
 
-  const markAutoNotificationRead = (id) => {
-    setSeenAutoNotificationIds(prev => {
-      const next = new Set(prev);
-      next.add(id);
-      localStorage.setItem(`centra_seen_auto_notifications_${user?.id || 'user'}`, JSON.stringify([...next]));
-      return next;
-    });
+  const markAutoNotificationRead = async (id) => {
+    if (!id || !db || !appId || !user?.id) return;
+
+    try {
+      await setDoc(
+        doc(
+          db,
+          'artifacts',
+          appId,
+          'public',
+          'data',
+          'user_preferences',
+          user.id
+        ),
+        {
+          seenAutoNotificationIds: arrayUnion(id),
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error('No se pudo guardar la lectura de la notificación automática:', error);
+    }
   };
 
   const handleNotificationClick = async (notification) => {
     if (notification.source === 'auto') {
-      markAutoNotificationRead(notification.id);
+      await markAutoNotificationRead(notification.id);
     } else if (!notification.read && db && appId) {
       try {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', notification.id), { read: true, readAt: serverTimestamp() });
@@ -970,12 +982,24 @@ function MainApp({ user: initialUser, onLogout }) {
       await Promise.all(firestoreUnread.map(n => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id), { read: true, readAt: serverTimestamp() }).catch(() => {})));
     }
     const autoUnread = autoNotifications.filter(n => !n.read).map(n => n.id);
-    if (autoUnread.length) {
-      setSeenAutoNotificationIds(prev => {
-        const next = new Set(prev);
-        autoUnread.forEach(id => next.add(id));
-        localStorage.setItem(`centra_seen_auto_notifications_${user?.id || 'user'}`, JSON.stringify([...next]));
-        return next;
+    if (autoUnread.length && db && appId && user?.id) {
+      await setDoc(
+        doc(
+          db,
+          'artifacts',
+          appId,
+          'public',
+          'data',
+          'user_preferences',
+          user.id
+        ),
+        {
+          seenAutoNotificationIds: arrayUnion(...autoUnread),
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      ).catch(error => {
+        console.error('No se pudieron marcar las notificaciones automáticas:', error);
       });
     }
   };
@@ -1275,7 +1299,6 @@ function SelfProfileView({ user, db, appId, onUpdated }) {
         }
       }
 
-      localStorage.setItem('schoolApp_profile', JSON.stringify(updated));
       onUpdated(updated);
       alert('Perfil actualizado correctamente.');
     } catch (error) {
