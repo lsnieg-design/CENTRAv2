@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { Building2, Palette, CalendarDays, SlidersHorizontal, Save, Plus, Trash2, CheckCircle2, RotateCcw, Image as ImageIcon, ShieldCheck, FileText, Settings2, Server, Info, Database, RefreshCw, ExternalLink, Download, UploadCloud } from 'lucide-react';
+import { Building2, Palette, CalendarDays, SlidersHorizontal, Save, Plus, Trash2, CheckCircle2, RotateCcw, Image as ImageIcon, ShieldCheck, FileText, Settings2, Server, Info, Database, RefreshCw, ExternalLink, Download, UploadCloud, ChevronUp, ChevronDown, Pencil, X, AlertTriangle } from 'lucide-react';
 import { DEFAULT_APP_CONFIG, normalizeAppConfig, cacheAppConfig, applyBranding, PALETTES, MODULES, MODULE_CATALOG, FEATURE_LABELS, getRolePermissions, isModuleEnabled, INSTITUTION_TYPES, PLAN_OPTIONS, INSTITUTION_MODES, getStaffModeConfig, STAFF_WEEKDAYS } from '../config';
  
 const normalizeRoleLabel = (role, index = 0) => {
@@ -31,30 +31,191 @@ const TABS = [
   { id: 'system', label: 'Sistema', icon: Server }
 ];
 
-function ListEditor({ title, items, onChange, placeholder }) {
+function ListEditor({ title, items = [], onChange, placeholder, description, allowReorder = true, allowEdit = true }) {
   const [value, setValue] = useState('');
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingValue, setEditingValue] = useState('');
+
   const add = () => {
     const clean = value.trim();
-    if (!clean || items.includes(clean)) return;
+    if (!clean) return;
+    if (items.some(item => String(item).trim().toLowerCase() === clean.toLowerCase())) return;
     onChange([...items, clean]);
     setValue('');
   };
 
+  const startEdit = (index) => {
+    setEditingIndex(index);
+    setEditingValue(String(items[index] || ''));
+  };
+
+  const cancelEdit = () => {
+    setEditingIndex(null);
+    setEditingValue('');
+  };
+
+  const saveEdit = () => {
+    if (editingIndex === null) return;
+    const clean = editingValue.trim();
+    if (!clean) return;
+
+    const duplicated = items.some(
+      (item, index) =>
+        index !== editingIndex &&
+        String(item).trim().toLowerCase() === clean.toLowerCase()
+    );
+
+    if (duplicated) {
+      alert('Ya existe una opción con ese nombre.');
+      return;
+    }
+
+    onChange(items.map((item, index) => index === editingIndex ? clean : item));
+    cancelEdit();
+  };
+
+  const moveItem = (index, direction) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= items.length) return;
+
+    const next = [...items];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    onChange(next);
+  };
+
+  const removeItem = (index) => {
+    const item = items[index];
+    if (!confirm(`¿Quitar "${item}" de esta lista?`)) return;
+
+    onChange(items.filter((_, itemIndex) => itemIndex !== index));
+    if (editingIndex === index) cancelEdit();
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4">
-      <h3 className="font-black text-slate-800 mb-3">{title}</h3>
+      <div className="mb-3">
+        <h3 className="font-black text-slate-800">{title}</h3>
+        {description && (
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">{description}</p>
+        )}
+      </div>
+
       <div className="flex gap-2 mb-3">
-        <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder={placeholder} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-200" />
-        <button type="button" onClick={add} className="w-10 h-10 rounded-xl bg-violet-600 text-white flex items-center justify-center"><Plus size={18}/></button>
+        <input
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+          placeholder={placeholder}
+          className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+        />
+        <button
+          type="button"
+          onClick={add}
+          className="w-10 h-10 rounded-xl bg-violet-600 text-white flex items-center justify-center shrink-0"
+          title="Agregar opción"
+        >
+          <Plus size={18}/>
+        </button>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <span key={item} className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 px-3 py-2 rounded-xl text-sm font-semibold">
-            {item}
-            <button type="button" onClick={() => onChange(items.filter(x => x !== item))} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>
-          </span>
-        ))}
-      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-xl bg-slate-50 border border-dashed border-slate-200 px-4 py-5 text-center">
+          <p className="text-xs font-semibold text-slate-400">Todavía no hay opciones cargadas.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((item, index) => {
+            const isEditing = editingIndex === index;
+
+            return (
+              <div
+                key={`${String(item)}-${index}`}
+                className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5"
+              >
+                {isEditing ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={editingValue}
+                      onChange={e => setEditingValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveEdit();
+                        if (e.key === 'Escape') cancelEdit();
+                      }}
+                      className="flex-1 min-w-0 rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveEdit}
+                      className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center"
+                      title="Guardar nombre"
+                    >
+                      <CheckCircle2 size={15}/>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="w-9 h-9 rounded-lg bg-white border border-slate-200 text-slate-500 flex items-center justify-center"
+                      title="Cancelar"
+                    >
+                      <X size={15}/>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 min-w-0 text-sm font-semibold text-slate-700 truncate">
+                      {item}
+                    </span>
+
+                    {allowReorder && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveItem(index, -1)}
+                          disabled={index === 0}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 flex items-center justify-center disabled:opacity-30"
+                          title="Subir"
+                        >
+                          <ChevronUp size={14}/>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveItem(index, 1)}
+                          disabled={index === items.length - 1}
+                          className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 flex items-center justify-center disabled:opacity-30"
+                          title="Bajar"
+                        >
+                          <ChevronDown size={14}/>
+                        </button>
+                      </div>
+                    )}
+
+                    {allowEdit && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(index)}
+                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-violet-600 flex items-center justify-center"
+                        title="Editar nombre"
+                      >
+                        <Pencil size={14}/>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => removeItem(index)}
+                      className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-500 flex items-center justify-center"
+                      title="Quitar opción"
+                    >
+                      <Trash2 size={14}/>
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -77,6 +238,7 @@ export function ConfiguracionView({ db, appId, auth }) {
   const [newHoliday, setNewHoliday] = useState({ date: '', name: '' });
   const [logoBusy, setLogoBusy] = useState(false);
   const [selectedRole, setSelectedRole] = useState('');
+  const [lastSavedConfig, setLastSavedConfig] = useState(DEFAULT_APP_CONFIG);
   const [systemCheck, setSystemCheck] = useState({ status: 'idle', message: '' });
 
   useEffect(() => {
@@ -89,6 +251,7 @@ export function ConfiguracionView({ db, appId, auth }) {
         if (!active) return;
         const next = normalizeAppConfig(snap.exists() ? snap.data() : DEFAULT_APP_CONFIG);
         setConfig(next);
+        setLastSavedConfig(next);
         setSelectedRole(normalizeRoleLabel(next.roles?.[0]));
         applyBranding(next);
         cacheAppConfig(next);
@@ -96,6 +259,7 @@ export function ConfiguracionView({ db, appId, auth }) {
         console.warn('No se pudo cargar la configuración institucional', error);
         const next = normalizeAppConfig(DEFAULT_APP_CONFIG);
         setConfig(next);
+        setLastSavedConfig(next);
         setSelectedRole(normalizeRoleLabel(next.roles?.[0]));
       } finally {
         if (active) setLoading(false);
@@ -113,6 +277,29 @@ export function ConfiguracionView({ db, appId, auth }) {
   const roles = (Array.isArray(config.roles) ? config.roles : [])
     .map((role, index) => normalizeRoleLabel(role, index))
     .filter(Boolean);
+
+  const handleRolesChange = (nextRoles) => {
+    const safeRoles = nextRoles
+      .map((role, index) => normalizeRoleLabel(role, index))
+      .filter(Boolean);
+
+    setConfig(prev => {
+      const nextRolePermissions = { ...(prev.rolePermissions || {}) };
+      Object.keys(nextRolePermissions).forEach(role => {
+        if (!safeRoles.includes(role)) delete nextRolePermissions[role];
+      });
+
+      return {
+        ...prev,
+        roles: safeRoles,
+        rolePermissions: nextRolePermissions
+      };
+    });
+
+    if (!safeRoles.includes(selectedRole)) {
+      setSelectedRole(safeRoles[0] || '');
+    }
+  };
   const rolePerms = selectedRole ? getRolePermissions(config, selectedRole) : {};
   const selectedPalette = PALETTES[config.palette] || { name: 'Personalizada', primary: config.primaryColor, secondary: config.secondaryColor, background: config.backgroundColor, text: config.textColor };
 
@@ -121,6 +308,14 @@ export function ConfiguracionView({ db, appId, auth }) {
   const configuredStaffWeekdays = Array.isArray(config.staffWeekdays) && config.staffWeekdays.length
     ? config.staffWeekdays
     : STAFF_WEEKDAYS;
+
+  const hasUnsavedChanges = useMemo(() => {
+    try {
+      return JSON.stringify(normalizeAppConfig(config)) !== JSON.stringify(normalizeAppConfig(lastSavedConfig));
+    } catch {
+      return true;
+    }
+  }, [config, lastSavedConfig]);
 
   const updateInstitutionMode = (mode) => {
     update('institutionMode', mode);
@@ -220,6 +415,7 @@ export function ConfiguracionView({ db, appId, auth }) {
       applyBranding(normalized);
       window.dispatchEvent(new CustomEvent('institution-config-updated', { detail: normalized }));
       setConfig(normalized);
+      setLastSavedConfig(normalized);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {
@@ -289,11 +485,20 @@ export function ConfiguracionView({ db, appId, auth }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={reset} className="px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold text-sm flex items-center gap-2"><RotateCcw size={16}/> Restablecer</button>
-          <button onClick={save} disabled={saving} className="px-5 py-2.5 rounded-xl bg-violet-600 text-white font-black text-sm flex items-center gap-2 shadow-lg shadow-violet-200 disabled:opacity-60"><Save size={17}/> {saving ? 'Guardando…' : 'Guardar cambios'}</button>
+          <button onClick={save} disabled={saving || !hasUnsavedChanges} className="px-5 py-2.5 rounded-xl bg-violet-600 text-white font-black text-sm flex items-center gap-2 shadow-lg shadow-violet-200 disabled:opacity-50 disabled:shadow-none">
+            <Save size={17}/> {saving ? 'Guardando…' : hasUnsavedChanges ? 'Guardar cambios' : 'Todo guardado'}
+          </button>
         </div>
       </div>
 
       {saved && <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 flex items-center gap-2 font-semibold text-sm"><CheckCircle2 size={18}/> Configuración guardada correctamente.</div>}
+
+      {hasUnsavedChanges && !saved && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 flex items-center gap-2 font-semibold text-sm">
+          <AlertTriangle size={18} className="shrink-0"/>
+          Tenés cambios sin guardar. Acordate de presionar <strong>“Guardar cambios”</strong> antes de salir.
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-[235px_1fr] gap-5">
         <div className="bg-white border border-slate-200 rounded-2xl p-2 h-fit lg:sticky lg:top-4">
@@ -463,18 +668,75 @@ export function ConfiguracionView({ db, appId, auth }) {
             <div className="space-y-2"><span className="text-xs font-black uppercase text-slate-500">Logo institucional</span><div className="flex flex-col md:flex-row gap-4 items-start"><div className="w-24 h-24 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0"><img src={config.logoUrl || '/icon-192.png'} alt="Vista previa" className="max-w-full max-h-full object-contain p-2"/></div><div className="space-y-2"><label className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-violet-600 text-white font-bold text-sm cursor-pointer"><ImageIcon size={17}/>{logoBusy ? 'Procesando…' : 'Elegir imagen'}<input type="file" accept="image/*" className="hidden" onChange={e=>handleLogoUpload(e.target.files?.[0])}/></label><p className="text-xs text-slate-400">El archivo se comprime automáticamente.</p></div></div></div>
           </section>}
 
-          {tab === 'structure' && <section className="space-y-4">
-            <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 text-sm text-violet-900"><strong>Esta sección hace genérico a CENTRA.</strong> Cada institución puede definir su propia estructura sin cambiar el código.</div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <ListEditor title={config.labels.sites || 'Sedes'} items={config.sites || []} onChange={v=>updateStructure('sites',v)} placeholder="Ej. Sede Centro" />
-              <ListEditor title={config.labels.levels || 'Niveles'} items={config.levels || []} onChange={v=>updateStructure('levels',v)} placeholder="Ej. Primaria" />
-              <ListEditor title={config.labels.sections || 'Secciones'} items={config.sections || []} onChange={v=>updateStructure('sections',v)} placeholder="Ej. 1° A" />
-              <ListEditor title={config.labels.areas || 'Áreas'} items={config.areas || []} onChange={v=>updateStructure('areas',v)} placeholder="Ej. Psicología" />
-              <ListEditor title={config.labels.teams || 'Equipos'} items={config.teams || []} onChange={v=>updateStructure('teams',v)} placeholder="Ej. Equipo Técnico" />
-            </div>
-          </section>}
+          {tab === 'structure' && (
+            <section className="space-y-4">
+              <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 text-sm text-violet-900">
+                <p className="font-black">La estructura es propia de cada institución.</p>
+                <p className="mt-1 leading-relaxed">
+                  Acá definís las opciones que después aparecerán en formularios, legajos, grupos y demás módulos de CENTRA.
+                  Podés agregar, editar, ordenar o quitar opciones sin tocar el código.
+                </p>
+              </div>
 
-         {tab === 'studentFileActions' && (
+              <div className="grid md:grid-cols-2 gap-4">
+                <ListEditor
+                  title={config.labels.sites || 'Sedes'}
+                  items={config.sites || []}
+                  onChange={v => updateStructure('sites', v)}
+                  placeholder="Ej. Sede Centro"
+                  description="Ubicaciones o sedes físicas donde funciona la institución."
+                />
+
+                <ListEditor
+                  title={config.labels.levels || 'Niveles'}
+                  items={config.levels || []}
+                  onChange={v => updateStructure('levels', v)}
+                  placeholder="Ej. Primaria"
+                  description="Niveles, etapas o tramos institucionales."
+                />
+
+                <ListEditor
+                  title={config.labels.sections || 'Secciones'}
+                  items={config.sections || []}
+                  onChange={v => updateStructure('sections', v)}
+                  placeholder="Ej. 1° A"
+                  description="Cursos, salas, secciones o grupos formales."
+                />
+
+                <ListEditor
+                  title={config.labels.areas || 'Áreas'}
+                  items={config.areas || []}
+                  onChange={v => updateStructure('areas', v)}
+                  placeholder="Ej. Psicología"
+                  description="Áreas profesionales, pedagógicas o funcionales."
+                />
+
+                <ListEditor
+                  title={config.labels.teams || 'Equipos'}
+                  items={config.teams || []}
+                  onChange={v => updateStructure('teams', v)}
+                  placeholder="Ej. Equipo Técnico"
+                  description="Equipos de trabajo, coordinación o acompañamiento."
+                />
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Modo actual</p>
+                <p className="font-black text-slate-800 mt-1">
+                  {institutionMode === INSTITUTION_MODES.SCHOOL
+                    ? 'Escuela'
+                    : institutionMode === INSTITUTION_MODES.DAY_CENTER
+                      ? 'Centro de día'
+                      : 'Consultorios'}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  La estructura disponible puede crecer con cada tipo de institución sin modificar la base del producto.
+                </p>
+              </div>
+            </section>
+          )}
+
+{tab === 'studentFileActions' && (
   <div className="space-y-5">
 
     <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
@@ -674,8 +936,8 @@ export function ConfiguracionView({ db, appId, auth }) {
           </section>}
 
           {tab === 'permissions' && <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
-            <div><h3 className="text-lg font-black">Usuarios y permisos</h3><p className="text-sm text-slate-500">Definí qué módulos puede utilizar cada rol.</p></div>
-            <div className="grid md:grid-cols-[220px_1fr] gap-5"><div className="space-y-2">{roles.map(role=><button key={role} onClick={()=>setSelectedRole(role)} className={`w-full text-left px-4 py-3 rounded-xl font-bold text-sm ${selectedRole===role?'bg-violet-50 text-violet-700':'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>{role}</button>)}</div><div><div className="flex items-center justify-between gap-3 mb-3"><h4 className="font-black">Módulos de {selectedRole || 'rol'}</h4><div className="flex gap-2"><button onClick={allowAll} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200">Dar todos</button><button onClick={removeAll} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200">Quitar todos</button></div></div><div className="grid sm:grid-cols-2 gap-2">{MODULES.map(([id,label])=><label key={id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200"><span className="text-sm font-semibold">{label}</span><input type="checkbox" checked={!!rolePerms[id]} onChange={e=>updatePermission(id,e.target.checked)} className="w-5 h-5 accent-violet-600"/></label>)}</div><div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">Los administradores siguen teniendo acceso total.</div></div></div>
+            <div><h3 className="text-lg font-black">Usuarios y permisos</h3><p className="text-sm text-slate-500">Definí qué módulos puede utilizar cada rol. Los roles se gestionan desde Listas y opciones.</p></div>
+            <div className="grid md:grid-cols-[220px_1fr] gap-5"><div className="space-y-2">{roles.map(role=><button key={role} onClick={()=>setSelectedRole(role)} className={`w-full text-left px-4 py-3 rounded-xl font-bold text-sm ${selectedRole===role?'bg-violet-50 text-violet-700':'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>{role}</button>)}</div><div><div className="flex items-center justify-between gap-3 mb-3"><h4 className="font-black">Módulos de {selectedRole || 'rol'}</h4><div className="flex gap-2"><button onClick={allowAll} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200">Dar todos</button><button onClick={removeAll} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200">Quitar todos</button></div></div><div className="grid sm:grid-cols-2 gap-2">{MODULES.map(([id,label])=><label key={id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200"><span className="text-sm font-semibold">{label}</span><input type="checkbox" checked={!!rolePerms[id]} onChange={e=>updatePermission(id,e.target.checked)} className="w-5 h-5 accent-violet-600"/></label>)}</div><div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">Los administradores de instalación conservan acceso total. Estos permisos controlan los roles institucionales configurados en CENTRA.</div></div></div>
           </section>}
 
           {tab === 'labels' && <>
@@ -696,11 +958,9 @@ export function ConfiguracionView({ db, appId, auth }) {
 
                 <ListEditor
                   title="Roles"
-                  items={config.roles || []}
-                  onChange={v => {
-                    update('roles', v);
-                    if (!selectedRole && v[0]) setSelectedRole(v[0]);
-                  }}
+                  items={roles}
+                  onChange={handleRolesChange}
+                  description="Podés agregar, editar, ordenar o quitar roles. Los cambios se aplican al presionar Guardar cambios."
                   placeholder={
                     institutionMode === INSTITUTION_MODES.SCHOOL
                       ? 'Ej. Docente'
@@ -718,6 +978,15 @@ export function ConfiguracionView({ db, appId, auth }) {
                     items={config.turns || []}
                     onChange={v => update('turns', v)}
                     placeholder="Ej. Mañana"
+                    description="Turnos en los que se organiza la actividad institucional."
+                  />
+
+                  <ListEditor
+                    title="Tipos de jornada"
+                    items={config.scheduleTypes || []}
+                    onChange={v => update('scheduleTypes', v)}
+                    placeholder="Ej. Jornada completa"
+                    description="Modalidades de jornada disponibles en la institución."
                   />
 
                   <ListEditor
@@ -725,17 +994,29 @@ export function ConfiguracionView({ db, appId, auth }) {
                     items={config.modalities || []}
                     onChange={v => update('modalities', v)}
                     placeholder="Ej. Sede"
+                    description="Modalidades institucionales que pueden utilizarse en los registros."
                   />
                 </>
               )}
 
               {institutionMode !== INSTITUTION_MODES.SCHOOL && (
-                <ListEditor
-                  title="Días de trabajo del personal"
-                  items={configuredStaffWeekdays}
-                  onChange={v => update('staffWeekdays', v)}
-                  placeholder="Ej. Lunes"
-                />
+                <>
+                  <ListEditor
+                    title="Días de trabajo del personal"
+                    items={configuredStaffWeekdays}
+                    onChange={v => update('staffWeekdays', v)}
+                    placeholder="Ej. Lunes"
+                    description="Días habilitados para organizar la disponibilidad del equipo."
+                  />
+
+                  <ListEditor
+                    title="Tipos de jornada"
+                    items={config.scheduleTypes || []}
+                    onChange={v => update('scheduleTypes', v)}
+                    placeholder="Ej. Jornada simple"
+                    description="Tipos de jornada o modalidad horaria propios de la institución."
+                  />
+                </>
               )}
 
               <ListEditor
@@ -743,22 +1024,23 @@ export function ConfiguracionView({ db, appId, auth }) {
                 items={config.eventTypes || []}
                 onChange={v => update('eventTypes', v)}
                 placeholder="Ej. Reunión"
+                description="Categorías utilizadas por el calendario y los eventos institucionales."
               />
 
               <div className="rounded-2xl bg-violet-50 border border-violet-100 p-4">
                 <p className="text-sm font-bold text-violet-900">
                   {institutionMode === INSTITUTION_MODES.SCHOOL
-                    ? 'En la escuela se mantienen las opciones de turnos y modalidades que ya utiliza CENTRA.'
+                    ? 'En la escuela podés adaptar turnos, tipos de jornada y modalidades a la organización real de la institución.'
                     : institutionMode === INSTITUTION_MODES.DAY_CENTER
-                      ? 'En centro de día no se utilizan Sede ni Inclusión para Personal. El equipo se organiza mediante roles, días y horas semanales.'
-                      : 'En consultorios no se utilizan Sede ni Inclusión para Personal. El equipo se organiza mediante roles, días y horas semanales.'}
+                      ? 'En centro de día el equipo se organiza mediante roles, días de trabajo y tipos de jornada, sin depender de una estructura escolar.'
+                      : 'En consultorios el equipo se organiza mediante roles, días de trabajo y tipos de jornada o atención, según la configuración de la institución.'}
                 </p>
               </div>
 
             </div>
           )}
 
-          {tab === 'calendar' && <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4"><div><h3 className="text-lg font-black">Días no laborables</h3><p className="text-sm text-slate-500">Podés cargar feriados, jornadas institucionales, recesos u otros días sin actividad.</p></div><div className="grid md:grid-cols-[180px_1fr_auto] gap-2"><input type="date" value={newHoliday.date} onChange={e=>setNewHoliday(v=>({...v,date:e.target.value}))} className="rounded-xl border border-slate-200 px-3 py-2.5"/><input value={newHoliday.name} onChange={e=>setNewHoliday(v=>({...v,name:e.target.value}))} placeholder="Nombre del día" className="rounded-xl border border-slate-200 px-3 py-2.5"/><button onClick={addHoliday} className="rounded-xl bg-violet-600 text-white px-4 font-bold flex items-center justify-center gap-2"><Plus size={16}/> Agregar</button></div><div className="space-y-2">{holidays.length===0?<div className="text-sm text-slate-400 py-5 text-center">No hay días cargados.</div>:holidays.map(h=><div key={h.raw} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3"><div><span className="font-bold">{h.date}</span>{h.name&&<span className="text-slate-500 ml-2">— {h.name}</span>}</div><button onClick={()=>update('holidays',config.holidays.filter(x=>x!==h.raw))} className="text-slate-400 hover:text-red-500"><Trash2 size={17}/></button></div>)}</div></section>}
+{tab === 'calendar' && <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4"><div><h3 className="text-lg font-black">Días no laborables</h3><p className="text-sm text-slate-500">Podés cargar feriados, jornadas institucionales, recesos u otros días sin actividad.</p></div><div className="grid md:grid-cols-[180px_1fr_auto] gap-2"><input type="date" value={newHoliday.date} onChange={e=>setNewHoliday(v=>({...v,date:e.target.value}))} className="rounded-xl border border-slate-200 px-3 py-2.5"/><input value={newHoliday.name} onChange={e=>setNewHoliday(v=>({...v,name:e.target.value}))} placeholder="Nombre del día" className="rounded-xl border border-slate-200 px-3 py-2.5"/><button onClick={addHoliday} className="rounded-xl bg-violet-600 text-white px-4 font-bold flex items-center justify-center gap-2"><Plus size={16}/> Agregar</button></div><div className="space-y-2">{holidays.length===0?<div className="text-sm text-slate-400 py-5 text-center">No hay días cargados.</div>:holidays.map(h=><div key={h.raw} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3"><div><span className="font-bold">{h.date}</span>{h.name&&<span className="text-slate-500 ml-2">— {h.name}</span>}</div><button onClick={()=>update('holidays',config.holidays.filter(x=>x!==h.raw))} className="text-slate-400 hover:text-red-500"><Trash2 size={17}/></button></div>)}</div></section>}
 
           {tab === 'system' && <section className="space-y-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
@@ -768,6 +1050,7 @@ export function ConfiguracionView({ db, appId, auth }) {
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase text-slate-400">Authentication</p><p className="font-bold text-slate-800 mt-1">Usuarios</p></div><StatusBadge ok={!!auth}> {auth ? 'Disponible' : 'No disponible'} </StatusBadge></div></div>
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4"><p className="text-xs font-black uppercase text-slate-400">Identificador de instalación</p><p className="font-mono text-sm text-slate-700 mt-2 break-all">{appId || '—'}</p></div>
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4"><p className="text-xs font-black uppercase text-slate-400">Institución configurada</p><p className="font-bold text-slate-800 mt-2">{config.institutionName || 'Mi Institución'}</p></div>
+                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4"><p className="text-xs font-black uppercase text-slate-400">Sesión actual</p><p className="font-bold text-slate-800 mt-2">{auth?.currentUser ? (auth.currentUser.email || 'Autenticado') : 'Sin sesión Firebase'}</p></div>
               </div>
               <div className="flex flex-wrap gap-2"><button onClick={checkSystem} disabled={systemCheck.status==='checking'} className="px-4 py-3 rounded-xl bg-violet-600 text-white font-bold text-sm flex items-center gap-2"><RefreshCw size={16} className={systemCheck.status==='checking'?'animate-spin':''}/> Probar conexión</button><button onClick={exportConfig} className="px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold text-sm flex items-center gap-2"><Download size={16}/> Respaldar configuración</button><label className="px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-600 font-bold text-sm cursor-pointer flex items-center gap-2"><UploadCloud size={16}/> Restaurar configuración<input type="file" accept="application/json" className="hidden" onChange={e=>importConfig(e.target.files?.[0])}/></label></div>
               {systemCheck.message && <div className={`rounded-xl p-4 text-sm font-semibold ${systemCheck.status==='success'?'bg-emerald-50 border border-emerald-200 text-emerald-700':systemCheck.status==='error'?'bg-red-50 border border-red-200 text-red-700':'bg-slate-50 border border-slate-200 text-slate-700'}`}>{systemCheck.message}</div>}
