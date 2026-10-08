@@ -1,4 +1,4 @@
-import { getInstitutionName } from '../config';
+import { normalizeAppConfig } from '../config';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   User,
@@ -257,11 +257,9 @@ export function GroupsView({
   const [staffList, setStaffList] = useState([]);
   const [groups, setGroups] = useState([]);
   const [staffAssignments, setStaffAssignments] = useState([]);
-  const [institutionConfig, setInstitutionConfig] = useState({
-    turns: [],
-    staffRoles: [],
-    scheduleTypes: []
-  });
+  const [institutionConfig, setInstitutionConfig] = useState(() =>
+    normalizeAppConfig({})
+  );
 
   const [selectedTurnId, setSelectedTurnId] =
     useState('all');
@@ -401,10 +399,8 @@ export function GroupsView({
 
   const roleOptions = useMemo(
     () =>
-      (Array.isArray(
-        institutionConfig.staffRoles
-      )
-        ? institutionConfig.staffRoles
+      (Array.isArray(institutionConfig.roles)
+        ? institutionConfig.roles
         : []
       ).map((role, index) => {
         if (typeof role === 'string') {
@@ -413,9 +409,7 @@ export function GroupsView({
               .toLowerCase()
               .replace(/[^a-z0-9]+/g, '_'),
             name: role,
-            requiredForGroup:
-              normalizeText(role) ===
-              'docente'
+            requiredForGroup: false
           };
         }
 
@@ -431,20 +425,15 @@ export function GroupsView({
             Boolean(role?.requiredForGroup)
         };
       }),
-    [institutionConfig.staffRoles]
+    [institutionConfig.roles]
   );
 
-  const docenteRole =
+  const defaultGroupRole =
     roleOptions.find(
-      role =>
-        role.id === 'docente' ||
-        normalizeText(role.name) ===
-          'docente'
-    ) || {
-      id: 'docente',
-      name: 'Docente',
-      requiredForGroup: true
-    };
+      role => role.requiredForGroup
+    ) ||
+    roleOptions[0] ||
+    null;
 
   const normalizeRoles = roles => {
     const result = Array.isArray(roles)
@@ -452,12 +441,11 @@ export function GroupsView({
       : [];
 
     if (
-      !result.includes(
-        docenteRole.id
-      )
+      result.length === 0 &&
+      defaultGroupRole?.id
     ) {
       result.unshift(
-        docenteRole.id
+        defaultGroupRole.id
       );
     }
 
@@ -562,13 +550,11 @@ export function GroupsView({
         ),
         snapshot => {
           setInstitutionConfig(
-            snapshot.exists()
-              ? snapshot.data()
-              : {
-                  turns: [],
-                  staffRoles: [],
-                  scheduleTypes: []
-                }
+            normalizeAppConfig(
+              snapshot.exists()
+                ? snapshot.data()
+                : {}
+            )
           );
         }
       )
@@ -970,9 +956,7 @@ export function GroupsView({
         scheduleTypeOptions[0]?.id ||
         '',
       enabledRoles:
-        normalizeRoles([
-          docenteRole.id
-        ]),
+        normalizeRoles([]),
       classroom: '',
       driveLink: '',
       institucionalDrive: ''
@@ -1507,7 +1491,7 @@ export function GroupsView({
   ) => {
     const institutionName =
       institutionConfig?.institutionName ||
-      getInstitutionName();
+      'Mi Institución';
 
     const logoUrl =
       institutionConfig?.logoUrl ||
@@ -2599,7 +2583,7 @@ export function GroupsView({
             scheduleTypeOptions
           }
           roleOptions={roleOptions}
-          docenteRole={docenteRole}
+          defaultGroupRole={defaultGroupRole}
           normalizeRoles={
             normalizeRoles
           }
@@ -3474,7 +3458,6 @@ function GroupFormModal({
   turnOptions,
   scheduleTypeOptions,
   roleOptions,
-  docenteRole,
   normalizeRoles,
   staffList,
   staffSelections,
@@ -3699,7 +3682,7 @@ function GroupFormModal({
             />
 
             <p className="text-xs text-slate-400 mb-4">
-              Los roles salen de Configuración. Docente queda obligatorio por defecto cuando corresponde.
+              Los roles salen de Configuración. Los roles marcados como obligatorios se mantienen habilitados.
             </p>
 
             <div className="grid md:grid-cols-2 gap-2">
@@ -3713,9 +3696,9 @@ function GroupFormModal({
                   );
 
                 const required =
-                  role.id ===
-                    docenteRole.id ||
-                  role.requiredForGroup;
+                  Boolean(
+                    role.requiredForGroup
+                  );
 
                 return (
                   <label
