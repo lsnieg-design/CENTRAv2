@@ -354,10 +354,15 @@ export const DEFAULT_APP_CONFIG = {
 
 
 // =============================================================
-// CLAVE DE STORAGE LOCAL
+// ALMACENAMIENTO LOCAL
 // =============================================================
-
-export const APP_CONFIG_STORAGE_KEY = 'institution_app_config';
+//
+// CENTRA no guarda la configuración institucional en el navegador.
+// Firestore es la única fuente de verdad.
+//
+// Las funciones de compatibilidad de abajo no leen ni escriben storage.
+// Se retirarán definitivamente cuando terminemos de migrar ConfiguracionView.
+// =============================================================
 
 
 // =============================================================
@@ -1570,67 +1575,19 @@ export function getEventTypesConfig(
 
 
 // =============================================================
-// CONFIGURACIÓN LOCAL
+// COMPATIBILIDAD TEMPORAL SIN STORAGE LOCAL
 // =============================================================
+//
+// Estos exports evitan romper componentes que todavía no migramos.
+// No leen ni escriben localStorage. En el próximo paso, al actualizar
+// ConfiguracionView, los eliminamos por completo.
 
 export function getCachedAppConfig() {
-
-  try {
-
-    const saved =
-      localStorage.getItem(
-        APP_CONFIG_STORAGE_KEY
-      );
-
-
-    return saved
-
-      ? normalizeAppConfig(
-          JSON.parse(saved)
-        )
-
-      : DEFAULT_APP_CONFIG;
-
-  } catch {
-
-    return DEFAULT_APP_CONFIG;
-
-  }
-
+  return normalizeAppConfig({});
 }
 
-
-// =============================================================
-// GUARDAR CONFIGURACIÓN LOCAL
-// =============================================================
-
-export function cacheAppConfig(
-  config
-) {
-
-  const normalized =
-    normalizeAppConfig(
-      config
-    );
-
-
-  try {
-
-    localStorage.setItem(
-
-      APP_CONFIG_STORAGE_KEY,
-
-      JSON.stringify(
-        normalized
-      )
-
-    );
-
-  } catch {}
-
-
-  return normalized;
-
+export function cacheAppConfig(config) {
+  return normalizeAppConfig(config);
 }
 
 
@@ -1848,15 +1805,9 @@ export function applyBranding(
 // NOMBRE DE LA INSTITUCIÓN
 // =============================================================
 
-export function getInstitutionName() {
-
+export function getInstitutionName(config = {}) {
   return (
-
-    getCachedAppConfig()
-      .institutionName ||
-
+    normalizeAppConfig(config).institutionName ||
     'Mi Institución'
-
   );
-
 }
