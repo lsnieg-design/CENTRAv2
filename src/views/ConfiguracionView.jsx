@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Building2, Palette, CalendarDays, SlidersHorizontal, Save, Plus, Trash2, CheckCircle2, RotateCcw, Image as ImageIcon, ShieldCheck, FileText, Settings2, Server, Info, Database, RefreshCw, ExternalLink, Download, UploadCloud, ChevronUp, ChevronDown, Pencil, X, AlertTriangle } from 'lucide-react';
-import { DEFAULT_APP_CONFIG, normalizeAppConfig, cacheAppConfig, applyBranding, PALETTES, MODULES, MODULE_CATALOG, FEATURE_LABELS, getRolePermissions, isModuleEnabled, INSTITUTION_TYPES, PLAN_OPTIONS, INSTITUTION_MODES, getStaffModeConfig, STAFF_WEEKDAYS } from '../config';
+import { DEFAULT_APP_CONFIG, normalizeAppConfig, applyBranding, PALETTES, MODULES, MODULE_CATALOG, FEATURE_LABELS, getRolePermissions, isModuleEnabled, INSTITUTION_TYPES, PLAN_OPTIONS, INSTITUTION_MODES, getStaffModeConfig, STAFF_WEEKDAYS } from '../config';
  
 const normalizeRoleLabel = (role, index = 0) => {
   if (typeof role === 'string') return role.trim();
@@ -436,7 +436,6 @@ export function ConfiguracionView({ db, appId, auth }) {
         setLastSavedConfig(next);
         setSelectedRole(normalizeRoleLabel(next.roles?.[0]));
         applyBranding(next);
-        cacheAppConfig(next);
       } catch (error) {
         console.warn('No se pudo cargar la configuración institucional', error);
         const next = normalizeAppConfig(DEFAULT_APP_CONFIG);
@@ -601,7 +600,6 @@ export function ConfiguracionView({ db, appId, auth }) {
         { ...normalized, updatedAt: serverTimestamp() },
         { merge: true }
       );
-      cacheAppConfig(normalized);
       applyBranding(normalized);
       window.dispatchEvent(new CustomEvent('institution-config-updated', { detail: normalized }));
       setConfig(normalized);
