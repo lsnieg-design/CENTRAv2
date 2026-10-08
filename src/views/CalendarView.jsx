@@ -91,7 +91,7 @@ export function CalendarView({
   appConfig = {}
 }) {
 
-  const role = user?.role || user?.rol || '';
+  
 
   const configuredEventTypes = Array.isArray(appConfig.eventTypes)
     ? appConfig.eventTypes
@@ -173,12 +173,7 @@ export function CalendarView({
 
   const canManage = !!canEdit;
 
-  const moduleEnabled = (moduleId) =>
-    canAccessModule(
-      appConfig,
-      role,
-      moduleId
-    );
+  
 
   const visibleEvents = useMemo(() => {
     return (events || []).filter(
