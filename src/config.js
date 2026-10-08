@@ -238,9 +238,6 @@ export const DEFAULT_APP_CONFIG = {
     tasks: true,
     studentFiles: true,
     resources: true,
-    reports: true,
-    social: true,
-    medical: true,
     evaluations: true,
     externalReports: true,
     notifications: true
@@ -645,19 +642,13 @@ export const MODULES = [
 
   ['resources', 'Recursos'],
 
-  ['social', 'Trabajo Social'],
-
   ['proyecto', 'Proyecto institucional'],
-
-  ['informes', 'Informes pedagógicos'],
 
   ['informes_externos', 'Informes externos'],
 
   ['evaluations', 'Evaluaciones'],
 
   ['equipo', 'Equipo Técnico'],
-
-  ['medical', 'Área médica'],
 
   ['admin', 'Administración'],
 
@@ -717,19 +708,9 @@ export const MODULE_CATALOG = {
     category: 'Gestión'
   },
 
-  social: {
-    description: 'Seguimiento de Trabajo Social',
-    category: 'Equipos'
-  },
-
   proyecto: {
     description: 'Proyectos institucionales',
     category: 'Gestión'
-  },
-
-  informes: {
-    description: 'Informes pedagógicos',
-    category: 'Documentos'
   },
 
   informes_externos: {
@@ -744,11 +725,6 @@ export const MODULE_CATALOG = {
 
   equipo: {
     description: 'Gestión del Equipo Técnico',
-    category: 'Equipos'
-  },
-
-  medical: {
-    description: 'Información y seguimiento del área médica',
     category: 'Equipos'
   },
 
@@ -799,12 +775,6 @@ const LEGACY_FEATURE_MAP = {
   studentFiles: 'matricula',
 
   resources: 'resources',
-
-  reports: 'informes',
-
-  social: 'social',
-
-  medical: 'medical',
 
   evaluations: 'evaluations',
 
@@ -871,12 +841,6 @@ export const FEATURE_LABELS = {
 
   resources: 'Recursos',
 
-  reports: 'Informes',
-
-  social: 'Trabajo Social',
-
-  medical: 'Área médica',
-
   evaluations: 'Evaluaciones',
 
   externalReports: 'Informes externos',
@@ -927,9 +891,7 @@ export function defaultPermissionsForRole(role) {
     [
       'matricula',
       'resources',
-      'social',
       'proyecto',
-      'informes',
       'informes_externos',
       'evaluations',
       'equipo',
@@ -952,9 +914,7 @@ export function defaultPermissionsForRole(role) {
     [
       'matricula',
       'resources',
-      'social',
       'proyecto',
-      'informes',
       'notifications'
     ].forEach(
       id => {
