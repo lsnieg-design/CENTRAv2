@@ -15,7 +15,7 @@ import { EvaluationsView } from './views/EvaluationsView';
 import { ConfiguracionView } from './views/ConfiguracionView';
 import { InformesView } from './views/InformesView';
 import { InformesExternosView } from './views/InformesExternosView';
-import { getCachedAppConfig, normalizeAppConfig, applyBranding } from './config';
+import { getCachedAppConfig, normalizeAppConfig, applyBranding, getRolePermissions, canAccessModule } from './config';
 
 import { 
   Calendar as CalendarIcon, CheckSquare, Settings, User, FileText, CheckCircle, 
@@ -36,13 +36,7 @@ import {
   updateDoc, setDoc, deleteDoc, where, getDocs, getDoc, serverTimestamp, arrayUnion, arrayRemove, limit,increment 
 } from 'firebase/firestore';
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
-const VALID_ROLES_OFFICIAL = [
-  "Docente", "Preceptora", "Auxiliar", "Profe Especial", "Equipo Técnico", "Equipo Directivo",
-  "Dirección Inclusión", "Equipo Técnico Inclusión", "DAI",
-  "Cocina", "Limpieza", "Mantenimiento", "Administración"
-];
-const TURNS_LIST = ["Mañana", "Tarde", "Alternado", "Vespertino", "Doble"];
- const LOGO_URL = "/icon-192.png";
+const LOGO_URL = "/icon-192.png";
 
 
 const triggerMobileNotification = (title, body) => {
@@ -86,18 +80,6 @@ const db = app ? getFirestore(app) : null;
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'escuela-app-prod';
 
  
-const ROLES = [
-  'Docente', 
-  'Equipo Directivo', 
-  'Equipo Técnico', 
-  'Auxiliar/Preceptor', 
-  'Inclusión', 
-  'Profes Especiales', 
-  'Administración',
-  'Dirección Inclusión', 
-  'Equipo Técnico Inclusión',
-  'DAI'
-];
 const MODALIDADES = ['Sede', 'Inclusión'];
 const EVENT_TYPES = ['SALIDA EDUCATIVA', 'GENERAL', 'ADMINISTRATIVO', 'INFORMES', 'EVENTOS', 'ACTOS', 'EFEMÉRIDES', 'CUMPLEAÑOS', 'INCLUSIÓN' ];
 
@@ -617,39 +599,30 @@ function MainApp({ user: initialUser, onLogout }) {
   const prevNotifCount = useRef(0);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 
+  // Nivel de acceso del sistema: esto es distinto del rol institucional.
+  // `rol` identifica el nivel técnico de administración; `role` identifica
+  // el rol institucional configurado en Configuración.
   const isSuperAdmin = user?.rol === 'super-admin' || user?.rol === 'admin';
-  const canManageContent = isSuperAdmin || user?.role === 'Equipo Directivo';
-  const isAdminRole = ['Administración', 'Equipo Directivo', 'Dirección Inclusión'].includes(user?.role) || user?.rol === 'admin' || user?.rol === 'super-admin';
-  const isTechTeamRole = ['admin', 'super-admin', 'Equipo Directivo', 'Dirección Inclusión', 'Equipo Técnico', 'Equipo Técnico Inclusión'].includes(user?.role) || user?.rol === 'admin' || user?.rol === 'super-admin';
-  const isMedicalRole = ['admin', 'super-admin', 'Equipo Directivo', 'Dirección Inclusión', 'Médico', 'Enfermería', 'Salud'].includes(user?.role) || user?.rol === 'admin' || user?.rol === 'super-admin';
-  const canAccessSocial = ['admin', 'super-admin', 'Docente', 'Auxiliar/Preceptor', 'Equipo Directivo', 'Equipo Técnico', 'Inclusión', 'DAI'].includes(user?.role) || user?.rol === 'admin';
-  const canAccessInformesExternos = ['Equipo Directivo', 'Equipo Técnico', 'Equipo Técnico Inclusión', 'Administración', 'admin', 'super-admin'].includes(user?.role) || user?.rol === 'admin';
-  const showPrivateMenu = isAdminRole || isMedicalRole || canAccessSocial || isTechTeamRole;
 
-  const normalizeConfig = (data = {}) => normalizeAppConfig(data);
-
+  // Los permisos de módulos salen de Configuración > Usuarios y permisos.
+  // Así un rol nuevo puede funcionar sin tener que editar App.jsx.
   const hasModule = (moduleId) => {
     if (moduleId === 'configuracion') return isSuperAdmin;
-    const activeModules = appConfig.activeModules || {};
-    if (Object.prototype.hasOwnProperty.call(activeModules, moduleId)) {
-      return activeModules[moduleId] !== false;
-    }
-    const legacyFeatureMap = {
-      calendar: 'calendar',
-      tasks: 'tasks',
-      matricula: 'studentFiles',
-      resources: 'resources',
-      social: 'social',
-      medical: 'medical',
-      evaluations: 'evaluations',
-      informes: 'reports',
-      informes_externos: 'externalReports',
-      notifications: 'notifications'
-    };
-    const legacyKey = legacyFeatureMap[moduleId];
-    if (legacyKey && appConfig.features?.[legacyKey] === false) return false;
-    return true;
+    return canAccessModule(appConfig, user?.role, moduleId);
   };
+
+  const rolePermissions = getRolePermissions(appConfig, user?.role);
+  const canManageContent = isSuperAdmin || !!rolePermissions.admin;
+  const isAdminRole = hasModule('admin') || hasModule('personal');
+  const isTechTeamRole = hasModule('evaluations');
+  const isMedicalRole = hasModule('medical');
+  const canAccessSocial = hasModule('social');
+  const canAccessInformesExternos = hasModule('informes_externos');
+  const showPrivateMenu = isSuperAdmin || [
+    'admin', 'personal', 'informes_externos', 'evaluations', 'social', 'medical'
+  ].some(hasModule);
+
+  const normalizeConfig = (data = {}) => normalizeAppConfig(data);
 
   useEffect(() => {
     if (!db || !appId) return;
