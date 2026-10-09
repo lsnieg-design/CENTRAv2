@@ -1176,7 +1176,16 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
     appConfig={appConfig}
   />
 )}
-        {activeTab === 'informes_externos' && hasModule('informes_externos') && canAccessInformesExternos && <InformesExternosView user={user} db={db} appId={appId} />}
+        {activeTab === 'informes_externos' &&
+  hasModule('informes_externos') &&
+  canAccessInformesExternos &&
+  <InformesExternosView
+    user={user}
+    db={db}
+    appId={appId}
+    appConfig={appConfig}
+  />
+}
         {activeTab === 'configuracion' && isSuperAdmin && <ConfiguracionView db={db} appId={appId} auth={auth} />}
       </main>
 
