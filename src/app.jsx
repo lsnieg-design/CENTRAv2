@@ -1160,7 +1160,14 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
         {activeTab === 'notifications' && <NotificationsView notifications={allNotifications} user={user} />}
         {activeTab === 'users' && isSuperAdmin && hasModule('users') && db && <UsersAdminView db={db} appId={appId} />}
         {activeTab === 'personal' && isAdminRole && hasModule('personal') && db && <PersonalView user={user} db={db} appId={appId} TURNS_LIST={appConfig.turns} VALID_ROLES_OFFICIAL={appConfig.roles} />}
-        {activeTab === 'admin' && isAdminRole && hasModule('admin') && db && <AdministracionView user={user} db={db} appId={appId} />}
+        {activeTab === 'admin' && isAdminRole && hasModule('admin') && db && (
+  <AdministracionView
+    user={user}
+    db={db}
+    appId={appId}
+    appConfig={appConfig}
+  />
+)}
         {activeTab === 'informes_externos' && hasModule('informes_externos') && canAccessInformesExternos && <InformesExternosView user={user} db={db} appId={appId} />}
         {activeTab === 'configuracion' && isSuperAdmin && <ConfiguracionView db={db} appId={appId} auth={auth} />}
       </main>
