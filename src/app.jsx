@@ -1150,7 +1150,15 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
   setActiveTab={setActiveTab}
 />}
         {activeTab === 'calendar' && hasModule('calendar') && <CalendarView events={events} user={user} db={db} appId={appId} appConfig={appConfig} canEdit={canManageContent} />}
-        {activeTab === 'tasks' && hasModule('tasks') && <TasksView tasks={tasks} user={user} db={db} appId={appId} />}
+        {activeTab === 'tasks' && hasModule('tasks') && (
+  <TasksView
+    tasks={tasks}
+    user={user}
+    db={db}
+    appId={appId}
+    appConfig={appConfig}
+  />
+)}
         {activeTab === 'matricula' && hasModule('matricula') && <MatriculaView user={user} db={db} appId={appId} initStudentId={selectedStudentId} />}
         {activeTab === 'groups' && hasModule('groups') && <GroupsView user={user} db={db} appId={appId} setActiveTab={setActiveTab} onSelectStudent={setSelectedStudentId} />}
         {activeTab === 'resources' && hasModule('resources') && <ResourcesView resources={resources} canEdit={canManageContent} db={db} appId={appId} user={user} />}
