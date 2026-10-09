@@ -18,9 +18,6 @@ import {
   deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import {
-  canAccessModule
-} from '../config';
 
 const formatMonth = (date) => {
   const value = date.toLocaleDateString('es-AR', {
@@ -979,7 +976,7 @@ export function CalendarView({
           onClick={() =>
             handleDayClick(dateStr)
           }
-          className={`group relative min-w-0 min-h-0 overflow-hidden text-left p-2 transition bg-white hover:bg-violet-50/40 ${
+          className={`group relative min-w-0 min-h-[104px] md:min-h-[116px] text-left p-2 transition bg-white hover:bg-violet-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400 ${
             isToday
               ? 'ring-2 ring-inset ring-violet-300 bg-violet-50/50'
               : ''
@@ -1003,32 +1000,34 @@ export function CalendarView({
             )}
           </div>
 
-          <div className="space-y-1 overflow-hidden">
+          <div className="min-w-0 space-y-1.5">
             {dayEvents
-              .slice(0, 4)
+              .slice(0, 2)
               .map((event, index) => (
                 <div
                   key={`${
                     event.id ||
                     event.title
                   }-${index}`}
-                  className="w-full min-w-0 text-[9px] md:text-[10px] rounded-lg px-2 py-1.5 truncate font-semibold border"
-                  style={getEventStyle(
-                    event.type,
-                    eventTypeById
-                  )}
-                  title={event.title}
+                  className="w-full min-w-0 rounded-lg px-1.5 py-1.5 text-[9px] sm:text-[10px] leading-snug font-semibold border break-words"
+                  style={{
+                    ...getEventStyle(event.type, eventTypeById),
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    whiteSpace: 'normal',
+                    overflow: 'hidden'
+                  }}
+                  title={event.title || 'Evento sin título'}
                 >
-                  <span className="font-black mr-1">
-                    •
-                  </span>
-                  {event.title}
+                  <span className="font-black mr-1">•</span>
+                  {event.title || 'Evento sin título'}
                 </div>
               ))}
 
-            {dayEvents.length > 4 && (
-              <span className="text-[9px] font-bold text-violet-600 px-1">
-                +{dayEvents.length - 4} más
+            {dayEvents.length > 2 && (
+              <span className="inline-flex text-[9px] font-bold text-violet-700 bg-violet-50 rounded-md px-1.5 py-1">
+                +{dayEvents.length - 2} más
               </span>
             )}
           </div>
@@ -1464,14 +1463,14 @@ export function CalendarView({
           </div>
 
           <div
-            className="flex-1 min-h-0 min-w-0 w-full overflow-hidden"
+            className="flex-1 min-h-0 min-w-0 w-full overflow-x-hidden overflow-y-auto overscroll-contain"
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
             <div
-              className="w-full h-full min-h-0 grid grid-cols-7 gap-px bg-slate-200"
-              style={{ gridAutoRows: '1fr' }}
+              className="w-full min-w-0 grid grid-cols-7 items-stretch gap-px bg-slate-200"
+              style={{ gridAutoRows: 'minmax(104px, auto)' }}
             >
               {renderMonthGrid()}
             </div>
