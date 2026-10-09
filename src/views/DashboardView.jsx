@@ -449,13 +449,15 @@ export function DashboardView({
 
   const primaryButtonStyle = { backgroundColor: primaryColor };
   const secondaryButtonStyle = { backgroundColor: secondaryColor };
+  const showCountdown = canUseModule('calendar') && Boolean(countdown.date || isManagement);
+  const showAnnouncements = canUseModule('notifications');
 
   return (
     <main className="mx-auto h-full w-full max-w-7xl overflow-y-auto pb-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-      <div className="space-y-3 px-1 sm:px-2">
+      <div className="space-y-4 px-1 sm:px-2">
         {/* ENCABEZADO */}
         <section
-          className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"
+          className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
           style={{ borderColor: `${primaryColor}30` }}
         >
           <div
@@ -466,11 +468,11 @@ export function DashboardView({
           <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               {logoUrl ? (
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white p-1.5 sm:h-12 sm:w-12">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-100 bg-white p-2 shadow-sm sm:h-14 sm:w-14">
                   <img src={logoUrl} alt={`Logo de ${institutionName}`} className="h-full w-full object-contain" />
                 </div>
               ) : (
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-sm sm:h-12 sm:w-12" style={primaryButtonStyle}>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm sm:h-14 sm:w-14" style={primaryButtonStyle}>
                   <GraduationCap size={22} aria-hidden="true" />
                 </div>
               )}
@@ -478,7 +480,7 @@ export function DashboardView({
                 <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.16em]" style={{ color: primaryColor }}>
                   {institutionName}
                 </p>
-                <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
+                <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
                   ¡Hola, {user?.firstName || user?.fullName?.split(' ')[0] || 'bienvenido'}!
                 </h1>
                 <p className="mt-0.5 text-xs text-slate-500">Tu espacio de trabajo institucional.</p>
@@ -509,135 +511,176 @@ export function DashboardView({
           </div>
         </section>
 
-        {/* CUENTA REGRESIVA + AVISOS: en dos columnas cuando hay espacio */}
-        <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-2">
-        {/* CUENTA REGRESIVA: visible al ingresar */}
-        {canUseModule('calendar') && (countdown.date || isManagement) && (
-          <section className="h-full rounded-2xl border bg-white px-3 py-3 shadow-sm sm:px-4" style={{ borderColor: `${primaryColor}55` }}>
-            {isEditingCountdown ? (
-              <form onSubmit={handleSaveCountdown} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_190px_auto]">
-                <label className="text-[11px] font-bold text-slate-600">
-                  Nombre de la próxima fecha
-                  <input
-                    type="text"
-                    value={newCountdownTitle}
-                    onChange={event => setNewCountdownTitle(event.target.value)}
-                    placeholder="Ej.: Receso de invierno"
-                    required
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 outline-none focus:border-slate-400"
+        {/* CUENTA REGRESIVA + AVISOS: dos tarjetas con una identidad visual común */}
+        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+              {/* CUENTA REGRESIVA */}
+              {showCountdown && (
+                <section
+                  className={`relative isolate min-h-[136px] overflow-hidden rounded-3xl border px-4 py-4 shadow-sm sm:px-5 ${showAnnouncements ? '' : 'lg:col-span-2'}`}
+                  style={{
+                    borderColor: `${primaryColor}35`,
+                    background: `linear-gradient(135deg, ${primaryColor}10 0%, #ffffff 78%)`,
+                  }}
+                >
+                  <div
+                    className="pointer-events-none absolute -right-9 -top-12 h-36 w-36 rounded-full opacity-[0.07]"
+                    style={{ backgroundColor: primaryColor }}
+                    aria-hidden="true"
                   />
-                </label>
-                <label className="text-[11px] font-bold text-slate-600">
-                  Fecha
-                  <input
-                    type="date"
-                    value={newCountdownDate}
-                    onChange={event => setNewCountdownDate(event.target.value)}
-                    required
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 outline-none focus:border-slate-400"
+                  <span
+                    className="absolute inset-y-4 left-0 w-1 rounded-r-full"
+                    style={{ backgroundColor: primaryColor }}
+                    aria-hidden="true"
                   />
-                </label>
-                <div className="flex gap-2">
-                  <button type="submit" disabled={savingCountdown} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-white disabled:opacity-60" style={primaryButtonStyle}>{savingCountdown ? 'Guardando…' : 'Guardar'}</button>
-                  <button type="button" onClick={() => setIsEditingCountdown(false)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancelar</button>
-                </div>
-              </form>
-            ) : (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl text-white" style={primaryButtonStyle}>
-                    {countdown.date ? (
-                      <>
-                        <span className={`${countdown.date === todayStr ? 'text-sm' : 'text-xl'} font-black leading-none`}>{countdown.date === todayStr ? 'HOY' : countdown.date < todayStr ? '✓' : countdown.daysLeft}</span>
-                        <span className="mt-0.5 text-[8px] font-bold uppercase">{countdown.date === todayStr ? 'Fecha' : countdown.date < todayStr ? 'Cumplida' : countdown.daysLeft === 1 ? 'Día hábil' : 'Días hábiles'}</span>
-                      </>
-                    ) : (
-                      <CalendarCheck2 size={21} aria-hidden="true" />
-                    )}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: primaryColor }}>Cuenta regresiva · próxima fecha</p>
-                    <p className="mt-0.5 break-words text-sm font-extrabold text-slate-800">
-                      {countdown.title || 'Todavía no hay una fecha configurada'}
-                    </p>
-                    {countdown.date ? (
-                      <p className="mt-0.5 text-xs font-medium text-slate-500">
-                        {countdown.date === todayStr ? '¡Es hoy!' : countdown.date < todayStr ? `Fecha: ${formatDate(countdown.date, { day: 'numeric', month: 'long', year: 'numeric' })}` : `Faltan ${countdown.daysLeft} día${countdown.daysLeft === 1 ? '' : 's'} hábil${countdown.daysLeft === 1 ? '' : 'es'} · ${formatDate(countdown.date, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}`}
-                      </p>
-                    ) : (
-                      <p className="mt-0.5 text-xs text-slate-500">Configurá una fecha para verla acá cada vez que ingreses.</p>
-                    )}
-                  </div>
-                </div>
-                {isManagement && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewCountdownTitle(countdown.title || '');
-                      setNewCountdownDate(countdown.date || '');
-                      setIsEditingCountdown(true);
-                    }}
-                    className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                    title={countdown.date ? 'Editar próxima fecha' : 'Configurar próxima fecha'}
-                  ><Pencil size={13} className="mr-1 inline" />{countdown.date ? 'Editar' : 'Configurar'}</button>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* AVISOS INSTITUCIONALES: destacados al ingresar */}
-        {canUseModule('notifications') && (
-          <section className="h-full rounded-2xl border border-amber-300 bg-amber-50/80 p-3 shadow-sm sm:p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-200 text-amber-950"><Bell size={17} aria-hidden="true" /></span>
-                <div>
-                  <h2 className="text-sm font-black text-amber-950">Avisos institucionales</h2>
-                  <p className="text-[11px] text-amber-900">Información importante para tu equipo.</p>
-                </div>
-                {visibleAnnouncements.length > 0 && (
-                  <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-extrabold text-amber-950">{visibleAnnouncements.length}</span>
-                )}
-              </div>
-              {canPost && (
-                <button
-                  type="button"
-                  onClick={() => setShowAnnounceModal(true)}
-                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-amber-950 transition hover:bg-amber-100"
-                ><Plus size={13} /> Publicar aviso</button>
-              )}
-            </div>
-            {visibleAnnouncements.length === 0 ? (
-              <div className="rounded-xl border border-amber-200 bg-white/80 px-3 py-2.5">
-                <p className="text-xs font-bold text-slate-700">No hay avisos publicados para vos.</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">Los avisos dirigidos a tu equipo van a aparecer acá.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-                {visibleAnnouncements.map(announcement => (
-                  <article key={announcement.id} className="flex min-w-0 items-start gap-2.5 rounded-xl border border-amber-200 bg-white px-3 py-2.5">
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-900"><Megaphone size={14} aria-hidden="true" /></span>
-                    <div className="min-w-0 flex-1">
-                      <p className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-800">{announcement.message}</p>
-                      <p className="mt-1.5 text-[10px] font-bold text-slate-500">Publicado por {announcement.author || 'Equipo institucional'}</p>
+                  {isEditingCountdown ? (
+                    <form onSubmit={handleSaveCountdown} className="relative z-10 grid min-h-[100px] grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Nombre de la próxima fecha
+                        <input
+                          type="text"
+                          value={newCountdownTitle}
+                          onChange={event => setNewCountdownTitle(event.target.value)}
+                          placeholder="Ej.: Receso de invierno"
+                          required
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-normal text-slate-700 outline-none transition focus:border-slate-400"
+                        />
+                      </label>
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Fecha
+                        <input
+                          type="date"
+                          value={newCountdownDate}
+                          onChange={event => setNewCountdownDate(event.target.value)}
+                          required
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-normal text-slate-700 outline-none transition focus:border-slate-400"
+                        />
+                      </label>
+                      <div className="flex gap-2">
+                        <button type="submit" disabled={savingCountdown} className="flex-1 rounded-xl px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-95 disabled:opacity-60" style={primaryButtonStyle}>{savingCountdown ? 'Guardando…' : 'Guardar'}</button>
+                        <button type="button" onClick={() => setIsEditingCountdown(false)} className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white">Cancelar</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="relative z-10 flex min-h-[100px] items-center justify-between gap-3 pl-1">
+                      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                        <span
+                          className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl text-white shadow-md ring-4 ring-white/70"
+                          style={primaryButtonStyle}
+                        >
+                          {countdown.date ? (
+                            <>
+                              <span className={`${countdown.date === todayStr ? 'text-sm' : 'text-2xl'} font-black leading-none`}>
+                                {countdown.date === todayStr ? 'HOY' : countdown.date < todayStr ? '✓' : countdown.daysLeft}
+                              </span>
+                              <span className="mt-1 text-[8px] font-extrabold uppercase tracking-wide">
+                                {countdown.date === todayStr ? 'Es hoy' : countdown.date < todayStr ? 'Cumplida' : countdown.daysLeft === 1 ? 'Día hábil' : 'Días hábiles'}
+                              </span>
+                            </>
+                          ) : (
+                            <CalendarCheck2 size={24} aria-hidden="true" />
+                          )}
+                        </span>
+                        <div className="min-w-0 py-1">
+                          <p className="text-[10px] font-extrabold uppercase tracking-[0.15em]" style={{ color: primaryColor }}>Cuenta regresiva</p>
+                          <h2 className="mt-1 break-words text-base font-black leading-tight text-slate-900 sm:text-lg">
+                            {countdown.title || 'Próxima fecha institucional'}
+                          </h2>
+                          {countdown.date ? (
+                            <p className="mt-1.5 text-xs font-medium leading-relaxed text-slate-600">
+                              {countdown.date === todayStr
+                                ? '¡La fecha es hoy!'
+                                : countdown.date < todayStr
+                                  ? `Fecha cumplida: ${formatDate(countdown.date, { day: 'numeric', month: 'long', year: 'numeric' })}`
+                                  : formatDate(countdown.date, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
+                            </p>
+                          ) : (
+                            <p className="mt-1.5 text-xs leading-relaxed text-slate-500">Configurá una fecha importante para tenerla siempre a la vista.</p>
+                          )}
+                        </div>
+                      </div>
+                      {isManagement && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewCountdownTitle(countdown.title || '');
+                            setNewCountdownDate(countdown.date || '');
+                            setIsEditingCountdown(true);
+                          }}
+                          className="shrink-0 rounded-xl border bg-white/90 px-3 py-2 text-xs font-bold shadow-sm transition hover:bg-white"
+                          style={{ borderColor: `${primaryColor}30`, color: primaryColor }}
+                          title={countdown.date ? 'Editar próxima fecha' : 'Configurar próxima fecha'}
+                        ><Pencil size={13} className="mr-1 inline" />{countdown.date ? 'Editar' : 'Configurar'}</button>
+                      )}
                     </div>
-                    {(canPost || announcement.authorId === user?.id) && (
+                  )}
+                </section>
+              )}
+
+              {/* AVISOS INSTITUCIONALES */}
+              {showAnnouncements && (
+                <section
+                  className={`relative min-h-[136px] overflow-hidden rounded-3xl border bg-white p-4 shadow-sm sm:p-5 ${showCountdown ? '' : 'lg:col-span-2'}`}
+                  style={{ borderColor: `${primaryColor}28` }}
+                >
+                  <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: secondaryColor }} aria-hidden="true" />
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                        style={{ backgroundColor: `${secondaryColor}18`, color: secondaryColor }}
+                      ><Bell size={17} aria-hidden="true" /></span>
+                      <div className="min-w-0">
+                        <h2 className="text-sm font-black text-slate-900">Avisos institucionales</h2>
+                        <p className="mt-0.5 text-[11px] text-slate-500">Información importante para tu equipo.</p>
+                      </div>
+                      {visibleAnnouncements.length > 0 && (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-extrabold"
+                          style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}
+                        >{visibleAnnouncements.length}</span>
+                      )}
+                    </div>
+                    {canPost && (
                       <button
                         type="button"
-                        onClick={() => deleteAnnouncement(announcement.id)}
-                        className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
-                        title="Eliminar aviso"
-                        aria-label="Eliminar aviso"
-                      ><Trash2 size={13} /></button>
+                        onClick={() => setShowAnnounceModal(true)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border bg-white px-3 py-2 text-[11px] font-bold transition hover:bg-slate-50"
+                        style={{ borderColor: `${primaryColor}35`, color: primaryColor }}
+                      ><Plus size={13} /> Publicar aviso</button>
                     )}
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
+                  </div>
+                  {visibleAnnouncements.length === 0 ? (
+                    <div className="mt-3 flex min-h-[48px] items-center gap-2.5 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2.5">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-slate-400"><Bell size={14} aria-hidden="true" /></span>
+                      <div>
+                        <p className="text-xs font-bold text-slate-700">No hay avisos publicados para vos.</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">Los mensajes dirigidos a tu equipo van a aparecer acá.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 grid grid-cols-1 gap-2 2xl:grid-cols-2">
+                      {visibleAnnouncements.map(announcement => (
+                        <article key={announcement.id} className="flex min-w-0 items-start gap-2.5 rounded-xl border border-slate-200 border-l-[3px] bg-slate-50/60 px-3 py-2.5" style={{ borderLeftColor: primaryColor }}>
+                          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white" style={{ color: primaryColor }}><Megaphone size={14} aria-hidden="true" /></span>
+                          <div className="min-w-0 flex-1">
+                            <p className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-800">{announcement.message}</p>
+                            <p className="mt-1.5 text-[10px] font-bold text-slate-500">Publicado por {announcement.author || 'Equipo institucional'}</p>
+                          </div>
+                          {(canPost || announcement.authorId === user?.id) && (
+                            <button
+                              type="button"
+                              onClick={() => deleteAnnouncement(announcement.id)}
+                              className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
+                              title="Eliminar aviso"
+                              aria-label="Eliminar aviso"
+                            ><Trash2 size={13} /></button>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
         </div>
 
         {/* RESUMEN RÁPIDO */}
