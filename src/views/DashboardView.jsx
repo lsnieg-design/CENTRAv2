@@ -13,21 +13,14 @@ import {
   Cake,
   Pencil,
   X,
-  BookOpen,
   Users,
-  FolderOpen,
   Clock3,
   ArrowUpRight,
-  ClipboardList,
   Sparkles,
   CalendarCheck2,
   Megaphone,
-  FileText,
-  Link2,
   GraduationCap,
-  CircleCheck,
   ListTodo,
-  Briefcase,
 } from 'lucide-react';
 import {
   collection,
@@ -96,16 +89,16 @@ const getNextBirthday = (birthDate, today = new Date()) => {
 };
 
 const SectionHeading = ({ icon: Icon, title, subtitle, action }) => (
-  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between mb-3">
     <div className="flex items-start gap-3">
       {Icon && (
-        <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-          <Icon size={18} aria-hidden="true" />
+        <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+          <Icon size={16} aria-hidden="true" />
         </div>
       )}
       <div>
-        <h3 className="text-sm sm:text-base font-extrabold text-slate-800">{title}</h3>
-        {subtitle && <p className="text-xs sm:text-sm text-slate-500 mt-0.5">{subtitle}</p>}
+        <h3 className="text-sm font-extrabold text-slate-800">{title}</h3>
+        {subtitle && <p className="text-[11px] text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
     </div>
     {action}
@@ -113,11 +106,11 @@ const SectionHeading = ({ icon: Icon, title, subtitle, action }) => (
 );
 
 const EmptyState = ({ title, description }) => (
-  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-7 text-center">
-    <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 border border-slate-200">
-      <Sparkles size={18} aria-hidden="true" />
+  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center">
+    <div className="mx-auto mb-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-400 border border-slate-200">
+      <Sparkles size={15} aria-hidden="true" />
     </div>
-    <p className="text-sm font-bold text-slate-700">{title}</p>
+    <p className="text-xs font-bold text-slate-700">{title}</p>
     {description && <p className="text-xs leading-relaxed text-slate-500 mt-1 max-w-sm mx-auto">{description}</p>}
   </div>
 );
@@ -243,18 +236,6 @@ export function DashboardView({
         return aDate.localeCompare(bDate);
       });
   }, [tasks, user?.id, isSuperAdmin, role, appConfig]);
-
-  const shortcuts = [
-    { id: 'matricula', label: 'Legajos', description: 'Personas y fichas', icon: Users, tone: '#0f766e' },
-    { id: 'groups', label: 'Mi Aula', description: 'Grupos y seguimiento', icon: BookOpen, tone: '#2563eb' },
-    { id: 'calendar', label: 'Agenda', description: 'Fechas y actividades', icon: CalendarDays, tone: primaryColor },
-    { id: 'tasks', label: 'Tareas', description: 'Pendientes de trabajo', icon: ListTodo, tone: '#d97706' },
-    { id: 'resources', label: 'Recursos', description: 'Materiales y enlaces', icon: FolderOpen, tone: '#0891b2' },
-    { id: 'proyecto', label: 'Proyecto institucional', description: 'Líneas de trabajo', icon: FileText, tone: '#7c3aed' },
-    { id: 'personal', label: 'Personal', description: 'Equipo institucional', icon: Briefcase, tone: '#db2777' },
-    { id: 'evaluations', label: 'Evaluaciones', description: 'Seguimientos y registros', icon: ClipboardList, tone: '#4f46e5' },
-    { id: 'informes_externos', label: 'Informes externos', description: 'Documentación compartida', icon: Link2, tone: '#475569' },
-  ].filter(shortcut => canUseModule(shortcut.id));
 
   useEffect(() => {
     if (!db || !appId || !user?.id) return undefined;
@@ -470,11 +451,11 @@ export function DashboardView({
   const secondaryButtonStyle = { backgroundColor: secondaryColor };
 
   return (
-    <main className="mx-auto h-full w-full max-w-7xl overflow-y-auto pb-10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-      <div className="space-y-6 px-1 sm:px-2">
+    <main className="mx-auto h-full w-full max-w-7xl overflow-y-auto pb-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="space-y-3 px-1 sm:px-2">
         {/* ENCABEZADO */}
         <section
-          className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+          className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4"
           style={{ borderColor: `${primaryColor}30` }}
         >
           <div
@@ -482,33 +463,33 @@ export function DashboardView({
             style={{ backgroundColor: primaryColor }}
             aria-hidden="true"
           />
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-4">
+          <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               {logoUrl ? (
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-100 bg-white p-2 shadow-sm sm:h-16 sm:w-16">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white p-1.5 sm:h-12 sm:w-12">
                   <img src={logoUrl} alt={`Logo de ${institutionName}`} className="h-full w-full object-contain" />
                 </div>
               ) : (
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm sm:h-16 sm:w-16" style={primaryButtonStyle}>
-                  <GraduationCap size={28} aria-hidden="true" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-sm sm:h-12 sm:w-12" style={primaryButtonStyle}>
+                  <GraduationCap size={22} aria-hidden="true" />
                 </div>
               )}
               <div className="min-w-0">
                 <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.16em]" style={{ color: primaryColor }}>
                   {institutionName}
                 </p>
-                <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
                   ¡Hola, {user?.firstName || user?.fullName?.split(' ')[0] || 'bienvenido'}!
                 </h1>
-                <p className="mt-1 text-sm text-slate-500">Tu espacio de trabajo, en un solo lugar.</p>
-                <p className="mt-2 text-xs font-semibold capitalize text-slate-400">{todayLabel}</p>
+                <p className="mt-0.5 text-xs text-slate-500">Tu espacio de trabajo institucional.</p>
+                <p className="mt-1 text-[11px] font-semibold capitalize text-slate-400">{todayLabel}</p>
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setShowTutorial(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
                 <HelpCircle size={16} aria-hidden="true" />
                 Ayuda
@@ -517,7 +498,7 @@ export function DashboardView({
                 <button
                   type="button"
                   onClick={() => setShowAnnounceModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-2"
                   style={primaryButtonStyle}
                 >
                   <Megaphone size={16} aria-hidden="true" />
@@ -528,157 +509,125 @@ export function DashboardView({
           </div>
         </section>
 
-        {/* RESUMEN RÁPIDO */}
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {canUseModule('tasks') && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('tasks')}
-              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><CheckSquare size={20} /></span>
-                <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-slate-600" />
-              </div>
-              <p className="mt-4 text-3xl font-black text-slate-900">{myPendingTasks.length}</p>
-              <p className="mt-1 text-sm font-bold text-slate-700">Tareas pendientes</p>
-              <p className="mt-1 text-xs text-slate-500">{myPendingTasks.length === 1 ? 'Una tarea para revisar' : 'Pendientes asignados o creados por vos'}</p>
-            </button>
-          )}
-          {canUseModule('calendar') && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('calendar')}
-              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl text-white" style={primaryButtonStyle}><CalendarDays size={20} /></span>
-                <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-slate-600" />
-              </div>
-              <p className="mt-4 text-3xl font-black text-slate-900">{todayEvents.length}</p>
-              <p className="mt-1 text-sm font-bold text-slate-700">{todayEvents.length === 1 ? 'Evento para hoy' : 'Eventos para hoy'}</p>
-              <p className="mt-1 truncate text-xs text-slate-500">{todayEvents[0]?.title || 'Consultá las próximas fechas en Agenda'}</p>
-            </button>
-          )}
-          {canUseModule('matricula') && (
-            <button
-              type="button"
-              onClick={() => openBirthdayModal('students')}
-              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-50 text-pink-600"><Cake size={20} /></span>
-                <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-slate-600" />
-              </div>
-              <p className="mt-4 text-3xl font-black text-slate-900">{studentBirthdays.length}</p>
-              <p className="mt-1 text-sm font-bold text-slate-700">Cumpleaños de estudiantes</p>
-              <p className="mt-1 text-xs text-slate-500">En los próximos 7 días</p>
-            </button>
-          )}
-          {canUseModule('personal') && (
-            <button
-              type="button"
-              onClick={() => openBirthdayModal('staff')}
-              className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-700"><UserRound size={20} /></span>
-                <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-slate-600" />
-              </div>
-              <p className="mt-4 text-3xl font-black text-slate-900">{staffBirthdays.length}</p>
-              <p className="mt-1 text-sm font-bold text-slate-700">Cumpleaños del equipo</p>
-              <p className="mt-1 text-xs text-slate-500">En los próximos 7 días</p>
-            </button>
-          )}
-        </section>
-
-        {/* ACCESOS RÁPIDOS */}
-        {shortcuts.length > 0 && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <SectionHeading
-              icon={ArrowUpRight}
-              title="Accesos rápidos"
-              subtitle="Entrá directamente a las herramientas que usás con más frecuencia."
-            />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {shortcuts.map(shortcut => {
-                const Icon = shortcut.icon;
-                return (
+        {/* CUENTA REGRESIVA: visible al ingresar */}
+        {canUseModule('calendar') && (countdown.date || isManagement) && (
+          <section className="rounded-2xl border bg-white px-3 py-3 shadow-sm sm:px-4" style={{ borderColor: `${primaryColor}55` }}>
+            {isEditingCountdown ? (
+              <form onSubmit={handleSaveCountdown} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_190px_auto]">
+                <label className="text-[11px] font-bold text-slate-600">
+                  Nombre de la próxima fecha
+                  <input
+                    type="text"
+                    value={newCountdownTitle}
+                    onChange={event => setNewCountdownTitle(event.target.value)}
+                    placeholder="Ej.: Receso de invierno"
+                    required
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 outline-none focus:border-slate-400"
+                  />
+                </label>
+                <label className="text-[11px] font-bold text-slate-600">
+                  Fecha
+                  <input
+                    type="date"
+                    value={newCountdownDate}
+                    onChange={event => setNewCountdownDate(event.target.value)}
+                    required
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 outline-none focus:border-slate-400"
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <button type="submit" disabled={savingCountdown} className="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-white disabled:opacity-60" style={primaryButtonStyle}>{savingCountdown ? 'Guardando…' : 'Guardar'}</button>
+                  <button type="button" onClick={() => setIsEditingCountdown(false)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancelar</button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl text-white" style={primaryButtonStyle}>
+                    {countdown.date ? (
+                      <>
+                        <span className={`${countdown.date === todayStr ? 'text-sm' : 'text-xl'} font-black leading-none`}>{countdown.date === todayStr ? 'HOY' : countdown.date < todayStr ? '✓' : countdown.daysLeft}</span>
+                        <span className="mt-0.5 text-[8px] font-bold uppercase">{countdown.date === todayStr ? 'Fecha' : countdown.date < todayStr ? 'Cumplida' : countdown.daysLeft === 1 ? 'Día hábil' : 'Días hábiles'}</span>
+                      </>
+                    ) : (
+                      <CalendarCheck2 size={21} aria-hidden="true" />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.14em]" style={{ color: primaryColor }}>Cuenta regresiva · próxima fecha</p>
+                    <p className="mt-0.5 break-words text-sm font-extrabold text-slate-800">
+                      {countdown.title || 'Todavía no hay una fecha configurada'}
+                    </p>
+                    {countdown.date ? (
+                      <p className="mt-0.5 text-xs font-medium text-slate-500">
+                        {countdown.date === todayStr ? '¡Es hoy!' : countdown.date < todayStr ? `Fecha: ${formatDate(countdown.date, { day: 'numeric', month: 'long', year: 'numeric' })}` : `Faltan ${countdown.daysLeft} día${countdown.daysLeft === 1 ? '' : 's'} hábil${countdown.daysLeft === 1 ? '' : 'es'} · ${formatDate(countdown.date, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}`}
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 text-xs text-slate-500">Configurá una fecha para verla acá cada vez que ingreses.</p>
+                    )}
+                  </div>
+                </div>
+                {isManagement && (
                   <button
-                    key={shortcut.id}
                     type="button"
-                    onClick={() => setActiveTab(shortcut.id)}
-                    className="group flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 p-3.5 text-left transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                  >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-sm" style={{ backgroundColor: shortcut.tone }}>
-                      <Icon size={20} aria-hidden="true" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-extrabold text-slate-800">{shortcut.label}</span>
-                      <span className="mt-0.5 block truncate text-xs text-slate-500">{shortcut.description}</span>
-                    </span>
-                    <ChevronRight size={17} className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
-                  </button>
-                );
-              })}
-            </div>
+                    onClick={() => {
+                      setNewCountdownTitle(countdown.title || '');
+                      setNewCountdownDate(countdown.date || '');
+                      setIsEditingCountdown(true);
+                    }}
+                    className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                    title={countdown.date ? 'Editar próxima fecha' : 'Configurar próxima fecha'}
+                  ><Pencil size={13} className="mr-1 inline" />{countdown.date ? 'Editar' : 'Configurar'}</button>
+                )}
+              </div>
+            )}
           </section>
         )}
 
-        {/* ALERTA DE ORGANIZACIÓN */}
-        {isManagement && canUseModule('matricula') && ungroupedCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('matricula')}
-            className="flex w-full items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left transition hover:bg-amber-100/70 focus:outline-none focus:ring-2 focus:ring-amber-300"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700"><Users size={18} /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-extrabold text-amber-950">Hay personas sin grupo asignado</span>
-              <span className="mt-1 block text-xs leading-relaxed text-amber-900">{ungroupedCount} legajo{ungroupedCount === 1 ? '' : 's'} sin grupo o referente cargado. Revisá la organización desde Legajos.</span>
-            </span>
-            <ChevronRight size={18} className="mt-1 shrink-0 text-amber-700" />
-          </button>
-        )}
-
-        {/* AVISOS INSTITUCIONALES */}
+        {/* AVISOS INSTITUCIONALES: destacados al ingresar */}
         {canUseModule('notifications') && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <SectionHeading
-              icon={Bell}
-              title="Avisos institucionales"
-              subtitle="Novedades importantes compartidas con el equipo."
-              action={canPost ? (
+          <section className="rounded-2xl border border-amber-300 bg-amber-50/80 p-3 shadow-sm sm:p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-200 text-amber-950"><Bell size={17} aria-hidden="true" /></span>
+                <div>
+                  <h2 className="text-sm font-black text-amber-950">Avisos institucionales</h2>
+                  <p className="text-[11px] text-amber-900">Información importante para tu equipo.</p>
+                </div>
+                {visibleAnnouncements.length > 0 && (
+                  <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-extrabold text-amber-950">{visibleAnnouncements.length}</span>
+                )}
+              </div>
+              {canPost && (
                 <button
                   type="button"
                   onClick={() => setShowAnnounceModal(true)}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-                >
-                  <Plus size={14} /> Publicar aviso
-                </button>
-              ) : null}
-            />
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-amber-950 transition hover:bg-amber-100"
+                ><Plus size={13} /> Publicar aviso</button>
+              )}
+            </div>
             {visibleAnnouncements.length === 0 ? (
-              <EmptyState title="No hay avisos nuevos" description="Cuando se publique una novedad para tu equipo, va a aparecer en este espacio." />
+              <div className="rounded-xl border border-amber-200 bg-white/80 px-3 py-2.5">
+                <p className="text-xs font-bold text-slate-700">No hay avisos publicados para vos.</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Los avisos dirigidos a tu equipo van a aparecer acá.</p>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
                 {visibleAnnouncements.map(announcement => (
-                  <article key={announcement.id} className="flex min-w-0 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700 border border-amber-100"><Megaphone size={17} /></span>
+                  <article key={announcement.id} className="flex min-w-0 items-start gap-2.5 rounded-xl border border-amber-200 bg-white px-3 py-2.5">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-900"><Megaphone size={14} aria-hidden="true" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">{announcement.message}</p>
-                      <p className="mt-2 text-[11px] font-bold text-slate-400">{announcement.author || 'Equipo institucional'}</p>
+                      <p className="whitespace-pre-wrap break-words text-xs font-semibold leading-relaxed text-slate-800">{announcement.message}</p>
+                      <p className="mt-1.5 text-[10px] font-bold text-slate-500">Publicado por {announcement.author || 'Equipo institucional'}</p>
                     </div>
                     {(canPost || announcement.authorId === user?.id) && (
                       <button
                         type="button"
                         onClick={() => deleteAnnouncement(announcement.id)}
-                        className="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
+                        className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
                         title="Eliminar aviso"
                         aria-label="Eliminar aviso"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      ><Trash2 size={13} /></button>
                     )}
                   </article>
                 ))}
@@ -687,11 +636,91 @@ export function DashboardView({
           </section>
         )}
 
+        {/* RESUMEN RÁPIDO */}
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {canUseModule('tasks') && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('tasks')}
+              className="group rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><CheckSquare size={16} /></span>
+                <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-slate-600" />
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-900">{myPendingTasks.length}</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-700">Tareas pendientes</p>
+              <p className="mt-0.5 text-[10px] leading-snug text-slate-500">{myPendingTasks.length === 1 ? 'Una tarea para revisar' : 'Pendientes asignados o creados por vos'}</p>
+            </button>
+          )}
+          {canUseModule('calendar') && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('calendar')}
+              className="group rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={primaryButtonStyle}><CalendarDays size={16} /></span>
+                <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-slate-600" />
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-900">{todayEvents.length}</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-700">{todayEvents.length === 1 ? 'Evento para hoy' : 'Eventos para hoy'}</p>
+              <p className="mt-1 truncate text-xs text-slate-500">{todayEvents[0]?.title || 'Consultá las próximas fechas en Agenda'}</p>
+            </button>
+          )}
+          {canUseModule('matricula') && (
+            <button
+              type="button"
+              onClick={() => openBirthdayModal('students')}
+              className="group rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-pink-50 text-pink-600"><Cake size={16} /></span>
+                <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-slate-600" />
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-900">{studentBirthdays.length}</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-700">Cumpleaños de estudiantes</p>
+              <p className="mt-0.5 text-[10px] leading-snug text-slate-500">En los próximos 7 días</p>
+            </button>
+          )}
+          {canUseModule('personal') && (
+            <button
+              type="button"
+              onClick={() => openBirthdayModal('staff')}
+              className="group rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-300"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700"><UserRound size={16} /></span>
+                <ArrowUpRight size={17} className="text-slate-300 transition group-hover:text-slate-600" />
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-900">{staffBirthdays.length}</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-700">Cumpleaños del equipo</p>
+              <p className="mt-0.5 text-[10px] leading-snug text-slate-500">En los próximos 7 días</p>
+            </button>
+          )}
+        </section>
+
+        {/* ALERTA DE ORGANIZACIÓN */}
+        {isManagement && canUseModule('matricula') && ungroupedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('matricula')}
+            className="flex w-full items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-left transition hover:bg-amber-100/70 focus:outline-none focus:ring-2 focus:ring-amber-300"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-amber-700"><Users size={18} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-extrabold text-amber-950">Hay personas sin grupo asignado</span>
+              <span className="mt-1 block text-xs leading-relaxed text-amber-900">{ungroupedCount} legajo{ungroupedCount === 1 ? '' : 's'} sin grupo o referente cargado. Revisá la organización desde Legajos.</span>
+            </span>
+            <ChevronRight size={18} className="mt-1 shrink-0 text-amber-700" />
+          </button>
+        )}
+
         {/* TAREAS Y AGENDA */}
         {(canUseModule('tasks') || canUseModule('calendar')) && (
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <section className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {canUseModule('tasks') && (
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
                 <SectionHeading
                   icon={ListTodo}
                   title="Mis tareas pendientes"
@@ -710,12 +739,12 @@ export function DashboardView({
                           key={task.id}
                           type="button"
                           onClick={() => setActiveTab('tasks')}
-                          className="flex w-full items-start gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                          className="flex w-full items-start gap-3 rounded-lg border border-slate-100 p-2.5 text-left transition hover:border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                         >
                           <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-amber-300 text-amber-700"><Clock3 size={11} /></span>
                           <span className="min-w-0 flex-1">
-                            <span className="block break-words text-sm font-semibold text-slate-700">{taskTitle}</span>
-                            {dueDate && <span className="mt-1 block text-xs text-slate-400">Fecha: {formatDate(dueDate)}</span>}
+                            <span className="block break-words text-xs font-semibold text-slate-700">{taskTitle}</span>
+                            {dueDate && <span className="mt-0.5 block text-[10px] text-slate-400">Fecha: {formatDate(dueDate)}</span>}
                           </span>
                           <ChevronRight size={16} className="mt-0.5 shrink-0 text-slate-300" />
                         </button>
@@ -728,7 +757,7 @@ export function DashboardView({
             )}
 
             {canUseModule('calendar') && (
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
                 <SectionHeading
                   icon={CalendarDays}
                   title="Próximas fechas"
@@ -746,15 +775,15 @@ export function DashboardView({
                           key={event.id}
                           type="button"
                           onClick={() => setActiveTab('calendar')}
-                          className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                          className="flex w-full items-center gap-3 rounded-lg border border-slate-100 p-2.5 text-left transition hover:border-slate-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                         >
-                          <span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl text-center" style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}>
+                          <span className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg text-center" style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}>
                             <span className="text-[10px] font-extrabold uppercase">{formatDate(event.date, { month: 'short' }).replace('.', '')}</span>
-                            <span className="text-lg font-black leading-none">{formatDate(event.date, { day: 'numeric' })}</span>
+                            <span className="text-base font-black leading-none">{formatDate(event.date, { day: 'numeric' })}</span>
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-bold text-slate-700">{event.title || event.name || 'Actividad institucional'}</span>
-                            <span className="mt-1 block text-xs text-slate-400">{isToday ? 'Hoy' : formatDate(event.date, { weekday: 'short', day: 'numeric', month: 'long' })}{(event.time || event.startTime) ? ` · ${event.time || event.startTime}` : ''}</span>
+                            <span className="block truncate text-xs font-bold text-slate-700">{event.title || event.name || 'Actividad institucional'}</span>
+                            <span className="mt-0.5 block text-[10px] text-slate-400">{isToday ? 'Hoy' : formatDate(event.date, { weekday: 'short', day: 'numeric', month: 'long' })}{(event.time || event.startTime) ? ` · ${event.time || event.startTime}` : ''}</span>
                           </span>
                           <ChevronRight size={16} className="shrink-0 text-slate-300" />
                         </button>
@@ -762,64 +791,7 @@ export function DashboardView({
                     })}
                   </div>
                 )}
-                {isManagement && (
-                  <div className="mt-4 border-t border-slate-100 pt-4">
-                    {isEditingCountdown ? (
-                      <form onSubmit={handleSaveCountdown} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <label className="text-xs font-bold text-slate-500 sm:col-span-2">
-                          Nombre de la próxima fecha
-                          <input
-                            type="text"
-                            value={newCountdownTitle}
-                            onChange={event => setNewCountdownTitle(event.target.value)}
-                            placeholder="Ej.: Receso de invierno"
-                            required
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-700 outline-none focus:border-slate-400"
-                          />
-                        </label>
-                        <label className="text-xs font-bold text-slate-500">
-                          Fecha
-                          <input
-                            type="date"
-                            value={newCountdownDate}
-                            onChange={event => setNewCountdownDate(event.target.value)}
-                            required
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-700 outline-none focus:border-slate-400"
-                          />
-                        </label>
-                        <div className="flex items-end gap-2">
-                          <button type="submit" disabled={savingCountdown} className="flex-1 rounded-xl px-3 py-2.5 text-xs font-bold text-white disabled:opacity-60" style={primaryButtonStyle}>{savingCountdown ? 'Guardando…' : 'Guardar'}</button>
-                          <button type="button" onClick={() => setIsEditingCountdown(false)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancelar</button>
-                        </div>
-                      </form>
-                    ) : (
-                      <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl text-white" style={primaryButtonStyle}>
-                            <span className="text-base font-black leading-none">{countdown.daysLeft}</span>
-                            <span className="mt-0.5 text-[8px] font-bold uppercase">Días háb.</span>
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Cuenta regresiva</span>
-                            <span className="mt-0.5 block truncate text-sm font-bold text-slate-700">{countdown.title || 'Configurar próxima fecha'}</span>
-                            {countdown.date && <span className="mt-0.5 block text-xs text-slate-400">{formatDate(countdown.date, { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewCountdownTitle(countdown.title || '');
-                            setNewCountdownDate(countdown.date || '');
-                            setIsEditingCountdown(true);
-                          }}
-                          className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-700"
-                          title="Editar próxima fecha"
-                          aria-label="Editar próxima fecha"
-                        ><Pencil size={15} /></button>
-                      </div>
-                    )}
-                  </div>
-                )}
+
               </div>
             )}
           </section>
@@ -827,7 +799,7 @@ export function DashboardView({
 
         {/* NOTAS PERSONALES */}
         {canUseModule('tasks') && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <SectionHeading
               icon={LockKeyhole}
               title="Mis notas"
@@ -839,13 +811,13 @@ export function DashboardView({
                 onChange={event => setNewNote(event.target.value)}
                 placeholder="Escribí una nota o recordatorio…"
                 maxLength={500}
-                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
                 aria-label="Nueva nota personal"
               />
               <button
                 type="submit"
                 disabled={!newNote.trim() || savingNote}
-                className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
                 style={primaryButtonStyle}
               >
                 <Plus size={17} /> {savingNote ? 'Guardando…' : 'Agregar nota'}
@@ -871,7 +843,7 @@ export function DashboardView({
                       title={note.done ? 'Marcar como pendiente' : 'Marcar como realizada'}
                       aria-label={note.done ? 'Marcar nota como pendiente' : 'Marcar nota como realizada'}
                     >{note.done && <Check size={12} />}</button>
-                    <span className={`min-w-0 flex-1 break-words text-sm leading-relaxed ${note.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{note.text}</span>
+                    <span className={`min-w-0 flex-1 break-words text-xs leading-relaxed ${note.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{note.text}</span>
                     <button
                       type="button"
                       onClick={() => deleteNote(note.id)}
@@ -913,7 +885,7 @@ export function DashboardView({
               ))}
             </div>
             <div className="border-t border-slate-100 p-4">
-              <button type="button" onClick={() => setShowBirthdayModal(false)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Cerrar</button>
+              <button type="button" onClick={() => setShowBirthdayModal(false)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50">Cerrar</button>
             </div>
           </section>
         </div>
@@ -959,55 +931,93 @@ export function DashboardView({
         </div>
       )}
 
-      {/* AYUDA RÁPIDA */}
+      {/* TUTORIAL BREVE */}
       {showTutorial && (
-        <div className="fixed inset-0 z-[9997] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setShowTutorial(false); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5 sm:p-6">
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl text-white" style={primaryButtonStyle}><HelpCircle size={21} /></span>
+        <div className="fixed inset-0 z-[9997] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setShowTutorial(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="tutorial-title" className="flex max-h-[84vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+              <div className="flex items-start gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={primaryButtonStyle}><HelpCircle size={17} /></span>
                 <div>
-                  <h2 id="tutorial-title" className="text-xl font-black text-slate-900">Cómo usar CENTRA</h2>
-                  <p className="mt-1 text-sm text-slate-500">Una guía breve para ubicarte y empezar.</p>
+                  <h2 id="tutorial-title" className="text-base font-black text-slate-900">Guía rápida de CENTRA</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Elegí una sección para saber para qué sirve y qué podés hacer.</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setShowTutorial(false)} aria-label="Cerrar ayuda" className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X size={19} /></button>
+              <button type="button" onClick={() => setShowTutorial(false)} aria-label="Cerrar ayuda" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X size={17} /></button>
             </div>
-            <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-5 py-3 sm:px-6">
+            <div className="flex gap-1.5 overflow-x-auto border-b border-slate-100 px-3 py-2 sm:px-4">
               {[
                 ['inicio', 'Inicio'],
+                ['avisos', 'Avisos'],
                 ['legajos', 'Legajos'],
                 ['aula', 'Mi Aula'],
                 ['tareas', 'Tareas'],
                 ['agenda', 'Agenda'],
                 ['recursos', 'Recursos'],
               ].map(([id, label]) => (
-                <button key={id} type="button" onClick={() => setTutorialTab(id)} className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold transition ${tutorialTab === id ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} style={tutorialTab === id ? primaryButtonStyle : undefined}>{label}</button>
+                <button key={id} type="button" onClick={() => setTutorialTab(id)} className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${tutorialTab === id ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} style={tutorialTab === id ? primaryButtonStyle : undefined}>{label}</button>
               ))}
             </div>
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
               {tutorialTab === 'inicio' && (
-                <div className="space-y-4">
-                  <div className="rounded-2xl p-5" style={{ backgroundColor: `${primaryColor}0D` }}>
-                    <h3 className="font-extrabold text-slate-800">Tu punto de partida</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">En Inicio encontrás un resumen de tus tareas, las fechas próximas, los avisos institucionales y accesos directos a los módulos habilitados para tu usuario.</p>
+                <div className="space-y-3">
+                  <div className="rounded-xl border p-3" style={{ borderColor: `${primaryColor}40`, backgroundColor: `${primaryColor}0A` }}>
+                    <h3 className="text-sm font-extrabold text-slate-800">Empezá por este resumen</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">Al ingresar, revisá la cuenta regresiva y los avisos. Debajo vas a ver un resumen de tareas, actividades de hoy y cumpleaños próximos.</p>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-slate-200 p-4"><Bell size={18} className="mb-2 text-amber-600" /><p className="text-sm font-bold text-slate-800">Avisos</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Revisá información compartida por el equipo o publicá una novedad si tenés permisos.</p></div>
-                    <div className="rounded-2xl border border-slate-200 p-4"><ListTodo size={18} className="mb-2 text-blue-600" /><p className="text-sm font-bold text-slate-800">Tareas</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Consultá tus pendientes y guardá notas personales para recordar cosas importantes.</p></div>
-                    <div className="rounded-2xl border border-slate-200 p-4"><CalendarDays size={18} className="mb-2 text-emerald-600" /><p className="text-sm font-bold text-slate-800">Agenda</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Mirá actividades de hoy y próximas fechas institucionales.</p></div>
-                    <div className="rounded-2xl border border-slate-200 p-4"><ArrowUpRight size={18} className="mb-2 text-violet-600" /><p className="text-sm font-bold text-slate-800">Accesos rápidos</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Entrá directamente a las secciones que tenés habilitadas.</p></div>
-                  </div>
+                  <ol className="space-y-2 text-xs leading-relaxed text-slate-700">
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 font-black">1</span><span><strong>Leé los avisos.</strong> Ahí aparece la información compartida para tu equipo.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 font-black">2</span><span><strong>Revisá tus pendientes.</strong> Entrá a Tareas para ver o completar el trabajo asignado.</span></li>
+                    <li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 font-black">3</span><span><strong>Usá el menú principal</strong> para ingresar a cada módulo. Las opciones disponibles dependen de tu rol y de la configuración institucional.</span></li>
+                  </ol>
                 </div>
               )}
-              {tutorialTab === 'legajos' && <div className="rounded-2xl border border-slate-200 p-5"><h3 className="font-extrabold text-slate-800">Legajos</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">Centraliza las fichas de las personas de la institución. Podés buscar registros y consultar la información disponible según tus permisos.</p></div>}
-              {tutorialTab === 'aula' && <div className="rounded-2xl border border-slate-200 p-5"><h3 className="font-extrabold text-slate-800">Mi Aula</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">Es el espacio de organización de grupos e integrantes, con las herramientas de seguimiento que estén habilitadas para tu institución.</p></div>}
-              {tutorialTab === 'tareas' && <div className="rounded-2xl border border-slate-200 p-5"><h3 className="font-extrabold text-slate-800">Tareas</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">Consultá tareas asignadas o creadas por vos, revisá sus fechas y marcá como realizadas las que ya resolviste. Las notas de Inicio son personales.</p></div>}
-              {tutorialTab === 'agenda' && <div className="rounded-2xl border border-slate-200 p-5"><h3 className="font-extrabold text-slate-800">Agenda</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">Consultá eventos y fechas institucionales. Las actividades próximas también aparecen resumidas en Inicio.</p></div>}
-              {tutorialTab === 'recursos' && <div className="rounded-2xl border border-slate-200 p-5"><h3 className="font-extrabold text-slate-800">Recursos</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">Reuní y encontrá materiales y enlaces útiles para el trabajo cotidiano de la institución.</p></div>}
+              {tutorialTab === 'avisos' && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-extrabold text-slate-800">Avisos institucionales</h3>
+                  <p className="text-xs leading-relaxed text-slate-600">Leé esta sección cada vez que ingreses. Los mensajes están dirigidos a todo el personal, a la sede o al equipo de inclusión, según lo que haya elegido quien los publicó.</p>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950"><strong>Para publicar:</strong> si tenés permiso, tocá «Publicar aviso», escribí el mensaje, seleccioná a quiénes está dirigido y elegí cuándo debe aparecer.</div>
+                  <p className="text-xs leading-relaxed text-slate-600">Los avisos programados aparecen al llegar la fecha y la hora elegidas.</p>
+                </div>
+              )}
+              {tutorialTab === 'legajos' && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-extrabold text-slate-800">Legajos</h3>
+                  <p className="text-xs leading-relaxed text-slate-600">Reúne las fichas de estudiantes y otras personas registradas, según los módulos habilitados en tu institución.</p>
+                  <p className="text-xs leading-relaxed text-slate-600">Usá el buscador para encontrar una persona y abrí su ficha para consultar o actualizar los datos que tengas permitidos.</p>
+                </div>
+              )}
+              {tutorialTab === 'aula' && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-extrabold text-slate-800">Mi Aula</h3>
+                  <p className="text-xs leading-relaxed text-slate-600">Sirve para organizar grupos e integrantes, consultar la conformación de cada grupo y acceder a las herramientas de seguimiento disponibles.</p>
+                  <p className="text-xs leading-relaxed text-slate-600">Si una persona no aparece donde esperás, revisá su asignación desde las opciones habilitadas para tu rol.</p>
+                </div>
+              )}
+              {tutorialTab === 'tareas' && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-extrabold text-slate-800">Tareas</h3>
+                  <p className="text-xs leading-relaxed text-slate-600">Consultá las tareas asignadas a vos o creadas por vos, revisá las fechas y marcá como realizadas las que ya resolviste.</p>
+                  <p className="text-xs leading-relaxed text-slate-600">En Inicio también podés guardar notas personales. Esas notas están asociadas a tu usuario.</p>
+                </div>
+              )}
+              {tutorialTab === 'agenda' && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-extrabold text-slate-800">Agenda</h3>
+                  <p className="text-xs leading-relaxed text-slate-600">Revisá eventos, actividades y fechas institucionales. En Inicio aparecen los próximos eventos y la cuenta regresiva configurada.</p>
+                  <p className="text-xs leading-relaxed text-slate-600">Si tenés permisos de gestión, podés configurar o editar la próxima fecha desde la cuenta regresiva.</p>
+                </div>
+              )}
+              {tutorialTab === 'recursos' && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-extrabold text-slate-800">Recursos</h3>
+                  <p className="text-xs leading-relaxed text-slate-600">Usá este espacio para encontrar materiales, documentos, carpetas y enlaces de consulta compartidos por la institución.</p>
+                  <p className="text-xs leading-relaxed text-slate-600">La disponibilidad de las opciones para crear o editar recursos depende de tus permisos.</p>
+                </div>
+              )}
             </div>
-            <div className="border-t border-slate-100 p-4 sm:px-6">
-              <button type="button" onClick={() => setShowTutorial(false)} className="w-full rounded-xl px-4 py-3 text-sm font-bold text-white transition hover:brightness-95" style={primaryButtonStyle}>Listo, entendí</button>
+            <div className="border-t border-slate-100 px-4 py-3 sm:px-5">
+              <button type="button" onClick={() => setShowTutorial(false)} className="w-full rounded-lg px-4 py-2.5 text-xs font-bold text-white transition hover:brightness-95" style={primaryButtonStyle}>Cerrar guía</button>
             </div>
           </section>
         </div>
