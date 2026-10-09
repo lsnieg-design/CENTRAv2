@@ -251,7 +251,7 @@ export function DashboardView({
     { id: 'tasks', label: 'Tareas', description: 'Pendientes de trabajo', icon: ListTodo, tone: '#d97706' },
     { id: 'resources', label: 'Recursos', description: 'Materiales y enlaces', icon: FolderOpen, tone: '#0891b2' },
     { id: 'proyecto', label: 'Proyecto institucional', description: 'Líneas de trabajo', icon: FileText, tone: '#7c3aed' },
-    { id: 'personal', label: 'Personal', description: 'Equipo institucional', icon: BriefcaseBusiness, tone: '#db2777' },
+    { id: 'personal', label: 'Personal', description: 'Equipo institucional', icon: Briefcase, tone: '#db2777' },
     { id: 'evaluations', label: 'Evaluaciones', description: 'Seguimientos y registros', icon: ClipboardList, tone: '#4f46e5' },
     { id: 'informes_externos', label: 'Informes externos', description: 'Documentación compartida', icon: Link2, tone: '#475569' },
   ].filter(shortcut => canUseModule(shortcut.id));
