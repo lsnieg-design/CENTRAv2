@@ -34,6 +34,122 @@ const TABS = [
   { id: 'system', label: 'Sistema', icon: Server }
 ];
 
+const INSTALLATION_STEPS = [
+  {
+    title: 'Duplicar el código base',
+    eyebrow: 'PASO 1 · REPOSITORIO',
+    summary: 'Cada institución tiene su propia publicación, pero usamos el mismo código de CENTRA.',
+    tasks: [
+      'Creá un repositorio nuevo a partir del código base de CENTRA en GitHub.',
+      'Poné un nombre identificable para la institución o la instalación.',
+      'Mantené los archivos de la aplicación y las dependencias; no copies credenciales de otra institución.',
+      'No subas un archivo .env con datos de conexión privados al repositorio.'
+    ],
+    note: 'Las mejoras futuras se hacen primero en CENTRA base y después se despliegan en cada instalación, siguiendo un proceso de actualización controlado.'
+  },
+  {
+    title: 'Crear un proyecto Firebase propio',
+    eyebrow: 'PASO 2 · FIREBASE',
+    summary: 'Creá un proyecto separado para que los datos de esta institución no se mezclen con los de otra.',
+    tasks: [
+      'Entrá a Firebase Console y creá un proyecto nuevo para esta institución.',
+      'Dentro del proyecto, registrá una aplicación web desde la configuración del proyecto.',
+      'Copiá los datos de configuración de esa aplicación web: los vamos a colocar como variables en Vercel.',
+      'Guardá el nombre del proyecto y su ID en tu registro interno de instalaciones NOMADE.'
+    ],
+    links: [{ label: 'Abrir Firebase Console', href: 'https://console.firebase.google.com/' }],
+    note: 'No reutilices el proyecto Firebase de otra institución. El código puede ser el mismo; el proyecto de datos debe ser distinto.'
+  },
+  {
+    title: 'Activar Authentication y Firestore',
+    eyebrow: 'PASO 3 · SERVICIOS Y SEGURIDAD',
+    summary: 'Estos servicios permiten iniciar sesión y guardar la información de CENTRA.',
+    tasks: [
+      'En Authentication, habilitá el método de inicio de sesión por correo electrónico y contraseña.',
+      'Creá la base de datos de Cloud Firestore y elegí una región adecuada para la institución.',
+      'Publicá las reglas de seguridad oficiales de CENTRA antes de cargar datos reales.',
+      'Probá que una persona sin permisos no pueda leer ni modificar información protegida.'
+    ],
+    links: [{ label: 'Abrir Firebase Console', href: 'https://console.firebase.google.com/' }],
+    warning: 'No dejes Firestore en modo de prueba ni uses reglas abiertas. Si el repositorio no contiene las reglas de seguridad revisadas de CENTRA, la instalación todavía no está lista para producción.'
+  },
+  {
+    title: 'Conectar CENTRA con ese Firebase',
+    eyebrow: 'PASO 4 · VARIABLES DE ENTORNO',
+    summary: 'No hace falta editar la conexión en cada pantalla: se reemplazan estos valores para la nueva instalación.',
+    tasks: [
+      'En Vercel, abrí el proyecto nuevo y entrá a Settings → Environment Variables.',
+      'Creá las seis variables que aparecen abajo con los valores del proyecto Firebase nuevo.',
+      'Asigná las variables al entorno Production y también a Preview si vas a probar allí.',
+      'Guardá los cambios y hacé un nuevo despliegue para que Vite las tome.'
+    ],
+    envVars: [
+      'VITE_FIREBASE_API_KEY',
+      'VITE_FIREBASE_AUTH_DOMAIN',
+      'VITE_FIREBASE_PROJECT_ID',
+      'VITE_FIREBASE_STORAGE_BUCKET',
+      'VITE_FIREBASE_MESSAGING_SENDER_ID',
+      'VITE_FIREBASE_APP_ID'
+    ],
+    links: [{ label: 'Abrir Vercel', href: 'https://vercel.com/dashboard' }],
+    note: 'Estos son datos de configuración de la aplicación web. Nunca pegues en el código del navegador una clave privada de service account ni credenciales de administrador de Firebase.'
+  },
+  {
+    title: 'Crear la primera cuenta administradora',
+    eyebrow: 'PASO 5 · PRIMER ACCESO',
+    summary: 'La cuenta necesita existir en Authentication y también tener su perfil dentro de CENTRA.',
+    tasks: [
+      'En Authentication → Users, creá el usuario inicial con su correo y contraseña.',
+      'En Firestore, creá un documento de perfil en la colección de usuarios de CENTRA, usando el correo en minúsculas.',
+      'Asignale el rol super-admin para habilitar Configuración y Gestión de usuarios.',
+      'Iniciá sesión y comprobá que el perfil quede vinculado a la cuenta de Firebase.'
+    ],
+    profilePath: 'artifacts/escuela-app-prod/public/data/users/{ID_DEL_DOCUMENTO}',
+    profileExample: '{\n  "firstName": "Nombre",\n  "lastName": "Apellido",\n  "fullName": "Nombre Apellido",\n  "email": "admin@institucion.org",\n  "username": "admin",\n  "rol": "super-admin",\n  "role": "Administración",\n  "active": true\n}',
+    warning: 'Crear solamente la cuenta en Authentication no alcanza: la app busca también su perfil en Firestore. Hoy este primer perfil requiere una carga inicial manual; conviene automatizarla con un procedimiento seguro antes de ofrecer una instalación totalmente autogestionada.'
+  },
+  {
+    title: 'Configurar la institución en CENTRA',
+    eyebrow: 'PASO 6 · PERSONALIZACIÓN',
+    summary: 'Una vez que ingresaste con la cuenta administradora, el resto se configura desde esta misma pantalla.',
+    tasks: [
+      'En Institución, completá nombre, tipo de organización y datos institucionales.',
+      'En Apariencia, configurá logo, colores y datos visuales.',
+      'En Estructura, definí niveles, áreas, turnos y organización de la institución.',
+      'En Módulos y Usuarios y permisos, activá lo necesario y revisá qué puede hacer cada rol.',
+      'Presioná Guardar cambios y comprobá que la identidad aparezca en el resto de CENTRA.'
+    ],
+    note: 'No hace falta crear pantallas nuevas ni modificar el código por cada cliente para cambiar el nombre, los colores, los módulos y los roles que la aplicación ya permite configurar.'
+  },
+  {
+    title: 'Cargar datos y hacer una prueba completa',
+    eyebrow: 'PASO 7 · VALIDACIÓN',
+    summary: 'Probá el funcionamiento con datos ficticios antes de importar información real.',
+    tasks: [
+      'Descargá la plantilla Excel desde Importación de datos y completá algunas filas ficticias.',
+      'Importá los registros de prueba y verificá que aparezcan en Legajos y Personal.',
+      'Probá crear una cuenta de personal con permisos limitados y revisá lo que puede ver.',
+      'Probá Agenda, Tareas, Grupos, documentos e informes que la institución vaya a usar.',
+      'Revisá errores de consola y permisos de Firestore antes de pasar a producción.'
+    ],
+    note: 'Cuando la prueba sale bien, borrá los datos ficticios, verificá las copias de seguridad y recién entonces empezá la carga real.'
+  },
+  {
+    title: 'Lista para entregar',
+    eyebrow: 'PASO 8 · CIERRE',
+    summary: 'Antes de entregar la instalación, revisá que cada punto esté resuelto.',
+    tasks: [
+      'El repositorio y el proyecto Vercel corresponden a esta institución.',
+      'Las seis variables VITE_FIREBASE_* apuntan al proyecto Firebase correcto.',
+      'Authentication, Firestore y reglas de seguridad están comprobados.',
+      'La cuenta administradora puede ingresar y configurar CENTRA.',
+      'No hay datos de otra institución, contraseñas en el código ni reglas abiertas.',
+      'La institución puede hacer su primera carga de estudiantes y personal.'
+    ],
+    note: 'La meta es que cada nueva instalación reutilice este mismo procedimiento, sin reconstruir pantallas ni módulos. Las tareas de Firebase, el despliegue y el alta inicial segura deben quedar documentadas y controladas.'
+  }
+];
+
 const getListItemLabel = (item, index = 0) => {
   if (typeof item === 'string' || typeof item === 'number') {
     return String(item).trim();
@@ -727,6 +843,9 @@ export function ConfiguracionView({ db, appId, auth }) {
   const [importParsing, setImportParsing] = useState(false);
   const [importSaving, setImportSaving] = useState(false);
   const [importFeedback, setImportFeedback] = useState(null);
+  const [installationWizardOpen, setInstallationWizardOpen] = useState(false);
+  const [installationStep, setInstallationStep] = useState(0);
+  const [completedInstallationSteps, setCompletedInstallationSteps] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -1302,6 +1421,7 @@ export function ConfiguracionView({ db, appId, auth }) {
           <p className="text-sm text-slate-500 mt-1">Adaptá CENTRA a cada institución sin tocar el código.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => { setInstallationStep(0); setInstallationWizardOpen(true); }} className="px-3 py-2.5 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 font-bold text-sm flex items-center gap-2 hover:bg-violet-100"><Building2 size={16}/> Nueva institución · guía paso a paso</button>
           <button onClick={reset} className="px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 font-bold text-sm flex items-center gap-2"><RotateCcw size={16}/> Restablecer</button>
           <button onClick={save} disabled={saving || !hasUnsavedChanges} className="px-5 py-2.5 rounded-xl bg-violet-600 text-white font-black text-sm flex items-center gap-2 shadow-lg shadow-violet-200 disabled:opacity-50 disabled:shadow-none">
             <Save size={17}/> {saving ? 'Guardando…' : hasUnsavedChanges ? 'Guardar cambios' : 'Todo guardado'}
@@ -2152,6 +2272,94 @@ export function ConfiguracionView({ db, appId, auth }) {
           </section>}
         </div>
       </div>
+      {installationWizardOpen && (() => {
+        const step = INSTALLATION_STEPS[installationStep];
+        const completeCount = completedInstallationSteps.length;
+        const isStepComplete = completedInstallationSteps.includes(installationStep);
+        return (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="installation-wizard-title">
+            <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-3xl">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-violet-50 to-white px-5 py-5 sm:px-7">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-white"><Building2 size={23}/></div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-600">CENTRA · NOMADE</p>
+                    <h3 id="installation-wizard-title" className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">Asistente para una nueva institución</h3>
+                    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">Una guía para reutilizar el código, conectar otra base Firebase y dejar la instalación funcionando.</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setInstallationWizardOpen(false)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100" aria-label="Cerrar asistente"><X size={18}/></button>
+              </div>
+
+              <div className="grid min-h-0 flex-1 md:grid-cols-[260px_minmax(0,1fr)]">
+                <aside className="hidden overflow-y-auto border-r border-slate-200 bg-slate-50 p-3 md:block">
+                  <div className="mb-3 rounded-2xl border border-violet-100 bg-white p-3">
+                    <div className="flex items-center justify-between gap-2"><span className="text-xs font-black uppercase tracking-wide text-slate-500">Progreso</span><span className="text-sm font-black text-violet-700">{completeCount}/{INSTALLATION_STEPS.length}</span></div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: `${(completeCount / INSTALLATION_STEPS.length) * 100}%` }}/></div>
+                  </div>
+                  <div className="space-y-1">
+                    {INSTALLATION_STEPS.map((item, index) => {
+                      const complete = completedInstallationSteps.includes(index);
+                      const active = installationStep === index;
+                      return <button type="button" key={item.title} onClick={() => setInstallationStep(index)} className={`flex w-full items-start gap-2.5 rounded-xl p-3 text-left transition ${active ? 'bg-violet-100 text-violet-800' : 'text-slate-600 hover:bg-white'} `}>
+                        <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${complete ? 'bg-emerald-100 text-emerald-700' : active ? 'bg-violet-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{complete ? <CheckCircle2 size={15}/> : index + 1}</span>
+                        <span className="min-w-0"><span className="block text-xs font-black leading-snug">{item.title}</span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide opacity-65">{complete ? 'Completado' : item.eyebrow.replace(/^PASO \d+ · /, '')}</span></span>
+                      </button>;
+                    })}
+                  </div>
+                </aside>
+
+                <section className="min-h-0 overflow-y-auto p-5 sm:p-7">
+                  <div className="mb-4 flex items-center justify-between gap-3 md:hidden">
+                    <span className="text-xs font-black uppercase tracking-wide text-violet-600">Paso {installationStep + 1} de {INSTALLATION_STEPS.length}</span>
+                    <span className="text-xs font-bold text-slate-500">{completeCount} completados</span>
+                  </div>
+                  <div className="mb-5">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-600">{step.eyebrow}</p>
+                    <h4 className="mt-2 text-2xl font-black tracking-tight text-slate-900">{step.title}</h4>
+                    <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">{step.summary}</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {step.tasks.map((task, index) => <div key={`${installationStep}-${index}`} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3.5">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-xs font-black text-violet-700">{index + 1}</span>
+                      <p className="text-sm leading-relaxed text-slate-700">{task}</p>
+                    </div>)}
+                  </div>
+
+                  {step.envVars && <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-950 p-4">
+                    <div className="mb-3 flex items-center gap-2 text-white"><Server size={16}/><span className="text-sm font-black">Variables que tenés que crear en Vercel</span></div>
+                    <div className="space-y-2">{step.envVars.map(name => <div key={name} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/10 px-3 py-2"><code className="break-all text-xs font-semibold text-violet-200">{name}</code><span className="text-[10px] text-slate-300">Valor del nuevo Firebase</span></div>)}</div>
+                    <p className="mt-3 text-xs leading-relaxed text-slate-300">Copiá el valor correspondiente de la configuración de la aplicación web en Firebase. No uses los valores de la institución anterior.</p>
+                  </div>}
+
+                  {step.profilePath && <div className="mt-4 space-y-3">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-black text-amber-900">Ruta del perfil en Firestore</p><code className="mt-1 block break-all text-[11px] leading-relaxed text-amber-900">{step.profilePath}</code><p className="mt-2 text-[11px] leading-relaxed text-amber-800">La ruta usa el identificador interno actual de CENTRA. El documento debe tener como mínimo los campos del ejemplo y un correo que coincida con Authentication.</p></div>
+                    <pre className="overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs leading-relaxed text-emerald-200">{step.profileExample}</pre>
+                  </div>}
+
+                  {step.links && <div className="mt-4 flex flex-wrap gap-2">{step.links.map(link => <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-black text-violet-700 hover:bg-violet-100">{link.label}<ExternalLink size={14}/></a>)}</div>}
+                  {step.note && <div className="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"><Info size={17} className="mt-0.5 shrink-0 text-violet-600"/><p className="text-xs leading-relaxed text-slate-600">{step.note}</p></div>}
+                  {step.warning && <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4"><AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-700"/><p className="text-xs leading-relaxed text-amber-900">{step.warning}</p></div>}
+
+                  <div className="mt-6 border-t border-slate-200 pt-4">
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 ${isStepComplete ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                      <input type="checkbox" checked={isStepComplete} onChange={e => setCompletedInstallationSteps(prev => e.target.checked ? [...prev.filter(n => n !== installationStep), installationStep] : prev.filter(n => n !== installationStep))} className="mt-0.5 h-4 w-4 accent-emerald-600"/>
+                      <span><span className="block text-sm font-black text-slate-800">Ya completé este paso</span><span className="mt-0.5 block text-xs leading-relaxed text-slate-500">Marcá la casilla cuando hayas terminado las tareas de este apartado.</span></span>
+                    </label>
+                  </div>
+                </section>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:px-7">
+                <button type="button" onClick={() => setInstallationStep(index => Math.max(0, index - 1))} disabled={installationStep === 0} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-600 disabled:cursor-not-allowed disabled:opacity-40">← Anterior</button>
+                <span className="hidden text-xs font-bold text-slate-400 sm:block">{completeCount} de {INSTALLATION_STEPS.length} pasos marcados</span>
+                {installationStep < INSTALLATION_STEPS.length - 1 ? <button type="button" onClick={() => setInstallationStep(index => Math.min(INSTALLATION_STEPS.length - 1, index + 1))} className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-black text-white hover:bg-violet-700">Siguiente paso →</button> : <button type="button" onClick={() => setInstallationWizardOpen(false)} className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-black text-white hover:bg-emerald-700">Finalizar guía</button>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
