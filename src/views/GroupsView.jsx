@@ -2051,142 +2051,104 @@ export function GroupsView({
       </div>
 
       {/* ==========================================
-          LISTADO DE GRUPOS
+          LISTADO COMPACTO DE GRUPOS / TALLERES
       =========================================== */}
 
-      <div className="flex-1 overflow-y-auto bg-slate-50/70">
-        <div className="max-w-[1800px] mx-auto p-4 md:p-6 lg:p-8">
-
+      <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/70">
+        <div className="mx-auto max-w-[1800px] p-3 sm:p-4 md:p-5">
           {gruposFinales.length === 0 ? (
-            <div className="min-h-[420px] flex items-center justify-center">
-              <div className="w-full max-w-xl bg-white border border-slate-200 rounded-[32px] p-10 md:p-14 text-center shadow-sm">
-                <div className="w-20 h-20 mx-auto rounded-[24px] bg-violet-50 text-violet-600 flex items-center justify-center mb-6">
-                  <UsersRound size={34} />
+            <div className="flex min-h-[340px] items-center justify-center">
+              <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-10">
+                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <UsersRound size={30} />
                 </div>
-
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">
-                  Organización institucional
-                </p>
-
-                <h3 className="text-2xl font-black text-slate-900 mt-2">
-                  Todavía no hay {groupLabelPlural}
-                </h3>
-
-                <p className="text-sm leading-relaxed text-slate-500 mt-3 max-w-md mx-auto">
-                  Creá la estructura de la institución y después asigná a las personas desde sus legajos.
-                </p>
-
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Organización institucional</p>
+                <h3 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">Todavía no hay {groupLabelPlural}</h3>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-500">Creá la estructura de la institución y después asigná a las personas desde sus legajos.</p>
                 {isManagement && (
                   <button
                     type="button"
                     onClick={openCreateGroup}
-                    className="mt-7 inline-flex items-center gap-2 px-5 py-3.5 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-black text-xs shadow-lg shadow-violet-200 transition"
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800"
                   >
-                    <Plus size={17} />
+                    <Plus size={16} />
                     Crear primer {institutionMode === 'day_center' ? 'taller' : 'grupo'}
                   </button>
                 )}
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {gruposFinales.map(group => {
-                const personCount =
-                  group.students.length;
-
-                const teamCount =
-                  group.staffByRole?.filter(
-                    item =>
-                      item.name &&
-                      item.name !==
-                        'Sin asignar'
-                  ).length || 0;
+                const personCount = group.students.length;
+                const assignedStaff = group.staffByRole?.filter(
+                  item => item.name && item.name !== 'Sin asignar'
+                ) || [];
+                const teamCount = assignedStaff.length;
+                const details = [
+                  institutionMode === 'school' ? group.levelId : '',
+                  institutionMode === 'school' ? group.sectionId : '',
+                  group.classroom
+                ].filter(Boolean).join(' · ');
+                const teamSummary = assignedStaff
+                  .map(item => `${item.roleName}: ${item.name}`)
+                  .join(' · ');
 
                 return (
                   <article
                     key={group.id}
-                    className="bg-white rounded-[30px] border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all overflow-hidden"
+                    className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
                   >
-                    <div className="p-5 md:p-6">
-
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {group.turnLabels?.map(label => (
-                              <span
-                                key={label}
-                                className="inline-flex items-center px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 text-[9px] font-black uppercase tracking-wide"
-                              >
-                                {label}
-                              </span>
-                            ))}
-
-                            {institutionMode === 'school' &&
-                              group.scheduleType && (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-wide">
-                                  {getScheduleTypeLabel(
-                                    group.scheduleType
-                                  )}
+                    <div className="p-3 sm:p-3.5">
+                      <div className="flex items-start gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedGroupDetails(group)}
+                          className="flex min-w-0 flex-1 items-start gap-2.5 rounded-xl text-left focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2"
+                          aria-label={`Ver detalle de ${group.name}`}
+                        >
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                            <UsersRound size={19} />
+                          </span>
+                          <span className="min-w-0 flex-1 pt-0.5">
+                            <span className="block truncate text-sm font-black text-slate-900 sm:text-base">{group.name}</span>
+                            <span className="mt-1 flex flex-wrap gap-1">
+                              {(group.turnLabels || []).map(label => (
+                                <span key={label} className="inline-flex rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-emerald-800">
+                                  {label}
+                                </span>
+                              ))}
+                              {institutionMode === 'school' && group.scheduleType && (
+                                <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                                  {getScheduleTypeLabel(group.scheduleType)}
                                 </span>
                               )}
-                          </div>
+                            </span>
+                          </span>
+                          <ChevronRight size={16} className="mt-2 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-700" />
+                        </button>
 
-                          <h3 className="text-xl md:text-2xl font-black text-slate-900 truncate">
-                            {group.name}
-                          </h3>
-
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] font-bold text-slate-400 uppercase">
-                            {institutionMode === 'school' && group.levelId && (
-                              <span>
-                                {group.levelId}
-                              </span>
-                            )}
-
-                            {institutionMode === 'school' && group.sectionId && (
-                              <span>
-                                • {group.sectionId}
-                              </span>
-                            )}
-
-                            {group.classroom && (
-                              <span>
-                                • {group.classroom}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex shrink-0 items-center gap-1">
                           <button
                             type="button"
                             onClick={() => {
-                              setGroupsToPrint(
-                                [group]
-                              );
-                              setPrintMode(
-                                'students'
-                              );
-                              setShowPrintOptions(
-                                true
-                              );
+                              setGroupsToPrint([group]);
+                              setPrintMode('students');
+                              setShowPrintOptions(true);
                             }}
-                            className="p-2.5 rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 transition"
-                            title="Imprimir"
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                            title={`Imprimir ${groupLabel}`}
+                            aria-label={`Imprimir ${group.name}`}
                           >
                             <Printer size={15} />
                           </button>
-
                           {isManagement && (
                             <button
                               type="button"
-                              onClick={() =>
-                                openEditGroup(
-                                  group
-                                )
-                              }
-                              className="p-2.5 rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-100 transition"
-                              title="Editar"
+                              onClick={() => openEditGroup(group)}
+                              className="rounded-lg bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100"
+                              title={`Editar ${groupLabel}`}
+                              aria-label={`Editar ${group.name}`}
                             >
                               <Edit3 size={15} />
                             </button>
@@ -2194,142 +2156,56 @@ export function GroupsView({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mt-6">
-                        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                            {personLabelPlural}
-                          </p>
-                          <p className="text-2xl font-black text-slate-800 mt-1">
-                            {personCount}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl bg-violet-50 border border-violet-100 p-4">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-violet-400">
-                            Equipo
-                          </p>
-                          <p className="text-2xl font-black text-violet-700 mt-1">
-                            {teamCount}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-6 pt-5 border-t border-slate-100">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                              Personal
-                            </p>
-                            <p className="text-xs text-slate-500 mt-1">
-                              {group.staffByRole?.map(
-                                item =>
-                                  `${item.roleName}: ${item.name}`
-                              ).join(' · ') ||
-                                'Sin personal asignado'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-5 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedGroupDetails(
-                              group
-                            )
-                          }
-                          className="flex-1 py-3.5 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-wide hover:bg-slate-800 transition"
-                        >
-                          Ver {institutionMode === 'day_center' ? 'taller' : 'grupo'}
-                        </button>
-
-                        {group.institucionalDrive && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              window.open(
-                                group.institucionalDrive,
-                                '_blank',
-                                'noopener,noreferrer'
-                              )
-                            }
-                            className="px-4 py-3.5 rounded-2xl bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
-                            title="Abrir Drive"
-                          >
-                            <ExternalLink size={17} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="border-t border-slate-100 bg-slate-50/50 p-3">
-                      {group.students.length === 0 ? (
-                        <div className="text-center py-4">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-                            Sin {personLabelPlural} asignados
-                          </p>
-                          <p className="text-[10px] text-slate-400 mt-1">
-                            Se reflejarán desde los legajos.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex -space-x-2 overflow-hidden pl-1">
-                            {[...group.students]
-                              .sort((a, b) =>
-                                (a.lastName || '').localeCompare(
-                                  b.lastName || ''
-                                )
-                              )
-                              .slice(0, 7)
-                              .map(person => (
-                                <button
-                                  type="button"
-                                  key={person.id}
-                                  onClick={() =>
-                                    setSelectedStudent(
-                                      person
-                                    )
-                                  }
-                                  className="w-9 h-9 rounded-full border-2 border-white bg-slate-200 overflow-hidden flex items-center justify-center text-[9px] font-black text-slate-400"
-                                  title={`${person.lastName || ''}, ${person.firstName || ''}`}
-                                >
-                                  {person.photoUrl ? (
-                                    <img
-                                      src={person.photoUrl}
-                                      alt=""
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    (
-                                      person.firstName?.[0] ||
-                                      '?'
-                                    ).toUpperCase()
-                                  )}
-                                </button>
-                              ))}
-
-                            {group.students.length > 7 && (
-                              <div className="w-9 h-9 rounded-full border-2 border-white bg-violet-100 text-violet-700 flex items-center justify-center text-[9px] font-black">
-                                +{group.students.length - 7}
-                              </div>
-                            )}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedGroupDetails(
-                                group
-                              )
-                            }
-                            className="text-[10px] font-black text-slate-400 uppercase hover:text-violet-600 transition"
-                          >
-                            Ver integrantes →
-                          </button>
-                        </div>
+                      {details && (
+                        <p className="ml-[50px] mt-1 truncate text-[10px] font-semibold text-slate-400" title={details}>
+                          {details}
+                        </p>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGroupDetails(group)}
+                        className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                        aria-label={`Abrir ${groupLabel} ${group.name}`}
+                      >
+                        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-xs font-bold text-slate-600">
+                          <Users size={14} className="shrink-0 text-slate-400" />
+                          <span className="font-black text-slate-900">{personCount}</span>
+                          <span className="truncate">{personLabelPlural}</span>
+                        </span>
+                        <span className="h-4 w-px shrink-0 bg-slate-200" />
+                        <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-xs font-bold text-slate-600">
+                          <User size={14} className="shrink-0 text-emerald-700" />
+                          <span className="font-black text-emerald-800">{teamCount}</span>
+                          <span>equipo</span>
+                        </span>
+                      </button>
+
+                      <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+                        <p className="min-w-0 truncate text-[10px] text-slate-400" title={teamSummary || 'Sin personal asignado'}>
+                          {teamSummary || 'Sin personal asignado'}
+                        </p>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {group.institucionalDrive && (
+                            <button
+                              type="button"
+                              onClick={() => window.open(group.institucionalDrive, '_blank', 'noopener,noreferrer')}
+                              className="rounded-md p-1 text-blue-600 transition hover:bg-blue-50"
+                              title="Abrir Drive institucional"
+                              aria-label={`Abrir Drive de ${group.name}`}
+                            >
+                              <ExternalLink size={14} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedGroupDetails(group)}
+                            className="whitespace-nowrap text-[10px] font-extrabold text-emerald-800 transition hover:text-emerald-950"
+                          >
+                            Ver detalle
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </article>
                 );
