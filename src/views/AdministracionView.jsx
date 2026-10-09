@@ -710,7 +710,7 @@ const CertificateDocument = ({
         <div className="mt-4 space-y-2">
           {isLoading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm font-semibold text-slate-500">
-              <LoaderCircle size={18} className="animate-spin" /> Cargando registros…
+              <Loader2 size={18} className="animate-spin" /> Cargando registros…
             </div>
           ) : activeSection === 'people' ? (
             filteredPeople.length === 0 ? (
@@ -873,7 +873,7 @@ const CertificateDocument = ({
             className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
             style={{ backgroundColor: secondaryColor }}
           >
-            {generating ? <LoaderCircle size={17} className="animate-spin" /> : <Printer size={17} />}
+            {generating ? <Loader2 size={17} className="animate-spin" /> : <Printer size={17} />}
             {generating ? 'Preparando…' : `Generar e imprimir (${selectedCount})`}
           </button>
         </div>
