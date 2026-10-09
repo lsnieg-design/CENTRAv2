@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, serverTimestamp, collection, writeBatch } from 'firebase/firestore';
+import * as XLSX from 'xlsx';
+import { COLLECTIONS } from '../data/collections';
 import { Building2, Palette, CalendarDays, SlidersHorizontal, Save, Plus, Trash2, CheckCircle2, RotateCcw, Image as ImageIcon, ShieldCheck, FileText, Settings2, Server, Info, Database, RefreshCw, ExternalLink, Download, UploadCloud, ChevronUp, ChevronDown, Pencil, X, AlertTriangle } from 'lucide-react';
 import { DEFAULT_APP_CONFIG, normalizeAppConfig, applyBranding, PALETTES, MODULES, MODULE_CATALOG, FEATURE_LABELS, getRolePermissions, isModuleEnabled, INSTITUTION_TYPES, PLAN_OPTIONS, INSTITUTION_MODES, getStaffModeConfig, STAFF_WEEKDAYS } from '../config';
  
@@ -28,6 +30,7 @@ const TABS = [
   { id: 'labels', label: 'Nombres y documentos', icon: FileText },
   { id: 'lists', label: 'Listas y opciones', icon: SlidersHorizontal },
   { id: 'calendar', label: 'Calendario', icon: CalendarDays },
+  { id: 'import', label: 'Importación de datos', icon: Database },
   { id: 'system', label: 'Sistema', icon: Server }
 ];
 
@@ -411,6 +414,304 @@ function EventTypeEditor({ eventTypes = [], eventTypeSettings = {}, onChange }) 
   );
 }
 
+
+const IMPORT_STUDENT_HEADERS = [
+  'Apellido', 'Nombre', 'DNI', 'Fecha de nacimiento', 'Género',
+  'Nivel o trayectoria', 'Domicilio', 'Localidad', 'Teléfono',
+  'Correo electrónico', 'Obra social', 'Nombre de madre',
+  'Contacto de madre', 'Nombre de padre', 'Contacto de padre',
+  'Contacto de emergencia', 'Número de CUD', 'Vencimiento del CUD',
+  'Observaciones'
+];
+
+const IMPORT_STAFF_HEADERS = [
+  'Apellido', 'Nombre', 'DNI', 'Fecha de nacimiento', 'Domicilio',
+  'Localidad', 'Teléfono', 'Correo electrónico', 'Cargo o función',
+  'Fecha de ingreso', 'Modalidad', 'Turno', 'Número de cargo 1',
+  'Nombre del cargo 1', 'Tipo de cargo 1', 'Situación de revista 1',
+  'Fecha de alta del cargo 1', 'Número de cargo 2', 'Nombre del cargo 2',
+  'Rol del cargo 2', 'Tipo de cargo 2', 'Turno del cargo 2',
+  'Situación de revista 2', 'Fecha de alta del cargo 2',
+  'Estado de estudios', 'Título', 'Días de trabajo', 'Horas semanales',
+  'Contacto de emergencia'
+];
+
+const normalizeImportHeader = value =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+const normalizeImportText = value =>
+  String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const normalizeImportDni = value =>
+  String(value ?? '').replace(/\D/g, '');
+
+const readImportValue = (row, aliases = []) => {
+  const normalizedAliases = new Set(aliases.map(normalizeImportHeader));
+  const entry = Object.entries(row || {}).find(([key]) =>
+    normalizedAliases.has(normalizeImportHeader(key))
+  );
+  return entry?.[1] == null ? '' : String(entry[1]).trim();
+};
+
+const parseImportDate = value => {
+  if (value == null || value === '') return '';
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed?.y && parsed?.m && parsed?.d) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  }
+
+  const local = raw.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+  if (local) {
+    return `${local[3]}-${String(local[2]).padStart(2, '0')}-${String(local[1]).padStart(2, '0')}`;
+  }
+
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+  return '';
+};
+
+const getImportPersonName = row => {
+  let firstName = readImportValue(row, [
+    'Nombre', 'Nombres', 'First name', 'Given name', 'Nombre de pila'
+  ]);
+  let lastName = readImportValue(row, [
+    'Apellido', 'Apellidos', 'Last name', 'Surname'
+  ]);
+
+  const fullNameEntry = Object.entries(row || {}).find(([key]) =>
+    [
+      'apellidoynombre', 'nombreyapellido', 'nombrecompleto',
+      'fullname', 'apellidoynombres'
+    ].includes(normalizeImportHeader(key))
+  );
+
+  if ((!firstName || !lastName) && fullNameEntry) {
+    const header = normalizeImportHeader(fullNameEntry[0]);
+    const fullName = String(fullNameEntry[1] ?? '').trim();
+    if (fullName) {
+      if (fullName.includes(',')) {
+        const parts = fullName.split(',').map(part => part.trim()).filter(Boolean);
+        if (!lastName) lastName = parts[0] || '';
+        if (!firstName) firstName = parts.slice(1).join(' ') || '';
+      } else {
+        const parts = fullName.split(/\s+/).filter(Boolean);
+        if (header.startsWith('apellidoy')) {
+          if (!lastName) lastName = parts[0] || '';
+          if (!firstName) firstName = parts.slice(1).join(' ');
+        } else {
+          if (!firstName) firstName = parts[0] || '';
+          if (!lastName) lastName = parts.slice(1).join(' ');
+        }
+      }
+    }
+  }
+
+  return { firstName: firstName.trim(), lastName: lastName.trim() };
+};
+
+const makeImportNameKeys = (record = {}) => {
+  const firstName = record.firstName || record.nombre || '';
+  const lastName = record.lastName || record.apellido || '';
+  const fullName = record.fullName || record.name || '';
+  const keys = new Set();
+  const combined = normalizeImportText(`${firstName} ${lastName}`);
+  const reverse = normalizeImportText(`${lastName} ${firstName}`);
+  const full = normalizeImportText(fullName);
+  if (combined) keys.add(combined);
+  if (reverse) keys.add(reverse);
+  if (full) keys.add(full);
+  return [...keys];
+};
+
+const makeImportRecord = (row, type, rowNumber, staffWeekdays = []) => {
+  const { firstName, lastName } = getImportPersonName(row);
+  const dni = readImportValue(row, ['DNI', 'Documento', 'Número de documento', 'Nro de documento', 'Documento nacional']);
+  const base = {
+    firstName,
+    lastName,
+    fullName: `${firstName} ${lastName}`.trim(),
+    dni,
+    birthDate: parseImportDate(readImportValue(row, ['Fecha de nacimiento', 'Nacimiento', 'Fecha nac'])),
+    address: readImportValue(row, ['Domicilio', 'Dirección', 'Direccion', 'Calle y número']),
+    city: readImportValue(row, ['Localidad', 'Ciudad']),
+    phone: readImportValue(row, ['Teléfono', 'Telefono', 'Celular', 'Teléfono de contacto']),
+    email: readImportValue(row, ['Correo electrónico', 'Correo electronico', 'Email', 'E-mail']),
+    emergencyContact: readImportValue(row, ['Contacto de emergencia', 'Contacto emergencia', 'Teléfono de emergencia'])
+  };
+
+  if (type === 'student') {
+    return {
+      ...base,
+      gender: readImportValue(row, ['Género', 'Genero', 'Sexo']),
+      level: readImportValue(row, ['Nivel o trayectoria', 'Nivel', 'Trayectoria', 'Curso', 'Sala', 'Sección']),
+      healthInsurance: readImportValue(row, ['Obra social', 'Cobertura médica', 'Cobertura medica', 'Prepaga']),
+      motherName: readImportValue(row, ['Nombre de madre', 'Madre', 'Nombre madre']),
+      motherContact: readImportValue(row, ['Contacto de madre', 'Teléfono madre', 'Telefono madre', 'Contacto madre']),
+      fatherName: readImportValue(row, ['Nombre de padre', 'Padre', 'Nombre padre']),
+      fatherContact: readImportValue(row, ['Contacto de padre', 'Teléfono padre', 'Telefono padre', 'Contacto padre']),
+      cudNumber: readImportValue(row, ['Número de CUD', 'Numero de CUD', 'CUD', 'Nro CUD']),
+      cudExpiration: parseImportDate(readImportValue(row, ['Vencimiento del CUD', 'Vencimiento CUD', 'Fecha vencimiento CUD'])),
+      notes: readImportValue(row, ['Observaciones', 'Notas', 'Comentarios']),
+      rowNumber
+    };
+  }
+
+  const role = readImportValue(row, [
+    'Cargo o función', 'Cargo o funcion', 'Rol o función', 'Rol', 'Función', 'Funcion',
+    'Cargo principal', 'Función del cargo 1'
+  ]);
+  const daysRaw = readImportValue(row, ['Días de trabajo', 'Dias de trabajo', 'Días de asistencia', 'Días laborales', 'Work days']);
+  const parsedDays = daysRaw
+    .split(/[;,|/]+/)
+    .map(day => day.trim())
+    .filter(Boolean)
+    .map(day => {
+      const normalized = normalizeImportText(day);
+      const match = staffWeekdays.find(item => normalizeImportText(item) === normalized);
+      return match || day;
+    });
+
+  return {
+    ...base,
+    role,
+    modality: readImportValue(row, ['Modalidad', 'Sede / Inclusión', 'Sede o inclusión']),
+    fechaIngreso: parseImportDate(readImportValue(row, ['Fecha de ingreso', 'Ingreso', 'Fecha de inicio', 'Inicio laboral'])),
+    fechaInicioActividades: parseImportDate(readImportValue(row, ['Fecha de inicio de actividades', 'Inicio de actividades'])),
+    antiguedadFechaRef: parseImportDate(readImportValue(row, ['Fecha de antigüedad', 'Fecha antiguedad'])) || parseImportDate(readImportValue(row, ['Fecha de ingreso', 'Ingreso', 'Fecha de inicio', 'Inicio laboral'])),
+    weeklyHours: readImportValue(row, ['Horas semanales', 'Carga horaria semanal', 'Carga horaria', 'Horas por semana']),
+    workDays: parsedDays,
+    studyStatus: readImportValue(row, ['Estado de estudios', 'Estudios', 'Nivel de estudios']),
+    degree: readImportValue(row, ['Título', 'Titulo', 'Formación', 'Formacion']),
+    cargo1_role: role,
+    cargo1_numero: readImportValue(row, ['Número de cargo 1', 'Numero de cargo 1', 'Nro cargo 1']),
+    cargo1_name: readImportValue(row, ['Nombre del cargo 1', 'Cargo 1', 'Nombre cargo 1']),
+    cargo1_type: readImportValue(row, ['Tipo de cargo 1', 'Tipo cargo 1']),
+    cargo1_revista: readImportValue(row, ['Situación de revista 1', 'Situacion de revista 1', 'Revista cargo 1']),
+    cargo1_turn: readImportValue(row, ['Turno', 'Turno del cargo 1', 'Turno cargo 1']),
+    cargo1_ingreso: parseImportDate(readImportValue(row, ['Fecha de alta del cargo 1', 'Alta del cargo 1', 'Ingreso cargo 1'])),
+    cargo1_subsidized: readImportValue(row, ['Subvencionado cargo 1', 'Cargo 1 subvencionado']).toLowerCase() === 'si' ? 'true' : 'false',
+    cargo1_en_papeles: 'false',
+    cargo2_numero: readImportValue(row, ['Número de cargo 2', 'Numero de cargo 2', 'Nro cargo 2']),
+    cargo2_name: readImportValue(row, ['Nombre del cargo 2', 'Cargo 2', 'Nombre cargo 2']),
+    cargo2_role: readImportValue(row, ['Rol del cargo 2', 'Función del cargo 2', 'Funcion cargo 2']),
+    cargo2_type: readImportValue(row, ['Tipo de cargo 2', 'Tipo cargo 2']),
+    cargo2_turn: readImportValue(row, ['Turno del cargo 2', 'Turno cargo 2']),
+    cargo2_revista: readImportValue(row, ['Situación de revista 2', 'Situacion de revista 2', 'Revista cargo 2']),
+    cargo2_ingreso: parseImportDate(readImportValue(row, ['Fecha de alta del cargo 2', 'Alta del cargo 2', 'Ingreso cargo 2'])),
+    cargo2_subsidized: 'false',
+    cargo2_en_papeles: 'false',
+    cargo1_baja: '',
+    cargo2_baja: '',
+    rowNumber
+  };
+};
+
+const rowHasContent = row =>
+  Object.values(row || {}).some(value => String(value ?? '').trim() !== '');
+
+const readExistingImportData = async (db, appId) => {
+  const base = name => collection(db, 'artifacts', appId, 'public', 'data', name);
+  const [peopleSnap, profilesSnap, staffRecordsSnap, legacyStudentsSnap, staffProfilesSnap] = await Promise.all([
+    getDocs(base(COLLECTIONS.PEOPLE)),
+    getDocs(base(COLLECTIONS.STUDENT_PROFILES)),
+    getDocs(base('staff_records')),
+    getDocs(base('students')),
+    getDocs(base(COLLECTIONS.STAFF_PROFILES))
+  ]);
+
+  const people = peopleSnap.docs.map(item => ({ id: item.id, ...item.data() }));
+  const studentRecords = [
+    ...people.filter(item => item.type === 'student'),
+    ...profilesSnap.docs.map(item => ({ id: item.id, ...item.data() })),
+    ...legacyStudentsSnap.docs.map(item => ({ id: item.id, ...item.data() }))
+  ];
+  const staffRecords = [
+    ...people.filter(item => item.type === 'staff'),
+    ...staffProfilesSnap.docs.map(item => ({ id: item.id, ...item.data() })),
+    ...staffRecordsSnap.docs.map(item => ({ id: item.id, ...item.data() }))
+  ];
+
+  const buildIdentity = records => {
+    const dni = new Set();
+    const names = new Set();
+    records.forEach(record => {
+      const dniKey = normalizeImportDni(record.dni || record.documento || record.documentNumber);
+      if (dniKey) dni.add(dniKey);
+      makeImportNameKeys(record).forEach(key => names.add(key));
+    });
+    return { dni, names };
+  };
+
+  return {
+    students: buildIdentity(studentRecords),
+    staff: buildIdentity(staffRecords)
+  };
+};
+
+const createImportPreviewRows = (rawRows, type, existingIdentity, staffWeekdays = []) => {
+  const seenDni = new Set();
+  const seenNames = new Set();
+
+  return rawRows
+    .filter(rowHasContent)
+    .map((rawRow, index) => {
+      const data = makeImportRecord(rawRow, type, index + 2, staffWeekdays);
+      const nameKeys = makeImportNameKeys(data);
+      const dniKey = normalizeImportDni(data.dni);
+      let status = 'ready';
+      let detail = 'Listo para importar';
+
+      if (!data.firstName || !data.lastName) {
+        status = 'invalid';
+        detail = 'Faltan nombre o apellido';
+      } else if (type === 'staff' && !String(data.role || data.cargo1_role || '').trim()) {
+        status = 'invalid';
+        detail = 'Falta el cargo o función';
+      } else if (dniKey && existingIdentity.dni.has(dniKey)) {
+        status = 'duplicate';
+        detail = 'El DNI ya existe en CENTRA';
+      } else if (dniKey && seenDni.has(dniKey)) {
+        status = 'duplicate';
+        detail = 'DNI repetido en el archivo';
+      } else if (!dniKey && nameKeys.some(key => existingIdentity.names.has(key))) {
+        status = 'review';
+        detail = 'Posible duplicado por nombre; agregá DNI o revisá el registro';
+      } else if (!dniKey && nameKeys.some(key => seenNames.has(key))) {
+        status = 'review';
+        detail = 'Nombre repetido en el archivo; agregá DNI para distinguirlo';
+      }
+
+      if (dniKey) seenDni.add(dniKey);
+      nameKeys.forEach(key => seenNames.add(key));
+      return { ...data, id: `${type}-${index + 2}`, type, status, detail };
+    });
+};
+
 export function ConfiguracionView({ db, appId, auth }) {
   const [tab, setTab] = useState('identity');
   const [config, setConfig] = useState(DEFAULT_APP_CONFIG);
@@ -422,6 +723,10 @@ export function ConfiguracionView({ db, appId, auth }) {
   const [selectedRole, setSelectedRole] = useState('');
   const [lastSavedConfig, setLastSavedConfig] = useState(DEFAULT_APP_CONFIG);
   const [systemCheck, setSystemCheck] = useState({ status: 'idle', message: '' });
+  const [importPreview, setImportPreview] = useState(null);
+  const [importParsing, setImportParsing] = useState(false);
+  const [importSaving, setImportSaving] = useState(false);
+  const [importFeedback, setImportFeedback] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -638,6 +943,331 @@ export function ConfiguracionView({ db, appId, auth }) {
     const entry = newHoliday.name.trim() ? `${newHoliday.date}|${newHoliday.name.trim()}` : newHoliday.date;
     update('holidays', [...(config.holidays || []), entry].filter((v, i, arr) => arr.indexOf(v) === i).sort());
     setNewHoliday({ date: '', name: '' });
+  };
+
+
+  const downloadImportTemplate = () => {
+    const workbook = XLSX.utils.book_new();
+    const studentsSheet = XLSX.utils.aoa_to_sheet([IMPORT_STUDENT_HEADERS]);
+    const staffSheet = XLSX.utils.aoa_to_sheet([IMPORT_STAFF_HEADERS]);
+    const instructions = XLSX.utils.aoa_to_sheet([
+      ['PLANTILLA DE IMPORTACIÓN DE CENTRA'],
+      ['Completá las hojas Estudiantes y/o Personal. Podés usar una sola hoja si querés importar un solo tipo de registro.'],
+      ['No cambies los nombres de las hojas ni los encabezados de la primera fila.'],
+      ['Nombre y Apellido son obligatorios. En Personal también es obligatorio Cargo o función.'],
+      ['DNI es muy recomendable para detectar duplicados. No uses fórmulas.'],
+      ['Fechas: usá DD/MM/AAAA o AAAA-MM-DD. Días de trabajo: separalos con coma, por ejemplo Lunes, Miércoles, Viernes.'],
+      ['La importación no crea cuentas de acceso ni asigna permisos. El personal importado quedará pendiente de vincular a una cuenta CENTRA.'],
+      ['CENTRA no sobrescribe automáticamente registros existentes. Los duplicados y filas incompletas se omiten.'],
+      ['La hoja Estudiantes también se utiliza para concurrentes o pacientes, según el modo de la institución.']
+    ]);
+    studentsSheet['!cols'] = IMPORT_STUDENT_HEADERS.map(header => ({ wch: Math.max(16, header.length + 4) }));
+    staffSheet['!cols'] = IMPORT_STAFF_HEADERS.map(header => ({ wch: Math.max(16, header.length + 4) }));
+    instructions['!cols'] = [{ wch: 125 }];
+    XLSX.utils.book_append_sheet(workbook, studentsSheet, 'Estudiantes');
+    XLSX.utils.book_append_sheet(workbook, staffSheet, 'Personal');
+    XLSX.utils.book_append_sheet(workbook, instructions, 'Instrucciones');
+    XLSX.writeFile(workbook, `plantilla-importacion-CENTRA-${config.schoolYear || new Date().getFullYear()}.xlsx`);
+  };
+
+  const handleImportFile = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImportFeedback(null);
+    setImportPreview(null);
+
+    if (!db || !appId) {
+      setImportFeedback({ type: 'error', message: 'No hay conexión con la base de datos institucional.' });
+      event.target.value = '';
+      return;
+    }
+
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['xlsx', 'xls'].includes(extension)) {
+      setImportFeedback({ type: 'error', message: 'Subí un archivo Excel .xlsx o .xls. Primero podés descargar la plantilla de CENTRA.' });
+      event.target.value = '';
+      return;
+    }
+
+    setImportParsing(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+      const normalizedSheets = workbook.SheetNames.map(name => ({
+        original: name,
+        normalized: normalizeImportHeader(name)
+      }));
+      const studentsSheet = normalizedSheets.find(item =>
+        ['estudiantes', 'estudiantesoconcurrentes', 'personas', 'alumnado', 'concurrentes', 'pacientes'].includes(item.normalized)
+      );
+      const staffSheet = normalizedSheets.find(item =>
+        ['personal', 'equipodetrabajo', 'equipoinstitucional', 'staff'].includes(item.normalized)
+      );
+
+      if (!studentsSheet && !staffSheet) {
+        throw new Error('No encontramos una hoja llamada Estudiantes (o Personas) ni otra llamada Personal. Descargá la plantilla y copiá tus datos en esas hojas.');
+      }
+
+      const existing = await readExistingImportData(db, appId);
+      const readRows = sheetInfo => {
+        if (!sheetInfo) return [];
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetInfo.original], {
+          defval: '',
+          raw: false,
+          blankrows: false
+        });
+        return rows.filter(rowHasContent);
+      };
+
+      const studentRawRows = readRows(studentsSheet);
+      const staffRawRows = readRows(staffSheet);
+      const staffWeekdays = Array.isArray(config.staffWeekdays) && config.staffWeekdays.length
+        ? config.staffWeekdays
+        : STAFF_WEEKDAYS;
+
+      const nextPreview = {
+        fileName: file.name,
+        studentRows: createImportPreviewRows(studentRawRows, 'student', existing.students, staffWeekdays),
+        staffRows: createImportPreviewRows(staffRawRows, 'staff', existing.staff, staffWeekdays),
+        foundStudentSheet: Boolean(studentsSheet),
+        foundStaffSheet: Boolean(staffSheet),
+        importedAt: new Date().toISOString()
+      };
+      setImportPreview(nextPreview);
+
+      const totalRows = nextPreview.studentRows.length + nextPreview.staffRows.length;
+      if (totalRows === 0) {
+        setImportFeedback({ type: 'error', message: 'Encontramos las hojas, pero no hay filas con datos para revisar.' });
+      } else {
+        const readyCount = [...nextPreview.studentRows, ...nextPreview.staffRows].filter(row => row.status === 'ready').length;
+        setImportFeedback({
+          type: readyCount ? 'success' : 'warning',
+          message: readyCount
+            ? `Vista previa lista: ${readyCount} registro${readyCount === 1 ? '' : 's'} disponible${readyCount === 1 ? '' : 's'} para importar. Todavía no se guardó ningún dato.`
+            : 'No hay filas listas para importar. Revisá los nombres, los DNI repetidos y los datos indicados.'
+        });
+      }
+    } catch (error) {
+      console.error('Error leyendo el archivo de importación:', error);
+      setImportFeedback({ type: 'error', message: error?.message || 'No pudimos leer el Excel. Verificá el archivo e intentá otra vez.' });
+    } finally {
+      setImportParsing(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importPreview || !db || !appId) return;
+    const initialStudents = importPreview.studentRows.filter(row => row.status === 'ready');
+    const initialStaff = importPreview.staffRows.filter(row => row.status === 'ready');
+    if (!initialStudents.length && !initialStaff.length) {
+      setImportFeedback({ type: 'error', message: 'No hay registros válidos para importar.' });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Vas a importar ${initialStudents.length} estudiantes/concurrentes y ${initialStaff.length} integrantes del personal.\\n\\nLos duplicados e incompletos se omiten. No se crean cuentas de acceso y no se sobrescriben registros existentes. ¿Continuar?`
+    );
+    if (!confirmed) return;
+
+    setImportSaving(true);
+    setImportFeedback(null);
+
+    try {
+      const latestExisting = await readExistingImportData(db, appId);
+      const studentDniSeen = new Set(latestExisting.students.dni);
+      const studentNamesSeen = new Set(latestExisting.students.names);
+      const staffDniSeen = new Set(latestExisting.staff.dni);
+      const staffNamesSeen = new Set(latestExisting.staff.names);
+
+      const filterFresh = (rows, type, dniSeen, namesSeen) => {
+        const accepted = [];
+        const skipped = [];
+        for (const row of rows) {
+          const dniKey = normalizeImportDni(row.dni);
+          const nameKeys = makeImportNameKeys(row);
+          if (dniKey && dniSeen.has(dniKey)) {
+            skipped.push({ ...row, status: 'duplicate', detail: 'Se detectó un duplicado al confirmar la importación' });
+            continue;
+          }
+          if (!dniKey && nameKeys.some(key => namesSeen.has(key))) {
+            skipped.push({ ...row, status: 'review', detail: 'Posible duplicado detectado al confirmar; requiere DNI o revisión' });
+            continue;
+          }
+          if (dniKey) dniSeen.add(dniKey);
+          nameKeys.forEach(key => namesSeen.add(key));
+          accepted.push(row);
+        }
+        return { accepted, skipped };
+      };
+
+      const safeStudents = filterFresh(initialStudents, 'student', studentDniSeen, studentNamesSeen);
+      const safeStaff = filterFresh(initialStaff, 'staff', staffDniSeen, staffNamesSeen);
+      const studentsToWrite = safeStudents.accepted;
+      const staffToWrite = safeStaff.accepted;
+
+      // Estudiantes: dos documentos por persona (people + student_profiles).
+      for (let offset = 0; offset < studentsToWrite.length; offset += 200) {
+        const batch = writeBatch(db);
+        const chunk = studentsToWrite.slice(offset, offset + 200);
+        chunk.forEach(student => {
+          const personRef = doc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.PEOPLE));
+          const profileRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.STUDENT_PROFILES, personRef.id);
+          const timestamp = serverTimestamp();
+
+          batch.set(personRef, {
+            firstName: student.firstName,
+            lastName: student.lastName,
+            fullName: student.fullName,
+            type: 'student',
+            active: true,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            importedFrom: 'xlsx',
+            importedBy: auth?.currentUser?.uid || ''
+          });
+          batch.set(profileRef, {
+            personId: personRef.id,
+            firstName: student.firstName,
+            lastName: student.lastName,
+            fullName: student.fullName,
+            dni: student.dni,
+            birthDate: student.birthDate,
+            gender: student.gender,
+            level: student.level,
+            address: student.address,
+            city: student.city,
+            phone: student.phone,
+            email: student.email,
+            healthInsurance: student.healthInsurance,
+            motherName: student.motherName,
+            motherContact: student.motherContact,
+            fatherName: student.fatherName,
+            fatherContact: student.fatherContact,
+            emergencyContact: student.emergencyContact,
+            cudNumber: student.cudNumber,
+            cudExpiration: student.cudExpiration,
+            notes: student.notes,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            importedFrom: 'xlsx',
+            importedBy: auth?.currentUser?.uid || ''
+          });
+        });
+        await batch.commit();
+      }
+
+      // Personal: se escribe en las colecciones que consumen los módulos actuales.
+      // No se crea una cuenta de acceso ni se inventan permisos.
+      for (let offset = 0; offset < staffToWrite.length; offset += 150) {
+        const batch = writeBatch(db);
+        const chunk = staffToWrite.slice(offset, offset + 150);
+        chunk.forEach(staff => {
+          const personRef = doc(collection(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.PEOPLE));
+          const profileRef = doc(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.STAFF_PROFILES, personRef.id);
+          const staffRecordRef = doc(db, 'artifacts', appId, 'public', 'data', 'staff_records', personRef.id);
+          const timestamp = serverTimestamp();
+          const staffData = {
+            lastName: staff.lastName,
+            firstName: staff.firstName,
+            fullName: staff.fullName,
+            dni: staff.dni,
+            birthDate: staff.birthDate,
+            address: staff.address,
+            city: staff.city,
+            phone: staff.phone,
+            emergencyContact: staff.emergencyContact,
+            email: staff.email,
+            role: staff.role || staff.cargo1_role || '',
+            modality: staff.modality || '',
+            fechaIngreso: staff.fechaIngreso || staff.fechaInicioActividades || '',
+            fechaInicioActividades: staff.fechaInicioActividades || staff.fechaIngreso || '',
+            antiguedadFechaRef: staff.antiguedadFechaRef || staff.fechaIngreso || '',
+            weeklyHours: staff.weeklyHours || '',
+            workDays: staff.workDays || [],
+            studyStatus: staff.studyStatus || '',
+            degree: staff.degree || '',
+            cargo1_role: staff.cargo1_role || staff.role || '',
+            cargo1_numero: staff.cargo1_numero || '',
+            cargo1_name: staff.cargo1_name || '',
+            cargo1_type: staff.cargo1_type || '',
+            cargo1_revista: staff.cargo1_revista || '',
+            cargo1_turn: staff.cargo1_turn || '',
+            cargo1_ingreso: staff.cargo1_ingreso || '',
+            cargo1_subsidized: staff.cargo1_subsidized || 'false',
+            cargo1_en_papeles: staff.cargo1_en_papeles || 'false',
+            cargo1_baja: staff.cargo1_baja || '',
+            cargo2_numero: staff.cargo2_numero || '',
+            cargo2_name: staff.cargo2_name || '',
+            cargo2_role: staff.cargo2_role || '',
+            cargo2_type: staff.cargo2_type || '',
+            cargo2_turn: staff.cargo2_turn || '',
+            cargo2_revista: staff.cargo2_revista || '',
+            cargo2_ingreso: staff.cargo2_ingreso || '',
+            cargo2_subsidized: staff.cargo2_subsidized || 'false',
+            cargo2_en_papeles: staff.cargo2_en_papeles || 'false',
+            cargo2_baja: staff.cargo2_baja || '',
+            userId: '',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            importedFrom: 'xlsx',
+            importedBy: auth?.currentUser?.uid || ''
+          };
+
+          batch.set(personRef, {
+            firstName: staff.firstName,
+            lastName: staff.lastName,
+            fullName: staff.fullName,
+            type: 'staff',
+            active: true,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            importedFrom: 'xlsx',
+            importedBy: auth?.currentUser?.uid || ''
+          });
+          batch.set(profileRef, {
+            personId: personRef.id,
+            ...staffData,
+            createdAt: timestamp,
+            updatedAt: timestamp
+          });
+          batch.set(staffRecordRef, staffData);
+        });
+        await batch.commit();
+      }
+
+      const importedStudentCount = studentsToWrite.length;
+      const importedStaffCount = staffToWrite.length;
+      const skippedRows = [...safeStudents.skipped, ...safeStaff.skipped];
+      setImportFeedback({
+        type: skippedRows.length ? 'warning' : 'success',
+        message: `Importación terminada: ${importedStudentCount} ${institutionMode === INSTITUTION_MODES.DAY_CENTER ? 'concurrentes' : institutionMode === INSTITUTION_MODES.CLINIC ? 'pacientes' : 'estudiantes'} y ${importedStaffCount} integrantes del personal. ${skippedRows.length ? `${skippedRows.length} registro${skippedRows.length === 1 ? '' : 's'} se omitieron porque ya existían o requerían revisión; podés ver el detalle abajo.` : 'No se detectaron duplicados nuevos.'}`
+      });
+
+      setImportPreview({
+        ...importPreview,
+        studentRows: importPreview.studentRows.map(row => {
+          const imported = studentsToWrite.some(item => item.id === row.id);
+          const lateSkip = safeStudents.skipped.find(item => item.id === row.id);
+          return imported ? { ...row, status: 'imported', detail: 'Importado correctamente' } : lateSkip || row;
+        }),
+        staffRows: importPreview.staffRows.map(row => {
+          const imported = staffToWrite.some(item => item.id === row.id);
+          const lateSkip = safeStaff.skipped.find(item => item.id === row.id);
+          return imported ? { ...row, status: 'imported', detail: 'Importado correctamente' } : lateSkip || row;
+        })
+      });
+    } catch (error) {
+      console.error('Error en la importación de datos:', error);
+      setImportFeedback({ type: 'error', message: `La importación no pudo completarse por completo: ${error?.message || 'Error de Firestore'}. Revisá los registros antes de volver a intentar para evitar duplicados.` });
+    } finally {
+      setImportSaving(false);
+    }
+  };
+
+  const resetImportPreview = () => {
+    setImportPreview(null);
+    setImportFeedback(null);
   };
 
   const holidays = useMemo(
@@ -1308,6 +1938,195 @@ export function ConfiguracionView({ db, appId, auth }) {
                   {holidays.length===0 ? <div className="text-sm text-slate-400 py-5 text-center">No hay días cargados.</div> : holidays.map(h=><div key={h.raw} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3"><div><span className="font-bold">{h.date}</span>{h.name&&<span className="text-slate-500 ml-2">— {h.name}</span>}</div><button type="button" onClick={()=>update('holidays',config.holidays.filter(x=>x!==h.raw))} className="text-slate-400 hover:text-red-500"><Trash2 size={17}/></button></div>)}
                 </div>
               </section>
+            </section>
+          )}
+
+          {tab === 'import' && (
+            <section className="space-y-5">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <div className="bg-gradient-to-r from-violet-50 to-indigo-50 p-5 sm:p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-violet-700 shadow-sm">
+                      <Database size={23} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black uppercase tracking-widest text-violet-700">Carga inicial</p>
+                      <h3 className="mt-1 text-xl font-black text-slate-900">Importación de datos</h3>
+                      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+                        Cargá de una sola vez los legajos y el personal desde un Excel. Primero revisamos los datos; recién se guardan cuando confirmás la importación.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-3 p-5 sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-slate-500"><FileText size={17}/><span className="text-xs font-black uppercase">Personas</span></div>
+                    <p className="mt-2 text-sm font-bold text-slate-800">
+                      {institutionMode === INSTITUTION_MODES.DAY_CENTER ? 'Concurrentes' : institutionMode === INSTITUTION_MODES.CLINIC ? 'Pacientes' : 'Estudiantes'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">Se integran con Legajos usando la arquitectura actual de CENTRA.</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-slate-500"><Settings2 size={17}/><span className="text-xs font-black uppercase">Personal</span></div>
+                    <p className="mt-2 text-sm font-bold text-slate-800">Datos laborales</p>
+                    <p className="mt-1 text-xs text-slate-500">Se cargan los datos del equipo; no se crean cuentas de acceso.</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-slate-500"><ShieldCheck size={17}/><span className="text-xs font-black uppercase">Revisión previa</span></div>
+                    <p className="mt-2 text-sm font-bold text-slate-800">Sin sobrescritura automática</p>
+                    <p className="mt-1 text-xs text-slate-500">Los registros duplicados o incompletos quedan fuera de la importación.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><Download size={19}/></div>
+                    <div>
+                      <h4 className="font-black text-slate-800">1. Descargá la plantilla</h4>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-500">Incluye dos hojas: Estudiantes y Personal. Podés completar una sola o ambas.</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={downloadImportTemplate} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-black text-white transition hover:bg-violet-700">
+                    <Download size={17}/> Descargar plantilla Excel
+                  </button>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><UploadCloud size={19}/></div>
+                    <div>
+                      <h4 className="font-black text-slate-800">2. Subí el Excel completo</h4>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-500">Acepta archivos .xlsx y .xls con las hojas de la plantilla. El archivo se procesa en esta pantalla y no se guarda en el navegador.</p>
+                    </div>
+                  </div>
+                  <label className={`mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-violet-300 hover:bg-violet-50 ${importParsing || importSaving ? 'pointer-events-none opacity-60' : ''}`}>
+                    <UploadCloud size={17}/>
+                    {importParsing ? 'Leyendo archivo…' : 'Elegir archivo Excel'}
+                    <input type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" className="hidden" disabled={importParsing || importSaving} onChange={handleImportFile}/>
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-700"/>
+                  <div className="text-sm leading-relaxed text-amber-900">
+                    <p className="font-black">Antes de confirmar</p>
+                    <p className="mt-1">Revisá los datos porque se incorporarán a la base institucional. No importamos automáticamente filas sin nombre y apellido, duplicados de DNI ni nombres que parecen repetidos. Para el personal, esta carga no crea usuarios: las cuentas se gestionan aparte y luego se vinculan al registro laboral.</p>
+                  </div>
+                </div>
+              </div>
+
+              {importFeedback && (
+                <div role="status" className={`flex items-start gap-3 rounded-2xl border p-4 text-sm leading-relaxed ${
+                  importFeedback.type === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-800'
+                    : importFeedback.type === 'warning'
+                      ? 'border-amber-200 bg-amber-50 text-amber-900'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                }`}>
+                  {importFeedback.type === 'error' ? <AlertTriangle size={18} className="mt-0.5 shrink-0"/> : <CheckCircle2 size={18} className="mt-0.5 shrink-0"/>}
+                  <span className="flex-1">{importFeedback.message}</span>
+                  <button type="button" onClick={() => setImportFeedback(null)} className="rounded-lg p-1 opacity-70 hover:opacity-100" aria-label="Cerrar mensaje"><X size={15}/></button>
+                </div>
+              )}
+
+              {importPreview && (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Vista previa</p>
+                      <h4 className="mt-1 break-all font-black text-slate-900">{importPreview.fileName}</h4>
+                      <p className="mt-1 text-xs text-slate-500">Todavía no se guardó ningún dato.</p>
+                    </div>
+                    <button type="button" onClick={resetImportPreview} disabled={importSaving} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"><X size={14}/> Quitar vista previa</button>
+                  </div>
+
+                  {[
+                    { key: 'studentRows', title: institutionMode === INSTITUTION_MODES.DAY_CENTER ? 'Concurrentes / estudiantes' : institutionMode === INSTITUTION_MODES.CLINIC ? 'Pacientes / personas' : 'Estudiantes', countLabel: 'registros' },
+                    { key: 'staffRows', title: 'Personal', countLabel: 'integrantes' }
+                  ].map(section => {
+                    const rows = importPreview[section.key] || [];
+                    if (!rows.length && !importPreview[section.key === 'studentRows' ? 'foundStudentSheet' : 'foundStaffSheet']) return null;
+                    const ready = rows.filter(row => row.status === 'ready').length;
+                    const imported = rows.filter(row => row.status === 'imported').length;
+                    const issueCount = rows.filter(row => !['ready', 'imported'].includes(row.status)).length;
+                    return (
+                      <section key={section.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                        <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div><h4 className="font-black text-slate-800">{section.title}</h4><p className="mt-1 text-xs text-slate-500">{rows.length} {section.countLabel} en la planilla</p></div>
+                          <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{ready} listos</span>
+                            {imported > 0 && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">{imported} importados</span>}
+                            {issueCount > 0 && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-800">{issueCount} revisar</span>}
+                          </div>
+                        </div>
+                        {rows.length ? (
+                          <div className="max-h-[360px] overflow-auto">
+                            <table className="w-full min-w-[760px] text-left text-xs">
+                              <thead className="sticky top-0 z-10 bg-white text-[10px] uppercase tracking-wide text-slate-400 shadow-sm">
+                                <tr>
+                                  <th className="px-3 py-3">Fila</th>
+                                  <th className="px-3 py-3">Apellido y nombre</th>
+                                  <th className="px-3 py-3">DNI</th>
+                                  {section.key === 'staffRows' && <th className="px-3 py-3">Función</th>}
+                                  <th className="px-3 py-3">Estado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {rows.map(row => {
+                                  const statusClass = row.status === 'ready'
+                                    ? 'bg-emerald-50 text-emerald-700'
+                                    : row.status === 'imported'
+                                      ? 'bg-blue-50 text-blue-700'
+                                      : row.status === 'duplicate'
+                                        ? 'bg-red-50 text-red-700'
+                                        : 'bg-amber-50 text-amber-800';
+                                  const statusLabel = row.status === 'ready'
+                                    ? 'Listo'
+                                    : row.status === 'imported'
+                                      ? 'Importado'
+                                      : row.status === 'duplicate'
+                                        ? 'Duplicado'
+                                        : row.status === 'invalid'
+                                          ? 'Incompleto'
+                                          : 'Revisar';
+                                  return (
+                                    <tr key={row.id} className={row.status === 'ready' ? '' : 'bg-amber-50/30'}>
+                                      <td className="px-3 py-3 text-slate-400">{row.rowNumber}</td>
+                                      <td className="px-3 py-3"><div className="font-bold text-slate-800">{row.lastName}, {row.firstName}</div><div className="mt-0.5 max-w-sm truncate text-[10px] text-slate-400">{row.detail}</div></td>
+                                      <td className="px-3 py-3 text-slate-600">{row.dni || '—'}</td>
+                                      {section.key === 'staffRows' && <td className="px-3 py-3 text-slate-600">{row.role || row.cargo1_role || '—'}</td>}
+                                      <td className="px-3 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 font-black ${statusClass}`}>{statusLabel}</span></td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="p-4 text-sm text-slate-500">La hoja está presente, pero no contiene registros.</div>
+                        )}
+                      </section>
+                    );
+                  })}
+
+                  <div className="flex flex-col-reverse gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-relaxed text-slate-500">Solo se importarán las filas marcadas como <strong>Listo</strong>. Las demás no se guardan y deben revisarse en el Excel.</p>
+                    <button
+                      type="button"
+                      onClick={handleConfirmImport}
+                      disabled={importSaving || importParsing || ![...importPreview.studentRows, ...importPreview.staffRows].some(row => row.status === 'ready')}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {importSaving ? <RefreshCw size={17} className="animate-spin"/> : <CheckCircle2 size={17}/>}
+                      {importSaving ? 'Importando…' : 'Confirmar e importar'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
