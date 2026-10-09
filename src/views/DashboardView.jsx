@@ -27,7 +27,7 @@ import {
   GraduationCap,
   CircleCheck,
   ListTodo,
-  BriefcaseBusiness,
+  Briefcase,
 } from 'lucide-react';
 import {
   collection,
