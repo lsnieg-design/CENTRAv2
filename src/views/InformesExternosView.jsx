@@ -21,7 +21,9 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
+  where,
 } from 'firebase/firestore';
+import { COLLECTIONS } from '../data/collections';
 
 const SAFE_DEFAULT_PRIMARY = '#6d28d9';
 const SAFE_DEFAULT_SECONDARY = '#f97316';
@@ -63,9 +65,39 @@ function formatDate(value) {
   });
 }
 
+function normalizeSearchText(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('es-AR')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function getStudentName(student = {}) {
-  const fullName = [student.lastName, student.firstName].filter(Boolean).join(', ');
-  return fullName || student.fullName || student.name || 'Persona sin nombre cargado';
+  const lastName = student.lastName || student.apellido || student.apellidos || '';
+  const firstName = student.firstName || student.nombre || student.nombres || '';
+  const orderedName = [lastName, firstName].filter(Boolean).join(', ');
+  return orderedName || student.fullName || student.displayName || student.name || 'Persona sin nombre cargado';
+}
+
+function getStudentDni(student = {}) {
+  return String(student.dni || student.documentNumber || student.identificationNumber || student.numeroDocumento || '').trim();
+}
+
+function getStudentIdentity(student = {}) {
+  const dni = normalizeSearchText(getStudentDni(student)).replace(/[^a-z0-9]/g, '');
+  return dni ? `dni:${dni}` : '';
+}
+
+function getStudentSearchText(student = {}) {
+  return normalizeSearchText([
+    student.lastName, student.apellido, student.apellidos,
+    student.firstName, student.nombre, student.nombres,
+    student.fullName, student.displayName, student.name,
+    getStudentName(student), getStudentDni(student),
+    student.personId, student.id,
+  ].filter(Boolean).join(' '));
 }
 
 function buildInstitutionContact(config = {}) {
@@ -165,7 +197,7 @@ function buildPrintDocument({ student, report, config = {} }) {
       <h3 class="section-title">Datos de la persona</h3>
       <div class="student-grid">
         <div><span class="field-label">Apellido y nombre</span><span class="field-value">${escapeHtml(studentName)}</span></div>
-        <div><span class="field-label">DNI</span><span class="field-value">${escapeHtml(student.dni || 'No consignado')}</span></div>
+        <div><span class="field-label">DNI</span><span class="field-value">${escapeHtml(getStudentDni(student) || 'No consignado')}</span></div>
         <div><span class="field-label">Fecha de nacimiento</span><span class="field-value">${escapeHtml(birthDate ? formatDate(birthDate) : 'No consignada')}</span></div>
         <div><span class="field-label">Grupo / nivel</span><span class="field-value">${escapeHtml(group || 'No consignado')}</span></div>
       </div>
@@ -225,38 +257,151 @@ export function InformesExternosView({ user, db, appId, appConfig = {} }) {
 
     setIsLoadingStudents(true);
     setLoadError('');
-    const studentsQuery = query(collection(db, 'artifacts', appId, 'public', 'data', 'students'));
-    const unsubscribe = onSnapshot(
-      studentsQuery,
-      snapshot => {
-        const records = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-        records.sort((a, b) => getStudentName(a).localeCompare(getStudentName(b), 'es'));
-        setStudents(records);
+
+    // CENTRA guarda los legajos nuevos en people + student_profiles.
+    // También leemos students para mantener compatibilidad con registros antiguos.
+    let people = [];
+    let profiles = [];
+    let legacyStudents = [];
+    let latestMergedRecords = [];
+    const pendingSources = new Set(['people', 'profiles', 'legacy']);
+    const sourceErrors = [];
+    const unsubscribers = [];
+
+    const rebuildStudents = () => {
+      const peopleById = new Map(people.map(person => [person.id, person]));
+      const profileIds = new Set();
+
+      const profileStudents = profiles.map(profile => {
+        const personId = profile.personId || profile.id;
+        const person = peopleById.get(personId) || peopleById.get(profile.id) || {};
+        if (personId) profileIds.add(personId);
+        return {
+          ...person,
+          ...profile,
+          id: personId || profile.id || person.id,
+          personId: personId || person.id || profile.id,
+          firstName: profile.firstName || profile.nombre || person.firstName || person.nombre || '',
+          lastName: profile.lastName || profile.apellido || profile.apellidos || person.lastName || person.apellido || person.apellidos || '',
+          fullName: profile.fullName || profile.displayName || person.fullName || person.displayName ||
+            [profile.firstName || person.firstName || '', profile.lastName || person.lastName || ''].filter(Boolean).join(' '),
+          dni: getStudentDni(profile) || getStudentDni(person),
+          isActive: profile.isActive ?? person.isActive ?? person.active ?? true,
+        };
+      });
+
+      // Si hay una persona marcada como estudiante pero todavía no tiene perfil,
+      // también la mostramos para no ocultar un legajo incompleto.
+      const peopleWithoutProfile = people
+        .filter(person => person.id && !profileIds.has(person.id))
+        .map(person => ({
+          ...person,
+          id: person.id,
+          personId: person.id,
+          firstName: person.firstName || person.nombre || '',
+          lastName: person.lastName || person.apellido || person.apellidos || '',
+          fullName: person.fullName || person.displayName ||
+            [person.firstName || person.nombre || '', person.lastName || person.apellido || person.apellidos || ''].filter(Boolean).join(' '),
+          dni: getStudentDni(person),
+          isActive: person.isActive ?? person.active ?? true,
+        }));
+
+      const combined = [...profileStudents, ...peopleWithoutProfile];
+      const identityKeys = new Set(
+        combined.map(getStudentIdentity).filter(Boolean)
+      );
+      const idKeys = new Set(
+        combined.flatMap(student => [student.id, student.personId]).filter(Boolean)
+      );
+
+      legacyStudents.forEach(student => {
+        const legacyId = student.id || student.personId;
+        const identity = getStudentIdentity(student);
+        if ((legacyId && idKeys.has(legacyId)) || (identity && identityKeys.has(identity))) return;
+        combined.push({
+          ...student,
+          firstName: student.firstName || student.nombre || student.nombres || '',
+          lastName: student.lastName || student.apellido || student.apellidos || '',
+          dni: getStudentDni(student),
+          isActive: student.isActive ?? student.active ?? true,
+        });
+        if (legacyId) idKeys.add(legacyId);
+        if (identity) identityKeys.add(identity);
+      });
+
+      latestMergedRecords = combined.sort((a, b) =>
+        getStudentName(a).localeCompare(getStudentName(b), 'es-AR')
+      );
+      setStudents(latestMergedRecords);
+
+      if (latestMergedRecords.length > 0) {
+        setLoadError('');
+      }
+    };
+
+    const finishSource = source => {
+      pendingSources.delete(source);
+      if (pendingSources.size === 0) {
         setIsLoadingStudents(false);
+        const coreError = sourceErrors.find(item => item.source === 'people' || item.source === 'profiles');
+        if (latestMergedRecords.length === 0 && coreError) {
+          setLoadError('No pudimos leer los legajos desde Firestore. Revisá la conexión y los permisos de lectura.');
+        }
+      }
+    };
+
+    const handleSourceError = (source, error) => {
+      console.error(`No se pudo cargar la fuente ${source} para Informes Externos:`, error);
+      sourceErrors.push({ source, error });
+      finishSource(source);
+    };
+
+    unsubscribers.push(onSnapshot(
+      query(
+        collection(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.PEOPLE),
+        where('type', '==', 'student')
+      ),
+      snapshot => {
+        people = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+        rebuildStudents();
+        finishSource('people');
+      },
+      error => handleSourceError('people', error)
+    ));
+
+    unsubscribers.push(onSnapshot(
+      collection(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.STUDENT_PROFILES),
+      snapshot => {
+        profiles = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+        rebuildStudents();
+        finishSource('profiles');
+      },
+      error => handleSourceError('profiles', error)
+    ));
+
+    unsubscribers.push(onSnapshot(
+      collection(db, 'artifacts', appId, 'public', 'data', 'students'),
+      snapshot => {
+        legacyStudents = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+        rebuildStudents();
+        finishSource('legacy');
       },
       error => {
-        console.error('No se pudieron cargar los registros para Informes Externos:', error);
-        setLoadError('No pudimos cargar los legajos. Revisá la conexión o tus permisos e intentá nuevamente.');
-        setIsLoadingStudents(false);
+        // La colección legacy es opcional: puede no existir o estar retirada.
+        console.warn('No se pudieron consultar legajos antiguos para Informes Externos:', error);
+        finishSource('legacy');
       }
-    );
+    ));
 
-    return () => unsubscribe();
+    return () => unsubscribers.forEach(unsubscribe => unsubscribe());
   }, [db, appId]);
 
   const filteredStudents = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLocaleLowerCase('es');
+    const normalizedSearch = normalizeSearchText(searchTerm);
     if (!normalizedSearch) return [];
-    return students.filter(student => {
-      const searchable = [
-        student.lastName,
-        student.firstName,
-        student.fullName,
-        student.name,
-        student.dni,
-      ].filter(Boolean).join(' ').toLocaleLowerCase('es');
-      return searchable.includes(normalizedSearch);
-    }).slice(0, 30);
+    return students
+      .filter(student => getStudentSearchText(student).includes(normalizedSearch))
+      .slice(0, 30);
   }, [students, searchTerm]);
 
   const handleSelectStudent = student => {
@@ -346,7 +491,7 @@ export function InformesExternosView({ user, db, appId, appConfig = {} }) {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'external_reports'), {
         studentId: selectedStudent.id,
         studentName: getStudentName(selectedStudent),
-        studentDni: selectedStudent.dni || '',
+        studentDni: getStudentDni(selectedStudent),
         paraQuien: paraQuien.trim(),
         cuerpoInforme: cuerpoInforme.trim(),
         institutionName,
@@ -439,6 +584,11 @@ export function InformesExternosView({ user, db, appId, appConfig = {} }) {
               />
             </div>
 
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400" aria-live="polite">
+              <span>{isLoadingStudents ? 'Conectando con los legajos…' : `${students.length} legajo${students.length === 1 ? '' : 's'} disponible${students.length === 1 ? '' : 's'}`}</span>
+              {!isLoadingStudents && students.length > 0 && searchTerm.trim() && <span>{filteredStudents.length} coincidencia{filteredStudents.length === 1 ? '' : 's'}</span>}
+            </div>
+
             {isLoadingStudents ? (
               <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500"><Loader2 size={18} className="animate-spin" /> Cargando legajos…</div>
             ) : loadError ? (
@@ -462,7 +612,7 @@ export function InformesExternosView({ user, db, appId, appConfig = {} }) {
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><User size={19} /></div>
                       <div className="min-w-0">
                         <p className="break-words text-sm font-extrabold text-slate-800">{getStudentName(student)}</p>
-                        <p className="mt-1 text-xs text-slate-500">DNI: {student.dni || 'No consignado'}{student.level ? ` · ${student.level}` : ''}</p>
+                        <p className="mt-1 text-xs text-slate-500">DNI: {getStudentDni(student) || 'No consignado'}{student.level ? ` · ${student.level}` : ''}</p>
                         {student.isActive === false && <p className="mt-1 text-[11px] font-semibold text-amber-700">Legajo inactivo</p>}
                       </div>
                     </div>
@@ -494,7 +644,7 @@ export function InformesExternosView({ user, db, appId, appConfig = {} }) {
             <p className="text-[11px] font-extrabold uppercase tracking-wider" style={{ color: primaryColor }}>2. Persona seleccionada</p>
             <h2 className="mt-1 break-words text-xl font-black text-slate-900">{getStudentName(selectedStudent)}</h2>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-              <span>DNI: {selectedStudent?.dni || 'No consignado'}</span>
+              <span>DNI: {getStudentDni(selectedStudent) || 'No consignado'}</span>
               <span>Fecha de nacimiento: {formatDate(selectedStudent?.birthDate || selectedStudent?.fechaNac) || 'No consignada'}</span>
               {(selectedStudent?.level || selectedStudent?.groupMorning || selectedStudent?.groupAfternoon || selectedStudent?.laboralGroup) && (
                 <span>Grupo / nivel: {selectedStudent.level || selectedStudent.groupMorning || selectedStudent.groupAfternoon || selectedStudent.laboralGroup}</span>
