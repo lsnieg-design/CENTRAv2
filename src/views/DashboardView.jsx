@@ -509,9 +509,11 @@ export function DashboardView({
           </div>
         </section>
 
+        {/* CUENTA REGRESIVA + AVISOS: en dos columnas cuando hay espacio */}
+        <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-2">
         {/* CUENTA REGRESIVA: visible al ingresar */}
         {canUseModule('calendar') && (countdown.date || isManagement) && (
-          <section className="rounded-2xl border bg-white px-3 py-3 shadow-sm sm:px-4" style={{ borderColor: `${primaryColor}55` }}>
+          <section className="h-full rounded-2xl border bg-white px-3 py-3 shadow-sm sm:px-4" style={{ borderColor: `${primaryColor}55` }}>
             {isEditingCountdown ? (
               <form onSubmit={handleSaveCountdown} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_190px_auto]">
                 <label className="text-[11px] font-bold text-slate-600">
@@ -586,7 +588,7 @@ export function DashboardView({
 
         {/* AVISOS INSTITUCIONALES: destacados al ingresar */}
         {canUseModule('notifications') && (
-          <section className="rounded-2xl border border-amber-300 bg-amber-50/80 p-3 shadow-sm sm:p-4">
+          <section className="h-full rounded-2xl border border-amber-300 bg-amber-50/80 p-3 shadow-sm sm:p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-200 text-amber-950"><Bell size={17} aria-hidden="true" /></span>
@@ -635,6 +637,8 @@ export function DashboardView({
             )}
           </section>
         )}
+
+        </div>
 
         {/* RESUMEN RÁPIDO */}
         <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
