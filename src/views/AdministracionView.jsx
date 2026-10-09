@@ -18,7 +18,7 @@ import {
   BadgeCheck,
   UserRound,
   ArrowRight,
-  LoaderCircle,
+  Loader2,
   ClipboardCheck,
 } from 'lucide-react';
 import {
