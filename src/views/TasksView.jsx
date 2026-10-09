@@ -69,12 +69,48 @@ function getDaysLabel(value) {
 }
 
 function getUserDisplayName(item = {}) {
-  return String(item.fullName || [item.firstName, item.lastName].filter(Boolean).join(' ') || item.username || item.email || 'Usuario').trim();
+  const firstAndLast = [item.firstName, item.lastName].filter(Boolean).join(' ');
+  return String(item.fullName || firstAndLast || item.displayName || item.name || item.username || item.email || 'Usuario').trim();
 }
 
 function normalizeText(value) {
   return String(value ?? '').trim().toLocaleLowerCase('es-AR');
 }
+
+// La configuración histórica puede guardar los tipos de asignación como
+// user/role/team, USER/ROLE/TEAM o con sus nombres en español. La interfaz
+// trabaja siempre con las claves canónicas en español para que los selectores
+// correspondientes se rendericen y las tareas sigan siendo compatibles.
+function normalizeAssignmentType(item) {
+  const candidates = item && typeof item === 'object'
+    ? [item.key, item.value, item.id, item.type, item.name, item.label, item.shortName]
+    : [item];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeText(candidate)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[\s_-]+/g, '');
+
+    if (['persona', 'personas', 'person', 'persons', 'user', 'users', 'usuario', 'usuarios'].includes(normalized)) {
+      return 'Persona';
+    }
+    if (['rol', 'roles', 'role'].includes(normalized)) {
+      return 'Rol';
+    }
+    if (['equipo', 'equipos', 'team', 'teams'].includes(normalized)) {
+      return 'Equipo';
+    }
+  }
+
+  return null;
+}
+
+const ASSIGNMENT_ICONS = {
+  Persona: User,
+  Rol: Users,
+  Equipo: Users,
+};
 
 function matchesRole(targetRoles = [], role = '') {
   const targets = Array.isArray(targetRoles) ? targetRoles : [];
@@ -124,12 +160,14 @@ export function TasksView({
   const priorities = configuredPriorities.length ? configuredPriorities : FALLBACK_PRIORITIES;
   const assignmentTypes = useMemo(() => {
     const configured = Array.isArray(taskSettings.assignmentTypes)
-      ? taskSettings.assignmentTypes
-          .map(item => typeof item === 'string' ? item : item?.label || item?.name || item?.id)
-          .filter(Boolean)
+      ? taskSettings.assignmentTypes.map(normalizeAssignmentType).filter(Boolean)
       : [];
-    return configured.length ? configured : ['Persona', 'Rol', 'Equipo'];
+    const uniqueConfigured = [...new Set(configured)];
+    return uniqueConfigured.length ? uniqueConfigured : ['Persona', 'Rol', 'Equipo'];
   }, [taskSettings.assignmentTypes]);
+  const defaultAssignmentType = assignmentTypes.includes('Persona')
+    ? 'Persona'
+    : assignmentTypes[0] || 'Persona';
   const defaultPriority = priorities.find(item => item.key === 'medium')?.key || priorities[0]?.key || 'medium';
   const primaryColor = appConfig.primaryColor || '#6d28d9';
 
@@ -139,7 +177,7 @@ export function TasksView({
   const [statusFilter, setStatusFilter] = useState('active');
   const [taskSearch, setTaskSearch] = useState('');
   const [editingTask, setEditingTask] = useState(null);
-  const [assignType, setAssignType] = useState('Persona');
+  const [assignType, setAssignType] = useState(defaultAssignmentType);
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [selectedUsersObj, setSelectedUsersObj] = useState([]);
@@ -189,15 +227,22 @@ export function TasksView({
   }, [db, appId, moduleEnabled]);
 
   useEffect(() => {
+    if (!assignmentTypes.includes(assignType)) {
+      setAssignType(defaultAssignmentType);
+    }
+  }, [assignmentTypes, assignType, defaultAssignmentType]);
+
+  useEffect(() => {
     if (!editingTask) return;
     const ids = Array.isArray(editingTask.targetUserIds)
       ? editingTask.targetUserIds
       : editingTask.targetUserId ? [editingTask.targetUserId] : [];
-    setAssignType(assignmentTypes.includes(editingTask.targetType) ? editingTask.targetType : 'Persona');
+    const savedType = normalizeAssignmentType(editingTask.targetType);
+    setAssignType(savedType && assignmentTypes.includes(savedType) ? savedType : defaultAssignmentType);
     setSelectedUsersObj(usersList.filter(item => ids.includes(item.id)));
     setSelectedRoles(Array.isArray(editingTask.targetRoles) ? editingTask.targetRoles : []);
     setSelectedTeams(Array.isArray(editingTask.targetTeams) ? editingTask.targetTeams : []);
-  }, [editingTask, usersList, assignmentTypes]);
+  }, [editingTask, usersList, assignmentTypes, defaultAssignmentType]);
 
   const relevantTasks = useMemo(() => {
     if (!moduleEnabled) return [];
@@ -261,7 +306,7 @@ export function TasksView({
     setSelectedRoles([]);
     setSelectedTeams([]);
     setUserSearch('');
-    setAssignType('Persona');
+    setAssignType(defaultAssignmentType);
   };
 
   const notify = (message, tone = 'success') => {
@@ -281,14 +326,14 @@ export function TasksView({
       return;
     }
 
-    const targetType = assignType;
-    const targetUserIds = assignType === 'Persona' ? selectedUsersObj.map(item => item.id) : [];
-    const targetRoles = assignType === 'Rol' ? selectedRoles : [];
-    const targetTeams = assignType === 'Equipo' ? selectedTeams : [];
+    const targetType = normalizeAssignmentType(assignType) || defaultAssignmentType;
+    const targetUserIds = targetType === 'Persona' ? selectedUsersObj.map(item => item.id) : [];
+    const targetRoles = targetType === 'Rol' ? selectedRoles : [];
+    const targetTeams = targetType === 'Equipo' ? selectedTeams : [];
     let assignedToName = 'Sin asignar';
-    if (assignType === 'Persona') assignedToName = selectedUsersObj.map(getUserDisplayName).join(', ') || 'Sin asignar';
-    if (assignType === 'Rol') assignedToName = targetRoles.join(', ') || 'Sin asignar';
-    if (assignType === 'Equipo') assignedToName = targetTeams.join(', ') || 'Sin asignar';
+    if (targetType === 'Persona') assignedToName = selectedUsersObj.map(getUserDisplayName).join(', ') || 'Sin asignar';
+    if (targetType === 'Rol') assignedToName = targetRoles.join(', ') || 'Sin asignar';
+    if (targetType === 'Equipo') assignedToName = targetTeams.join(', ') || 'Sin asignar';
 
     const taskData = {
       title: String(fd.get('title') || '').trim() || 'Sin título',
@@ -495,6 +540,7 @@ export function TasksView({
             const dueInfo = getDaysLabel(task.dueDate);
             const overdue = taskIsOverdue(task);
             const canEdit = task.createdById === user?.id || isAdmin;
+            const normalizedTaskTargetType = normalizeAssignmentType(task.targetType) || task.targetType;
 
             return (
               <article key={task.id} className={`bg-white border rounded-2xl p-5 shadow-sm ${overdue ? 'border-red-200' : 'border-slate-200'}`}>
@@ -515,10 +561,10 @@ export function TasksView({
                     </h3>
 
                     <p className="text-xs text-slate-500 mt-2">
-                      {task.targetType === 'Persona' && 'Asignada a personas'}
-                      {task.targetType === 'Rol' && `Asignada a ${Array.isArray(task.targetRoles) && task.targetRoles.length ? task.targetRoles.join(', ') : 'roles'}`}
-                      {task.targetType === 'Equipo' && `Asignada a ${Array.isArray(task.targetTeams) && task.targetTeams.length ? task.targetTeams.join(', ') : 'equipos'}`}
-                      {(!task.targetType || task.targetType === 'Persona') && task.assignedToName && ` · ${task.assignedToName}`}
+                      {normalizedTaskTargetType === 'Persona' && 'Asignada a personas'}
+                      {normalizedTaskTargetType === 'Rol' && `Asignada a ${Array.isArray(task.targetRoles) && task.targetRoles.length ? task.targetRoles.join(', ') : 'roles'}`}
+                      {normalizedTaskTargetType === 'Equipo' && `Asignada a ${Array.isArray(task.targetTeams) && task.targetTeams.length ? task.targetTeams.join(', ') : 'equipos'}`}
+                      {(!task.targetType || normalizedTaskTargetType === 'Persona') && task.assignedToName && ` · ${task.assignedToName}`}
                     </p>
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-[11px] text-slate-400">
@@ -641,57 +687,97 @@ export function TasksView({
 
               <section>
                 <label className="block text-xs font-black uppercase tracking-wide text-slate-500 mb-2">A quién asignar</label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {assignmentTypes.map(type => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setAssignType(type)}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold border ${assignType === type ? 'shadow-sm' : 'bg-white border-slate-200 text-slate-500'}`}
-                      style={assignType === type ? { backgroundColor: `${primaryColor}12`, borderColor: `${primaryColor}55`, color: primaryColor } : undefined}
-                    >
-                      {type === 'Persona' && <User size={14} className="inline mr-1" />}
-                      {type === 'Rol' && <Users size={14} className="inline mr-1" />}
-                      {type === 'Equipo' && <Users size={14} className="inline mr-1" />}
-                      {type}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Tipo de asignación">
+                  {assignmentTypes.map(type => {
+                    const Icon = ASSIGNMENT_ICONS[type] || User;
+                    const active = assignType === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => {
+                          setAssignType(type);
+                          setUserSearch('');
+                        }}
+                        aria-pressed={active}
+                        className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-bold transition focus:outline-none focus:ring-2 focus:ring-offset-1 ${active ? 'shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        style={active ? { backgroundColor: `${primaryColor}12`, borderColor: `${primaryColor}55`, color: primaryColor } : undefined}
+                      >
+                        <Icon size={15} aria-hidden="true" />
+                        {type}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {assignType === 'Persona' && (
-                  <div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+                    <div className="mb-3">
+                      <p className="text-sm font-bold text-slate-800">Seleccioná una o más personas</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">Buscá por nombre, apellido, usuario, correo o rol. Las personas elegidas quedan visibles abajo.</p>
+                      {usersList.length === 0 && <p className="mt-2 text-xs font-semibold text-amber-700">Todavía no se cargaron usuarios. Verificá que existan cuentas en Gestión de usuarios y que Firestore permita leerlas.</p>}
+                    </div>
                     <div className="relative">
-                      <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-                      <input value={userSearch} onChange={event => setUserSearch(event.target.value)} placeholder="Buscar una persona..." className="w-full rounded-xl border border-slate-200 pl-10 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-100" />
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                      <input
+                        value={userSearch}
+                        onChange={event => setUserSearch(event.target.value)}
+                        placeholder="Ej.: nombre, apellido o correo…"
+                        aria-label="Buscar personas para asignar"
+                        autoComplete="off"
+                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+                      />
                     </div>
 
-                    {userSearch && (
-                      <div className="mt-2 rounded-xl border border-slate-200 bg-white max-h-48 overflow-y-auto shadow-sm">
+                    {userSearch.trim() && (
+                      <div className="mt-2 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                         {usersList
-                          .filter(item => normalizeText(`${getUserDisplayName(item)} ${item.role || ''} ${item.email || ''}`).includes(normalizeText(userSearch)))
+                          .filter(item => normalizeText(`${getUserDisplayName(item)} ${item.role || ''} ${item.rol || ''} ${item.email || ''} ${item.username || ''}`).includes(normalizeText(userSearch)))
                           .filter(item => !selectedUsersObj.some(selected => selected.id === item.id))
-                          .slice(0, 12)
+                          .slice(0, 20)
                           .map(item => (
-                            <button key={item.id} type="button" onClick={() => toggleUserSelection(item)} className="w-full px-3 py-2.5 text-left hover:bg-violet-50 flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-bold text-slate-700">{getUserDisplayName(item)}</p>
-                                <p className="text-[10px] text-slate-400">{item.role || item.rol || 'Sin rol'}</p>
-                              </div>
-                              <Plus size={15} className="text-violet-500" />
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => toggleUserSelection(item)}
+                              className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-3 text-left transition last:border-b-0 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+                            >
+                              <span className="flex min-w-0 items-center gap-3">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black" style={{ backgroundColor: `${primaryColor}16`, color: primaryColor }}>
+                                  {getUserDisplayName(item).charAt(0).toLocaleUpperCase('es-AR')}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-bold text-slate-800">{getUserDisplayName(item)}</span>
+                                  <span className="mt-0.5 block truncate text-[11px] text-slate-500">{item.role || item.rol || item.email || 'Sin rol asignado'}</span>
+                                </span>
+                              </span>
+                              <Plus size={16} className="shrink-0" style={{ color: primaryColor }} aria-hidden="true" />
                             </button>
                           ))}
-                        {usersList.filter(item => normalizeText(`${getUserDisplayName(item)} ${item.role || ''} ${item.email || ''}`).includes(normalizeText(userSearch)) && !selectedUsersObj.some(selected => selected.id === item.id)).length === 0 && <p className="px-3 py-4 text-xs text-slate-400 text-center">No encontramos personas disponibles.</p>}
+                        {usersList.filter(item => normalizeText(`${getUserDisplayName(item)} ${item.role || ''} ${item.rol || ''} ${item.email || ''} ${item.username || ''}`).includes(normalizeText(userSearch)) && !selectedUsersObj.some(selected => selected.id === item.id)).length === 0 && (
+                          <p className="px-3 py-5 text-center text-xs text-slate-500">No encontramos personas disponibles con esa búsqueda.</p>
+                        )}
                       </div>
                     )}
 
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {selectedUsersObj.map(item => (
-                        <span key={item.id} className="inline-flex items-center gap-2 bg-violet-50 text-violet-700 px-3 py-1.5 rounded-xl text-xs font-bold">
-                          {getUserDisplayName(item)}
-                          <button type="button" onClick={() => toggleUserSelection(item)} aria-label="Quitar"><X size={13} /></button>
-                        </span>
-                      ))}
-                    </div>
+                    {selectedUsersObj.length > 0 ? (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-xs font-extrabold text-slate-700">Personas seleccionadas</p>
+                          <span className="rounded-full px-2 py-0.5 text-[10px] font-black" style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}>{selectedUsersObj.length}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedUsersObj.map(item => (
+                            <span key={item.id} className="inline-flex max-w-full items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold" style={{ backgroundColor: `${primaryColor}12`, color: primaryColor }}>
+                              <span className="truncate">{getUserDisplayName(item)}</span>
+                              <button type="button" onClick={() => toggleUserSelection(item)} aria-label={`Quitar a ${getUserDisplayName(item)}`} className="shrink-0 rounded-full p-0.5 hover:bg-white/70"><X size={13} /></button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs text-slate-500">Todavía no seleccionaste personas.</p>
+                    )}
                   </div>
                 )}
 
