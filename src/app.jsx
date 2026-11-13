@@ -8,46 +8,28 @@ import { CalendarView } from './views/CalendarView';
 import { MatriculaView } from './views/MatriculaView';
 import { AdministracionView } from './views/AdministracionView';
 import { UsersAdminView } from './views/UsersAdminView';
-import { ProyectoView } from './views/ProyectoView';
-import { EvaluationsView } from './views/EvaluationsView';
 import { ConfiguracionView } from './views/ConfiguracionView';
 import { InformesExternosView } from './views/InformesExternosView';
 import { normalizeAppConfig, applyBranding, getRolePermissions, canAccessModule } from './config';
 
-import { 
-  Calendar as CalendarIcon, CheckSquare, Settings, User, FileText, CheckCircle, 
-  Download, RefreshCw, Plus, Trash2, Users, AlertCircle, LogOut, Briefcase, 
-  Lock, List, Grid, ChevronLeft, ChevronRight, Bell, Check, HelpCircle, Mail, Camera, MapPin, 
-  Send, Key, Filter, LayoutDashboard, Link as LinkIcon, ExternalLink, Zap,
-  AlertTriangle, Clock, Shield, Crown, Share, PlusSquare, 
-  Smartphone, GraduationCap, Search, X, UploadCloud, PieChart, Eye, Edit3, Trophy,
-  Folder, MessageSquare, Globe, BookOpen, Lightbulb, ChevronDown, PlusCircle, Printer,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify, Phone, CheckCircle2, Clock3, UserCheck,
-  ChevronUp, ClipboardCheck, EyeOff
+import {
+  Calendar as CalendarIcon, CheckSquare, Settings, User, FileText, CheckCircle,
+  Download, RefreshCw, Plus, Users, AlertCircle, LogOut,
+  Lock, List, Grid, Bell, Mail, Camera,
+  Send, Key, LayoutDashboard, Link as LinkIcon, ExternalLink,
+  Shield, Share, PlusSquare,
+  Smartphone, GraduationCap, Search, X, Eye, EyeOff
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
-import { 
-  getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, 
-  updateDoc, setDoc, deleteDoc, where, getDocs, getDoc, serverTimestamp, arrayUnion, arrayRemove, limit,increment 
+import {
+  getFirestore, collection, query, onSnapshot, doc,
+  updateDoc, setDoc, where, getDocs, serverTimestamp, arrayUnion, limit
 } from 'firebase/firestore';
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
-const LOGO_URL = "/icon-192.png";
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
-
-const triggerMobileNotification = (title, body) => {
-  if (!("Notification" in window)) return;
-  if (Notification.permission === "granted") {
-    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.showNotification(title, { body: body, icon: LOGO_URL, vibrate: [200, 100, 200] });
-      });
-    } else {
-      try { new Notification(title, { body, icon: LOGO_URL }); } catch (e) { console.log("Notif error"); }
-    }
-  }
-};
+const LOGO_URL = '/icon-192.png';
 
 const getFirebaseConfig = () => {
   try {
@@ -62,7 +44,7 @@ const getFirebaseConfig = () => {
       };
     }
   } catch (e) {
-    console.log("Buscando config global...");
+    console.log('Buscando config global...');
   }
   if (typeof __firebase_config !== 'undefined') {
     return JSON.parse(__firebase_config);
@@ -75,55 +57,6 @@ const app = Object.keys(firebaseConfig).length > 0 ? initializeApp(firebaseConfi
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'escuela-app-prod';
-
- 
-const MODALIDADES = ['Sede', 'Inclusión'];
-const EVENT_TYPES = ['SALIDA EDUCATIVA', 'GENERAL', 'ADMINISTRATIVO', 'INFORMES', 'EVENTOS', 'ACTOS', 'EFEMÉRIDES', 'CUMPLEAÑOS', 'INCLUSIÓN' ];
-
-const calculateBusinessDaysLeft = (dateString) => {
-  if (!dateString) return 0;
-  
-  const FERIADOS_ARG_2026 = [
-    '2026-01-01', '2026-02-16', '2026-02-17', '2026-03-23', '2026-03-24', 
-    '2026-04-02', '2026-04-03', '2026-05-01', '2026-05-25', '2026-06-15', 
-    '2026-07-09', '2026-07-10', '2026-08-17', '2026-10-12', '2026-11-23', 
-    '2026-12-07', '2026-12-08', '2026-12-25'
-  ];
-
-  const targetDate = new Date(dateString + 'T00:00:00');
-  let currentDate = new Date();
-  currentDate.setHours(0,0,0,0);
-  targetDate.setHours(0,0,0,0);
-
-  if (targetDate <= currentDate) return 0;
-
-  let businessDays = 0;
-  let tempDate = new Date(currentDate);
-  
-  while (tempDate < targetDate) {
-    tempDate.setDate(tempDate.getDate() + 1);
-    const dayOfWeek = tempDate.getDay();
-    
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      const yyyy = tempDate.getFullYear();
-      const mm = String(tempDate.getMonth() + 1).padStart(2, '0');
-      const dd = String(tempDate.getDate()).padStart(2, '0');
-      const formattedDate = `${yyyy}-${mm}-${dd}`;
-      
-      if (!FERIADOS_ARG_2026.includes(formattedDate)) {
-        businessDays++;
-      }
-    }
-  }
-
-  return businessDays;
-};
-
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString + 'T00:00:00');
-  return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
 
 function SplashScreen({ config }) {
   const primary = config?.primaryColor || '#6d28d9';
@@ -174,8 +107,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState(false);
 
-  // La configuración institucional se carga directamente desde Firestore.
-  // No se guarda una copia en el navegador: Firestore es la única fuente de verdad.
   useEffect(() => {
     if (!db || !appId) {
       setConfigError(true);
@@ -210,8 +141,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Firebase Authentication queda como fuente real de identidad.
-  // Ya no iniciamos sesión anónima automáticamente.
   useEffect(() => {
     if (!auth) return;
 
@@ -229,7 +158,6 @@ export default function App() {
           query(usersRef, where('uid', '==', firebaseAuthUser.uid), limit(1))
         );
 
-        // Compatibilidad con perfiles creados antes de migrar a Firebase Auth.
         if (profileSnap.empty && firebaseAuthUser.email) {
           profileSnap = await getDocs(
             query(usersRef, where('email', '==', firebaseAuthUser.email.toLowerCase()), limit(1))
@@ -254,7 +182,6 @@ export default function App() {
           isAdmin: userData.rol === 'admin' || userData.rol === 'super-admin'
         };
 
-        // Vinculamos una cuenta antigua con su UID de Firebase la primera vez.
         if (userData.uid !== firebaseAuthUser.uid) {
           await updateDoc(userDoc.ref, {
             uid: firebaseAuthUser.uid,
@@ -388,7 +315,6 @@ function LoginScreen({ auth, db, appId, config }) {
 
       const email = await resolveEmail(username);
       await signInWithEmailAndPassword(auth, email, password);
-      // onAuthStateChanged se encarga de cargar el perfil institucional.
     } catch (err) {
       console.error('LOGIN ERROR:', { code: err?.code, message: err?.message });
 
@@ -492,7 +418,7 @@ function LoginScreen({ auth, db, appId, config }) {
                 <Lock className="absolute left-3 top-3.5 opacity-40" size={18} />
                 <input type={showPassword ? 'text' : 'password'} required autoComplete="current-password" className="w-full pl-10 pr-12 py-3 rounded-xl outline-none border border-black/10 focus:ring-2" style={{ background: `${primary}0D`, color: text, '--tw-ring-color': primary }} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
                 <button type="button" onClick={() => setShowPassword(value => !value)} className="absolute right-3 top-2.5 p-1.5 rounded-lg opacity-50 hover:opacity-100 transition" style={{ color: primary }} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
-                  {showPassword ? <EyeOff size={20}/> : <Eye size={20}/>} 
+                  {showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}
                 </button>
               </div>
             </div>
@@ -567,7 +493,6 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
   const [notifications, setNotifications] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [groupMessages, setGroupMessages] = useState([]);
-  const [students, setStudents] = useState([]);
 
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -581,7 +506,6 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
   const [isInstallable, setIsInstallable] = useState(false);
   const [seenAutoNotificationIds, setSeenAutoNotificationIds] = useState(() => new Set());
 
-  // El estado de "leída" de las notificaciones automáticas también vive en Firestore.
   useEffect(() => {
     if (!db || !appId || !initialUser?.id) {
       setSeenAutoNotificationIds(new Set());
@@ -613,7 +537,7 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
     );
 
     return () => unsubscribe();
-  }, [initialUser?.id, db, appId]);
+  }, [initialUser?.id]);
 
   const moreMenuRef = useRef(null);
   const profileMenuRef = useRef(null);
@@ -621,16 +545,9 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
   const prevNotifCount = useRef(0);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 
-  // Nivel de acceso del sistema: esto es distinto del rol institucional.
-  // `rol` identifica el nivel técnico de administración; `role` identifica
-  // el rol institucional configurado en Configuración.
   const isSuperAdmin = user?.rol === 'super-admin' || user?.rol === 'admin';
 
-  // Los permisos de módulos salen de Configuración > Usuarios y permisos.
-  // Así un rol nuevo puede funcionar sin tener que editar App.jsx.
   const hasModule = (moduleId) => {
-    // El super-admin de la instalación conserva acceso total.
-    // Los permisos configurables se aplican a los usuarios institucionales comunes.
     if (isSuperAdmin) return true;
     return canAccessModule(appConfig, user?.role, moduleId);
   };
@@ -638,17 +555,14 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
   const rolePermissions = getRolePermissions(appConfig, user?.role);
   const canManageContent = isSuperAdmin || !!rolePermissions.admin;
   const isAdminRole = hasModule('admin') || hasModule('personal');
-  const isTechTeamRole = hasModule('evaluations');
   const canAccessInformesExternos = hasModule('informes_externos');
   const showPrivateMenu = isSuperAdmin || [
-    'admin', 'personal', 'informes_externos', 'evaluations'
+    'admin', 'personal', 'informes_externos'
   ].some(hasModule);
-
 
   useEffect(() => {
     if (!hasModule('personal') && activeTab === 'personal') setActiveTab('dashboard');
     if (!hasModule('admin') && activeTab === 'admin') setActiveTab('dashboard');
-    if (!hasModule('evaluations') && activeTab === 'evaluations') setActiveTab('dashboard');
     if (!hasModule('informes_externos') && activeTab === 'informes_externos') setActiveTab('dashboard');
   }, [appConfig.activeModules, appConfig.features, activeTab]);
 
@@ -744,7 +658,7 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
       if (notificationTimer) clearTimeout(notificationTimer);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, [user?.id, user?.role, appConfig.logoUrl, db, appId, isStandalone]);
+  }, [user?.id, user?.role, appConfig.logoUrl, isStandalone]);
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -816,7 +730,7 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
         .map(personDoc => {
           const person = { id: personDoc.id, ...personDoc.data() };
           const profile = profileMap.get(person.id) || profileMap.get(person.personId) || {};
-          return { ...person, ...profile, personId: person.id };
+          return { ...person, ...profile, id: person.id, personId: person.id };
         })
         .filter(person => person.active !== false)
         .filter(person => [person.firstName, person.lastName, person.fullName, person.dni, person.email, person.phone].filter(Boolean).join(' ').toLowerCase().includes(needle))
@@ -1139,53 +1053,51 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
       {showNotifRequest && <div className="fixed inset-0 z-[400] flex items-end md:items-center justify-center bg-black/60 p-4 backdrop-blur-sm"><div className="bg-white rounded-[30px] p-6 w-full max-w-sm shadow-2xl text-center border-t-8 border-orange-500 mb-20 md:mb-0"><Bell size={32} className="text-orange-500 mx-auto mb-4"/><h3 className="text-xl font-black text-gray-800">¡No te pierdas nada!</h3><p className="text-sm text-gray-500 mb-6">Activá los avisos del dispositivo para complementar la campanita de CENTRA.</p><div className="flex flex-col gap-3"><button onClick={enableNotifications} className="w-full bg-violet-600 text-white font-bold py-3 rounded-xl">ACTIVAR AVISOS</button><button onClick={() => setShowNotifRequest(false)} className="text-gray-400 text-xs font-bold uppercase">Ahora no</button></div></div></div>}
 
       <main className={`flex-1 overflow-y-auto no-scrollbar pb-24 pt-6 mx-auto w-full transition-all duration-300 ${isWideTab ? 'px-2 max-w-[98%]' : 'px-4 md:px-6 max-w-7xl'}`}>
-        {activeTab === 'dashboard' && <DashboardView
-  user={user}
-  db={db}
-  appId={appId}
-  appConfig={appConfig}
-  tasks={tasks}
-  events={events}
-  announcements={announcements}
-  setActiveTab={setActiveTab}
-/>}
+        {activeTab === 'dashboard' && (
+          <DashboardView
+            user={user}
+            db={db}
+            appId={appId}
+            appConfig={appConfig}
+            tasks={tasks}
+            events={events}
+            announcements={announcements}
+            setActiveTab={setActiveTab}
+          />
+        )}
         {activeTab === 'calendar' && hasModule('calendar') && <CalendarView events={events} user={user} db={db} appId={appId} appConfig={appConfig} canEdit={canManageContent} />}
         {activeTab === 'tasks' && hasModule('tasks') && (
-  <TasksView
-    tasks={tasks}
-    user={user}
-    db={db}
-    appId={appId}
-    appConfig={appConfig}
-  />
-)}
-        {activeTab === 'matricula' && hasModule('matricula') && <MatriculaView user={user} db={db} appId={appId} initStudentId={selectedStudentId} />}
+          <TasksView
+            tasks={tasks}
+            user={user}
+            db={db}
+            appId={appId}
+            appConfig={appConfig}
+          />
+        )}
+        {activeTab === 'matricula' && hasModule('matricula') && <MatriculaView user={user} db={db} appId={appId} initStudentId={selectedStudentId} appConfig={appConfig} />}
         {activeTab === 'groups' && hasModule('groups') && <GroupsView user={user} db={db} appId={appId} setActiveTab={setActiveTab} onSelectStudent={setSelectedStudentId} />}
         {activeTab === 'resources' && hasModule('resources') && <ResourcesView resources={resources} canEdit={canManageContent} db={db} appId={appId} user={user} />}
         {activeTab === 'profile' && <SelfProfileView user={user} db={db} appId={appId} onUpdated={setUser} />}
-        
-        {activeTab === 'evaluations' && hasModule('evaluations') && isTechTeamRole && <EvaluationsView user={user} db={db} appId={appId} />}
         {activeTab === 'notifications' && <NotificationsView notifications={allNotifications} user={user} />}
         {activeTab === 'users' && isSuperAdmin && hasModule('users') && db && <UsersAdminView db={db} appId={appId} />}
-        {activeTab === 'personal' && isAdminRole && hasModule('personal') && db && <PersonalView user={user} db={db} appId={appId} TURNS_LIST={appConfig.turns} VALID_ROLES_OFFICIAL={appConfig.roles} />}
+        {activeTab === 'personal' && isAdminRole && hasModule('personal') && db && <PersonalView user={user} db={db} appId={appId} />}
         {activeTab === 'admin' && isAdminRole && hasModule('admin') && db && (
-  <AdministracionView
-    user={user}
-    db={db}
-    appId={appId}
-    appConfig={appConfig}
-  />
-)}
-        {activeTab === 'informes_externos' &&
-  hasModule('informes_externos') &&
-  canAccessInformesExternos &&
-  <InformesExternosView
-    user={user}
-    db={db}
-    appId={appId}
-    appConfig={appConfig}
-  />
-}
+          <AdministracionView
+            user={user}
+            db={db}
+            appId={appId}
+            appConfig={appConfig}
+          />
+        )}
+        {activeTab === 'informes_externos' && hasModule('informes_externos') && canAccessInformesExternos && (
+          <InformesExternosView
+            user={user}
+            db={db}
+            appId={appId}
+            appConfig={appConfig}
+          />
+        )}
         {activeTab === 'configuracion' && isSuperAdmin && <ConfiguracionView db={db} appId={appId} auth={auth} />}
       </main>
 
@@ -1197,16 +1109,16 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
           {hasModule('calendar') ? <NavButton active={activeTab === 'calendar'} onClick={() => navigate('calendar')} icon={<CalendarIcon size={20}/>} label="Agenda" /> : <div/>}
 
           <div ref={moreMenuRef} className="relative">
-            <NavButton active={['matricula','resources','proyecto','admin','personal','users','informes_externos','evaluations','configuracion'].includes(activeTab)} onClick={() => { setShowMoreMenu(value => !value); setShowProfileMenu(false); setShowNotifPanel(false); }} icon={<List size={20}/>} label="Más" />
+            <NavButton active={['matricula','resources','admin','personal','users','informes_externos','configuracion'].includes(activeTab)} onClick={() => { setShowMoreMenu(value => !value); setShowProfileMenu(false); setShowNotifPanel(false); }} icon={<List size={20}/>} label="Más" />
             {showMoreMenu && <div className="absolute bottom-16 right-0 bg-white rounded-3xl shadow-2xl border border-gray-100 p-2 w-72 animate-in slide-in-from-bottom-5 zoom-in-95 origin-bottom-right z-[100] max-h-[75vh] overflow-y-auto custom-scrollbar">
               {hasModule('matricula') && <button onClick={() => navigate('matricula')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><GraduationCap size={18} className="text-violet-500"/> Legajos</button>}
               {hasModule('resources') && <button onClick={() => navigate('resources')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><LinkIcon size={18} className="text-green-500"/> Recursos</button>}
-              
+
               {showPrivateMenu && <div className="mt-2 pt-2 border-t border-gray-100 space-y-1"><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 mb-1">Gestión</p>
                 {isAdminRole && hasModule('admin') && <button onClick={() => navigate('admin')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><FileText size={18} className="text-blue-500"/> Administración</button>}
                 {isAdminRole && hasModule('personal') && <button onClick={() => navigate('personal')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><Users size={18} className="text-violet-500"/> Personal</button>}
                 {canAccessInformesExternos && hasModule('informes_externos') && <button onClick={() => navigate('informes_externos')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><ExternalLink size={18} className="text-pink-500"/> Informes externos</button>}
-                
+
                 {isSuperAdmin && hasModule('users') && <button onClick={() => navigate('users')} className="w-full text-left p-3 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-700 transition"><Shield size={18} className="text-red-500"/> Gestión de usuarios</button>}
                 {isSuperAdmin && <button onClick={() => navigate('configuracion')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-violet-700 transition border-t border-violet-100 mt-1 pt-3"><Settings size={18} className="text-violet-600"/> Configuración de la app</button>}
               </div>}
@@ -1217,7 +1129,45 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
 
       {showSearch && <div className="fixed inset-0 bg-violet-900/90 z-[300] flex flex-col p-4 backdrop-blur-md"><div className="flex justify-between items-center text-white mb-4"><h3 className="font-black italic uppercase">Buscador rápido</h3><button onClick={() => {setShowSearch(false); setSearchQuery(''); setSearchResults([]);}} className="p-2 bg-white/20 rounded-full"><X/></button></div><input autoFocus value={searchQuery} onChange={e => handleGlobalSearch(e.target.value)} placeholder="Escribí un nombre, apellido, DNI o contacto..." className="w-full p-4 rounded-2xl bg-white text-lg font-bold text-gray-800 outline-none shadow-xl mb-4"/><div className="flex-1 overflow-y-auto space-y-2">{searchResults.map(s => <div key={s.id} onClick={() => setGlobalViewingStudent(s)} className="bg-white p-3 rounded-xl flex items-center gap-3 cursor-pointer"><div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">{s.photoUrl ? <img src={s.photoUrl} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center font-bold text-gray-400">{s.firstName?.[0] || '?'}</div>}</div><div><p className="font-bold text-gray-800 text-sm">{s.lastName}, {s.firstName}</p><p className="text-[10px] text-gray-500">{s.email || s.phone || 'Sin datos de contacto'}</p></div></div>)}{searchQuery.length > 2 && searchResults.length === 0 && <p className="text-white/50 text-center mt-4">No se encontraron resultados.</p>}</div></div>}
 
-      {globalViewingStudent && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[350] flex items-center justify-center p-4"><div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"><div className="bg-violet-600 p-4 text-white flex justify-between items-center"><h3 className="font-bold text-lg">{globalViewingStudent.lastName}, {globalViewingStudent.firstName}</h3><button onClick={() => setGlobalViewingStudent(null)}><X/></button></div><div className="p-6"><div className="flex gap-4 items-center mb-4"><div className="w-20 h-20 bg-gray-200 rounded-2xl overflow-hidden">{globalViewingStudent.photoUrl && <img src={globalViewingStudent.photoUrl} className="w-full h-full object-cover"/>}</div><div><p className="text-sm font-bold text-gray-600">Edad: {calculateAge(globalViewingStudent.birthDate)} años</p><p className="text-sm font-bold text-gray-600">DNI: {globalViewingStudent.dni || '-'}</p><p className="text-xs text-orange-500 font-bold mt-1 uppercase">{globalViewingStudent.email || globalViewingStudent.phone || 'Sin contacto cargado'}</p></div></div><button onClick={() => { setActiveTab('matricula'); setShowSearch(false); setGlobalViewingStudent(null); alert('Te llevamos a Legajos.'); }} className="w-full bg-violet-100 text-violet-700 py-3 rounded-xl font-bold text-xs uppercase hover:bg-violet-200 transition">Ir a legajo completo</button></div></div></div>}
+      {globalViewingStudent && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[350] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="bg-violet-600 p-4 text-white flex justify-between items-center">
+              <h3 className="font-bold text-lg">{globalViewingStudent.lastName}, {globalViewingStudent.firstName}</h3>
+              <button onClick={() => setGlobalViewingStudent(null)}><X/></button>
+            </div>
+            <div className="p-6">
+              <div className="flex gap-4 items-center mb-4">
+                <div className="w-20 h-20 bg-gray-200 rounded-2xl overflow-hidden">
+                  {globalViewingStudent.photoUrl && <img src={globalViewingStudent.photoUrl} className="w-full h-full object-cover"/>}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-600">Edad: {calculateAge(globalViewingStudent.birthDate)} años</p>
+                  <p className="text-sm font-bold text-gray-600">DNI: {globalViewingStudent.dni || '-'}</p>
+                  <p className="text-xs text-orange-500 font-bold mt-1 uppercase">{globalViewingStudent.email || globalViewingStudent.phone || 'Sin contacto cargado'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const targetId = globalViewingStudent.personId || globalViewingStudent.id;
+                  const isStaff = globalViewingStudent.type === 'staff';
+                  setShowSearch(false);
+                  setGlobalViewingStudent(null);
+                  if (isStaff && hasModule('personal')) {
+                    setActiveTab('personal');
+                  } else {
+                    setSelectedStudentId(targetId);
+                    setActiveTab('matricula');
+                  }
+                }}
+                className="w-full bg-violet-100 text-violet-700 py-3 rounded-xl font-bold text-xs uppercase hover:bg-violet-200 transition"
+              >
+                {globalViewingStudent.type === 'staff' ? 'Ir a Personal' : 'Ir a legajo completo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1252,7 +1202,7 @@ function SelfProfileView({ user, db, appId, onUpdated }) {
         reader.onload = e => {
           const img = new Image();
           img.onload = () => {
-            const MAX = 500;
+            const MAX = 320;
             let width = img.width;
             let height = img.height;
             if (width > MAX || height > MAX) {
@@ -1263,7 +1213,7 @@ function SelfProfileView({ user, db, appId, onUpdated }) {
             canvas.width = width;
             canvas.height = height;
             canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.7));
+            resolve(canvas.toDataURL('image/jpeg', 0.65));
           };
           img.onerror = reject;
           img.src = e.target.result;
@@ -1271,6 +1221,9 @@ function SelfProfileView({ user, db, appId, onUpdated }) {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+      if (dataUrl.length > 180000) {
+        return alert('La imagen sigue siendo muy pesada. Probá con otra más simple.');
+      }
       setForm(prev => ({ ...prev, photoUrl: dataUrl }));
     } catch {
       alert('No se pudo procesar la foto.');
@@ -1365,13 +1318,5 @@ function SelfProfileView({ user, db, appId, onUpdated }) {
         <div className="px-6 md:px-8 py-5 border-t border-slate-100 bg-slate-50 flex justify-end"><button disabled={saving} className="px-6 py-3 rounded-xl bg-violet-600 text-white font-black text-sm shadow-lg shadow-violet-200 disabled:opacity-60">{saving ? 'Guardando…' : 'Guardar cambios'}</button></div>
       </form>
     </div>
-  );
-}
-
-function StartIcon({size}) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-    </svg>
   );
 }
