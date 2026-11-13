@@ -178,81 +178,105 @@ const getPlacementGroupIds =
       )
       .filter(Boolean);
 
-const getPlacementTurnIds =
-  assignment =>
-    getPlacements(assignment)
-      .map(
-        placement =>
-          placement.turnId
-      )
-      .filter(Boolean);
-
 const getGroup = groupId =>
   groups.find(
     group =>
       group.id === groupId
   );
 
-const getTurnName = turnId =>
-  turns.find(
-    turn =>
-      turn.id === turnId
-  )?.name || turnId;
+// Mira primero el turno actual del grupo/taller para que si cambia en Grupos se refleje acá al instante
+const resolveEffectiveTurnId = placement => {
+  const grp = getGroup(placement?.groupId);
+  const groupTurns =
+    Array.isArray(grp?.turnIds) && grp.turnIds.length > 0
+      ? grp.turnIds
+      : grp?.turnId
+      ? [grp.turnId]
+      : [];
 
-const getTurnLabels = assignment =>
-  getPlacementTurnIds(
-    assignment
+  if (groupTurns.length === 1) return groupTurns[0];
+  if (placement?.turnId && (groupTurns.length === 0 || groupTurns.includes(placement.turnId))) {
+    return placement.turnId;
+  }
+  return groupTurns[0] || placement?.turnId || '';
+};
+
+const findTurnObj = turnId => {
+  if (!turnId) return null;
+  return (
+    turns.find(t => t.id === turnId) ||
+    turns.find(t => normalizeText(t.name) === normalizeText(turnId)) ||
+    turns[Number(String(turnId).replace(/\D/g, '')) - 1] ||
+    null
+  );
+};
+
+const getPlacementTurnIds = assignment => [
+  ...new Set(
+    getPlacements(assignment)
+      .map(resolveEffectiveTurnId)
+      .filter(Boolean)
   )
-    .map(turnId =>
-      turns.find(
-        turn =>
-          turn.id === turnId
-      )?.name
-    )
-    .filter(Boolean);
+];
 
-const getPlacementsWithNames =
-  assignment =>
-    getPlacements(assignment).map(
-      placement => ({
-        ...placement,
-        group:
-          getGroup(
-            placement.groupId
-          ),
-        turn:
-          turns.find(
-            turn =>
-              turn.id ===
-              placement.turnId
-          )
-      })
-    );
+const getTurnName = turnId =>
+  findTurnObj(turnId)?.name || turnId;
 
-const getScheduleName =
-  assignment =>
-    journeys.find(
-      journey =>
-        journey.id ===
-        assignment?.scheduleType
-    )?.name ||
-    assignment?.scheduleType ||
-    '';
+const getTurnLabels = assignment => [
+  ...new Set(
+    getPlacementTurnIds(assignment)
+      .map(turnId => findTurnObj(turnId)?.name)
+      .filter(Boolean)
+  )
+];
 
-const isDoubleJourney =
-  assignment => {
-    const name =
-      normalizeText(
-        getScheduleName(
-          assignment
-        )
-      );
+const getPlacementsWithNames = assignment =>
+  getPlacements(assignment).map(placement => {
+    const effectiveTurnId = resolveEffectiveTurnId(placement);
+    return {
+      ...placement,
+      turnId: effectiveTurnId,
+      group: getGroup(placement.groupId),
+      turn: findTurnObj(effectiveTurnId)
+    };
+  });
 
+const getScheduleName = assignment => {
+  if (!assignment) return '';
+  const uniqueTurns = getTurnLabels(assignment);
+
+  if (uniqueTurns.length > 1) {
+    const doubleJourneyObj = journeys.find(j => {
+      const n = normalizeText(j.name);
+      return n.includes('doble') || n.includes('completa');
+    });
+    return doubleJourneyObj?.name || 'Doble jornada';
+  }
+
+  if (uniqueTurns.length === 1) {
+    const simpleJourneyObj = journeys.find(j => {
+      const n = normalizeText(j.name);
+      return !n.includes('doble') && !n.includes('completa');
+    });
     return (
-      name.includes('doble') ||
-      name.includes('completa')
+      simpleJourneyObj?.name ||
+      journeys.find(j => j.id === assignment?.scheduleType)?.name ||
+      'Jornada simple'
     );
-  };
+  }
+
+  return (
+    journeys.find(journey => journey.id === assignment?.scheduleType)?.name ||
+    assignment?.scheduleType ||
+    ''
+  );
+};
+
+const isDoubleJourney = assignment => {
+  if (getTurnLabels(assignment).length > 1) return true;
+  const name = normalizeText(getScheduleName(assignment));
+  return name.includes('doble') || name.includes('completa');
+};
   // ============================================================
   // DATOS
   // ============================================================
@@ -2289,11 +2313,9 @@ Nuevo {personLabel}
                               </span>
                             )}
 
-                            {assignment?.scheduleType && (
+                            {getScheduleName(assignment) && (
                               <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[8px] font-black uppercase">
-                                {journeys.find(
-                                  item => item.id === assignment.scheduleType
-                                )?.name || assignment.scheduleType}
+                                {getScheduleName(assignment)}
                               </span>
                             )}
                           </div>
@@ -2393,7 +2415,7 @@ Nuevo {personLabel}
   )}
       {viewingStudent && (
        <StudentDetailModal
-  student={viewingStudent}
+  student={students.find(s => s.id === viewingStudent.id) || viewingStudent}
   groups={groups}
   levels={levels}
   turns={turns}
@@ -2941,12 +2963,39 @@ function StudentDetailModal({
         }))
       : [];
 
+  const findTurn = turnId => {
+    if (!turnId) return null;
+    return (
+      turns.find(t => t.id === turnId) ||
+      turns.find(t => normalizeText(t.name) === normalizeText(turnId)) ||
+      turns[Number(String(turnId).replace(/\D/g, '')) - 1] ||
+      null
+    );
+  };
+
   const placementsList = rawPlacements
-    .map(p => ({
-      ...p,
-      groupName: groups.find(item => item.id === p.groupId)?.name || '',
-      turnName: turns.find(item => item.id === p.turnId)?.name || ''
-    }))
+    .map(p => {
+      const grp = groups.find(item => item.id === p.groupId);
+      const grpTurns =
+        Array.isArray(grp?.turnIds) && grp.turnIds.length > 0
+          ? grp.turnIds
+          : grp?.turnId
+          ? [grp.turnId]
+          : [];
+      const effectiveTurnId =
+        grpTurns.length === 1
+          ? grpTurns[0]
+          : p.turnId && (grpTurns.length === 0 || grpTurns.includes(p.turnId))
+          ? p.turnId
+          : grpTurns[0] || p.turnId || '';
+
+      return {
+        ...p,
+        turnId: effectiveTurnId,
+        groupName: grp?.name || '',
+        turnName: findTurn(effectiveTurnId)?.name || ''
+      };
+    })
     .filter(p => p.groupName)
     .filter(
       (item, index, arr) =>
@@ -2959,15 +3008,25 @@ function StudentDetailModal({
     );
 
   const turnLabels = [
-    ...new Set(
-      placementsList.map(p => p.turnName).filter(Boolean)
-    )
+    ...new Set(placementsList.map(p => p.turnName).filter(Boolean))
   ];
 
   const journey =
-    journeys.find(item => item.id === assignment?.scheduleType)?.name ||
-    assignment?.scheduleType ||
-    '';
+    turnLabels.length > 1
+      ? journeys.find(j => {
+          const n = normalizeText(j.name);
+          return n.includes('doble') || n.includes('completa');
+        })?.name || 'Doble jornada'
+      : turnLabels.length === 1
+      ? journeys.find(j => {
+          const n = normalizeText(j.name);
+          return !n.includes('doble') && !n.includes('completa');
+        })?.name ||
+        journeys.find(item => item.id === assignment?.scheduleType)?.name ||
+        'Jornada simple'
+      : journeys.find(item => item.id === assignment?.scheduleType)?.name ||
+        assignment?.scheduleType ||
+        '';
 
   const levelName =
     levels.find(item => item.id === student.level)?.name ||
@@ -4218,42 +4277,43 @@ function StudentFormModal({
      TALLERES / GRUPOS CENTRO DE DÍA
   ====================================== */
 
+  const findFormTurn = turnId => {
+    if (!turnId) return null;
+    return (
+      turns.find(t => t.id === turnId) ||
+      turns.find(t => normalizeText(t.name) === normalizeText(turnId)) ||
+      turns[Number(String(turnId).replace(/\D/g, '')) - 1] ||
+      null
+    );
+  };
+
   const assignedDayCenterGroups =
     currentPlacements
       .map(placement => {
+        const group = groups.find(item => item.id === placement.groupId);
+        if (!group) return null;
 
-        const group =
-          groups.find(
-            item =>
-              item.id ===
-              placement.groupId
-          );
+        const grpTurns =
+          Array.isArray(group.turnIds) && group.turnIds.length > 0
+            ? group.turnIds
+            : group.turnId
+            ? [group.turnId]
+            : [];
 
+        const effectiveTurnId =
+          grpTurns.length === 1
+            ? grpTurns[0]
+            : placement.turnId && (grpTurns.length === 0 || grpTurns.includes(placement.turnId))
+            ? placement.turnId
+            : grpTurns[0] || placement.turnId || '';
 
-        const turn =
-          turns.find(
-            item =>
-              item.id ===
-              placement.turnId
-          );
-
-
-        if (!group) {
-          return null;
-        }
-
+        const turn = findFormTurn(effectiveTurnId);
 
         return {
-          groupId:
-            group.id,
-
-          groupName:
-            group.name,
-
-          turnName:
-            turn?.name || ''
+          groupId: group.id,
+          groupName: group.name,
+          turnName: turn?.name || ''
         };
-
       })
       .filter(Boolean)
       .filter(
@@ -4261,13 +4321,21 @@ function StudentFormModal({
           index ===
           array.findIndex(
             other =>
-              other.groupId ===
-                item.groupId &&
-              other.turnName ===
-                item.turnName
+              other.groupId === item.groupId &&
+              other.turnName === item.turnName
           )
       );
 
+  const dayCenterTurnLabels = [
+    ...new Set(assignedDayCenterGroups.map(item => item.turnName).filter(Boolean))
+  ];
+
+  const dayCenterAutoJourneyName =
+    dayCenterTurnLabels.length > 1
+      ? doubleJourney?.name || 'Doble jornada'
+      : dayCenterTurnLabels.length === 1
+      ? simpleJourney?.name || currentJourneyName || 'Jornada simple'
+      : currentJourneyName || '';
 
   return (
     <div className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
