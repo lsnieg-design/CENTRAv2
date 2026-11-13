@@ -2590,25 +2590,21 @@ function StatsList({
 }
 function printStudentFile(
   student,
-  group,
+  placementsList,
   journey,
-  turnLabels,
   levelName,
   institutionConfig
 ) {
   const institutionMode =
-  institutionConfig?.institutionMode || 'school';
+    institutionConfig?.institutionMode || 'school';
 
-const personLabel =
-  institutionMode === 'day_center'
-    ? 'concurrente'
-    : institutionMode === 'clinic'
-    ? 'paciente'
-    : 'estudiante';
+  const personLabel =
+    institutionMode === 'day_center'
+      ? 'concurrente'
+      : institutionMode === 'clinic'
+      ? 'paciente'
+      : 'estudiante';
 
-const personLabelCapitalized =
-  personLabel.charAt(0).toUpperCase() +
-  personLabel.slice(1);
   const escapeHtml = value =>
     String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -2617,1385 +2613,343 @@ const personLabelCapitalized =
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
 
-  const age = calculateAge(
-    student.birthDate
-  );
+  const age = calculateAge(student.birthDate);
 
   const primary =
-    institutionConfig?.primaryColor ||
-    '#6d28d9';
+    institutionConfig?.primaryColor || '#6d28d9';
 
   const secondary =
-    institutionConfig?.secondaryColor ||
-    '#f97316';
+    institutionConfig?.secondaryColor || '#f97316';
 
   const background =
-    institutionConfig?.backgroundColor ||
-    '#f8fafc';
+    institutionConfig?.backgroundColor || '#f8fafc';
 
   const textColor =
-    institutionConfig?.textColor ||
-    '#1e293b';
+    institutionConfig?.textColor || '#1e293b';
 
   const institutionName =
-    institutionConfig?.institutionName ||
-    'Mi Institución';
+    institutionConfig?.institutionName || 'Mi Institución';
 
   const institutionShortName =
-    institutionConfig?.institutionShortName ||
-    institutionName;
+    institutionConfig?.institutionShortName || institutionName;
 
-  const logoUrl =
-    institutionConfig?.logoUrl ||
-    '';
-
-  const address =
-    institutionConfig?.address ||
-    '';
-
-  const phone =
-    institutionConfig?.phone ||
-    '';
-
-  const email =
-    institutionConfig?.email ||
-    '';
-
-  const website =
-    institutionConfig?.website ||
-    '';
-
-  const city =
-    institutionConfig?.city ||
-    '';
-
-  const province =
-    institutionConfig?.province ||
-    '';
+  const logoUrl = institutionConfig?.logoUrl || '';
+  const address = institutionConfig?.address || '';
+  const phone = institutionConfig?.phone || '';
+  const email = institutionConfig?.email || '';
+  const website = institutionConfig?.website || '';
+  const city = institutionConfig?.city || '';
+  const province = institutionConfig?.province || '';
 
   const documentHeader =
-    institutionConfig?.document?.header ||
-    '';
+    institutionConfig?.document?.header || '';
 
   const documentFooter =
-    institutionConfig?.document?.footer ||
-    '';
+    institutionConfig?.document?.footer || '';
 
   const showLogo =
     institutionConfig?.document?.showLogo !== false;
 
   const statusText =
-    student.active === false
-      ? 'BAJA'
-      : 'ACTIVO';
+    student.active === false ? 'BAJA' : 'ACTIVO';
 
   const statusColor =
-    student.active === false
-      ? '#b91c1c'
-      : '#15803d';
+    student.active === false ? '#b91c1c' : '#15803d';
 
   const statusBackground =
-    student.active === false
-      ? '#fee2e2'
-      : '#dcfce7';
+    student.active === false ? '#fee2e2' : '#dcfce7';
 
-  const fullAddress = [
-    address,
-    city,
-    province
-  ]
+  const fullAddress = [address, city, province]
     .filter(Boolean)
     .join(' · ');
 
-  const contactLine = [
-    phone,
-    email,
-    website
-  ]
+  const contactLine = [phone, email, website]
     .filter(Boolean)
     .join(' · ');
 
-  const printWindow =
-    window.open(
-      '',
-      '_blank',
-      'width=1000,height=900'
-    );
+  const assignmentsSummary =
+    placementsList.length > 0
+      ? placementsList
+          .map(
+            p =>
+              `${p.groupName || 'Sin grupo'}${
+                p.turnName ? ` (${p.turnName})` : ''
+              }`
+          )
+          .join(' · ')
+      : 'Sin asignación';
+
+  const printWindow = window.open(
+    '',
+    '_blank',
+    'width=1000,height=900'
+  );
 
   if (!printWindow) {
-    alert(
-      'El navegador bloqueó la ventana de impresión.'
-    );
+    alert('El navegador bloqueó la ventana de impresión.');
     return;
   }
 
   const logoHtml =
     showLogo && logoUrl
-      ? `
-        <img
-          src="${escapeHtml(logoUrl)}"
-          alt="Logo institucional"
-          class="institution-logo"
-        />
-      `
+      ? `<img src="${escapeHtml(
+          logoUrl
+        )}" alt="Logo institucional" class="institution-logo" />`
       : '';
+
+  const schoolSectionHtml =
+    institutionMode === 'clinic'
+      ? ''
+      : `
+          <div class="section">
+            <div class="section-title">
+              ${
+                institutionMode === 'day_center'
+                  ? 'Participación institucional'
+                  : 'Escolaridad y asignación'
+              }
+            </div>
+            <div class="assignment-box">
+              <div class="assignment-field">
+                <div class="field-label">${
+                  institutionMode === 'day_center'
+                    ? 'Talleres / Grupos'
+                    : 'Grupo y turno'
+                }</div>
+                <div class="field-value">${escapeHtml(assignmentsSummary)}</div>
+              </div>
+              <div class="assignment-field">
+                <div class="field-label">Jornada</div>
+                <div class="field-value">${escapeHtml(journey || 'Sin jornada')}</div>
+              </div>
+              <div class="assignment-field">
+                <div class="field-label">Nivel</div>
+                <div class="field-value">${escapeHtml(levelName || 'Sin nivel')}</div>
+              </div>
+            </div>
+          </div>
+        `;
 
   printWindow.document.write(`
     <!doctype html>
-
     <html lang="es">
       <head>
-
         <meta charset="UTF-8" />
-
-        <title>
-          Legajo - ${escapeHtml(
-            student.lastName
-          )}, ${escapeHtml(
-            student.firstName
-          )}
-        </title>
-
+        <title>Legajo - ${escapeHtml(student.lastName)}, ${escapeHtml(student.firstName)}</title>
         <style>
-
-          @page {
-            size: A4 portrait;
-            margin: 8mm;
-          }
-
-          * {
-            box-sizing: border-box;
-          }
-
-          html,
+          @page { size: A4 portrait; margin: 8mm; }
+          * { box-sizing: border-box; }
+          html, body { margin: 0; padding: 0; background: #ffffff; }
           body {
-            margin: 0;
-            padding: 0;
-            background: #ffffff;
-          }
-
-          body {
-            font-family:
-              Arial,
-              Helvetica,
-              sans-serif;
-
+            font-family: Arial, Helvetica, sans-serif;
             color: ${textColor};
-
             font-size: 10px;
-
-            -webkit-print-color-adjust:
-              exact;
-
-            print-color-adjust:
-              exact;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
-
-          .sheet {
-            width: 100%;
-            max-width: 194mm;
-            margin: 0 auto;
-          }
-
-          /* ==================================================
-             ENCABEZADO INSTITUCIONAL
-          ================================================== */
-
+          .sheet { width: 100%; max-width: 194mm; margin: 0 auto; }
           .institution-header {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-
-            padding: 9px 12px;
-
-            border-radius: 10px;
-
-            background:
-              linear-gradient(
-                135deg,
-                ${primary},
-                ${secondary}
-              );
-
-            color: white;
-
-            min-height: 48px;
-
-            margin-bottom: 12px;
+            display: flex; align-items: center; gap: 14px;
+            padding: 9px 12px; border-radius: 10px;
+            background: linear-gradient(135deg, ${primary}, ${secondary});
+            color: white; min-height: 48px; margin-bottom: 12px;
           }
-
-         .institution-logo {
-  width: 62px;
-  height: 46px;
-
-            object-fit: contain;
-
-            background: white;
-
-            border-radius: 7px;
-
-            padding: 4px;
-
-            flex-shrink: 0;
+          .institution-logo {
+            width: 62px; height: 46px; object-fit: contain;
+            background: white; border-radius: 7px; padding: 4px; flex-shrink: 0;
           }
-
-          .institution-text {
-            min-width: 0;
-            flex: 1;
-          }
-
-          .institution-name {
-            font-size: 13px;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: .03em;
-
-            line-height: 1.1;
-          }
-
-          .institution-meta {
-            font-size: 8px;
-            font-weight: 600;
-
-            opacity: .92;
-
-            margin-top: 3px;
-
-            line-height: 1.3;
-          }
-
-          .document-header {
-            font-size: 8px;
-            opacity: .9;
-            margin-top: 3px;
-          }
-
-          /* ==================================================
-             TITULO DEL DOCUMENTO
-          ================================================== */
-
+          .institution-text { min-width: 0; flex: 1; }
+          .institution-name { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; line-height: 1.1; }
+          .institution-meta { font-size: 8px; font-weight: 600; opacity: .92; margin-top: 3px; line-height: 1.3; }
+          .document-header { font-size: 8px; opacity: .9; margin-top: 3px; }
           .document-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-
-            gap: 12px;
-
-            padding: 7px 2px 9px;
-
-            border-bottom:
-              2px solid ${primary};
-
-            margin-bottom: 9px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            gap: 12px; padding: 7px 2px 9px; border-bottom: 2px solid ${primary}; margin-bottom: 9px;
           }
-
-          .document-title-left {
-            flex: 1;
-            min-width: 0;
+          .document-title-left { flex: 1; min-width: 0; }
+          .document-kicker { color: ${primary}; font-size: 7px; font-weight: 900; text-transform: uppercase; letter-spacing: .15em; margin-bottom: 3px; }
+          .student-name { font-size: 23px; font-weight: 900; line-height: 1; text-transform: uppercase; color: ${textColor}; }
+          .student-summary { font-size: 9px; font-weight: 700; color: #64748b; margin-top: 4px; }
+          .student-photo {
+            width: 62px; height: 74px; object-fit: cover; border-radius: 8px;
+            border: 2px solid ${primary}; flex-shrink: 0; background: #f1f5f9;
           }
-
-          .document-kicker {
-            color: ${primary};
-
-            font-size: 7px;
-
-            font-weight: 900;
-
-            text-transform:
-              uppercase;
-
-            letter-spacing: .15em;
-
-            margin-bottom: 3px;
-          }
-
-          .student-name {
-  font-size: 23px;
-
-            font-weight: 900;
-
-            line-height: 1;
-
-            text-transform:
-              uppercase;
-
-            color: ${textColor};
-          }
-
-          .student-summary {
-            font-size: 9px;
-
-            font-weight: 700;
-
-            color: #64748b;
-
-            margin-top: 4px;
-          }
-
-       .student-photo {
-  width: 62px;
-  height: 74px;
-
-            object-fit: cover;
-
-            border-radius: 8px;
-
-            border:
-              2px solid ${primary};
-
-            flex-shrink: 0;
-
-            background: #f1f5f9;
-          }
-
           .student-photo-empty {
-            width: 46px;
-            height: 54px;
-
-            border-radius: 8px;
-
-            border:
-              2px solid ${primary};
-
-            background: #f8fafc;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            color: #94a3b8;
-
-            font-size: 7px;
-
-            text-align: center;
-
-            flex-shrink: 0;
+            width: 46px; height: 54px; border-radius: 8px; border: 2px solid ${primary};
+            background: #f8fafc; display: flex; align-items: center; justify-content: center;
+            color: #94a3b8; font-size: 7px; text-align: center; flex-shrink: 0;
           }
-
           .status {
-            display: inline-block;
-
-            padding: 3px 7px;
-
-            border-radius: 999px;
-
-            font-size: 7px;
-
-            font-weight: 900;
-
-            color: ${statusColor};
-
-            background:
-              ${statusBackground};
-
-            margin-top: 5px;
+            display: inline-block; padding: 3px 7px; border-radius: 999px; font-size: 7px;
+            font-weight: 900; color: ${statusColor}; background: ${statusBackground}; margin-top: 5px;
           }
-
-          /* ==================================================
-             SECCIONES
-          ================================================== */
-
-          .section {
-            margin-top: 6px;
-
-            break-inside: avoid;
-
-            page-break-inside: avoid;
-          }
-
+          .section { margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
           .section-title {
-            display: flex;
-            align-items: center;
-
-            gap: 6px;
-
-            padding: 4px 7px;
-
-            background: ${background};
-
-            border-left:
-              3px solid ${primary};
-
-            border-radius: 5px;
-
-            color: ${primary};
-
-            font-size: 8px;
-
-            font-weight: 900;
-
-            text-transform:
-              uppercase;
-
-            letter-spacing: .05em;
-
-            margin-bottom: 5px;
+            display: flex; align-items: center; gap: 6px; padding: 4px 7px;
+            background: ${background}; border-left: 3px solid ${primary}; border-radius: 5px;
+            color: ${primary}; font-size: 8px; font-weight: 900; text-transform: uppercase;
+            letter-spacing: .05em; margin-bottom: 5px;
           }
-
-         .grid {
-  gap: 5px 8px;
-            display: grid;
-
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
-
-            gap: 5px 8px;
-          }
-
-          .field {
-            min-width: 0;
-
-            padding: 3px 2px;
-
-            border-bottom:
-              1px solid #e2e8f0;
-          }
-
-          .field-label {
-            font-size: 6.5px;
-
-            font-weight: 900;
-
-            text-transform:
-              uppercase;
-
-            letter-spacing: .06em;
-
-            color: #64748b;
-
-            line-height: 1.1;
-          }
-
-          .field-value {
-            font-size: 8.5px;
-
-            font-weight: 700;
-
-            color: ${textColor};
-
-            margin-top: 2px;
-
-            line-height: 1.15;
-
-            word-break:
-              break-word;
-
-            white-space:
-              pre-wrap;
-          }
-
-          .full {
-            grid-column:
-              1 / -1;
-          }
-
-          /* ==================================================
-             ASIGNACION
-          ================================================== */
-
+          .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 8px; }
+          .field { min-width: 0; padding: 3px 2px; border-bottom: 1px solid #e2e8f0; }
+          .field-label { font-size: 6.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; color: #64748b; line-height: 1.1; }
+          .field-value { font-size: 8.5px; font-weight: 700; color: ${textColor}; margin-top: 2px; line-height: 1.15; word-break: break-word; white-space: pre-wrap; }
+          .full { grid-column: 1 / -1; }
           .assignment-box {
-            display: grid;
-
-            grid-template-columns:
-              1.4fr 1fr 1fr;
-
-            gap: 6px;
-
-            padding: 7px;
-
-            border:
-              1px solid ${primary};
-
-            border-radius: 7px;
-
-            background:
-              linear-gradient(
-                135deg,
-                ${primary}12,
-                ${secondary}10
-              );
+            display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; padding: 7px;
+            border: 1px solid ${primary}; border-radius: 7px;
+            background: linear-gradient(135deg, ${primary}12, ${secondary}10);
           }
-
-          .assignment-field {
-            padding: 4px 6px;
-
-            background:
-              rgba(255,255,255,.78);
-
-            border-radius: 5px;
-          }
-
-          /* ==================================================
-             FAMILIA
-          ================================================== */
-
-          .family-grid {
-            display: grid;
-
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
-
-            gap: 7px;
-          }
-
-          .family-card {
-            border:
-              1px solid #e2e8f0;
-
-            border-radius: 6px;
-
-            padding: 5px 7px;
-          }
-
-          /* ==================================================
-             PIE
-          ================================================== */
-
+          .assignment-field { padding: 4px 6px; background: rgba(255,255,255,.78); border-radius: 5px; }
+          .family-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+          .family-card { border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 7px; }
           .footer {
-            margin-top: 9px;
-
-            padding-top: 6px;
-
-            border-top:
-              1px solid #e2e8f0;
-
-            display: flex;
-
-            justify-content:
-              space-between;
-
-            gap: 12px;
-
-            color: #64748b;
-
-            font-size: 6.5px;
-
-            line-height: 1.3;
+            margin-top: 10px; padding-top: 6px; border-top: 1px solid #e2e8f0;
+            display: flex; justify-content: space-between; gap: 12px; color: #64748b; font-size: 6.5px; line-height: 1.3;
           }
-
-          .footer-right {
-            text-align: right;
-          }
-
-          /* ==================================================
-             CONTROL DE IMPRESION
-          ================================================== */
-
+          .footer-right { text-align: right; }
           @media print {
-
-            html,
-            body {
-              width: 210mm;
-              min-height: 297mm;
-            }
-
-            .sheet {
-              width: 194mm;
-              max-width: 194mm;
-            }
-
+            html, body { width: 210mm; min-height: 297mm; }
+            .sheet { width: 194mm; max-width: 194mm; }
           }
-
         </style>
-
       </head>
-
       <body>
-
         <div class="sheet">
-
-          <!-- ===============================================
-               IDENTIDAD INSTITUCIONAL
-          ================================================ -->
-
           <div class="institution-header">
-
             ${logoHtml}
-
             <div class="institution-text">
-
-              <div class="institution-name">
-                ${escapeHtml(
-                  institutionShortName
-                )}
-              </div>
-
-              ${
-                fullAddress
-                  ? `
-                    <div class="institution-meta">
-                      ${escapeHtml(
-                        fullAddress
-                      )}
-                    </div>
-                  `
-                  : ''
-              }
-
-              ${
-                contactLine
-                  ? `
-                    <div class="institution-meta">
-                      ${escapeHtml(
-                        contactLine
-                      )}
-                    </div>
-                  `
-                  : ''
-              }
-
-              ${
-                documentHeader
-                  ? `
-                    <div class="document-header">
-                      ${escapeHtml(
-                        documentHeader
-                      )}
-                    </div>
-                  `
-                  : ''
-              }
-
+              <div class="institution-name">${escapeHtml(institutionShortName)}</div>
+              ${fullAddress ? `<div class="institution-meta">${escapeHtml(fullAddress)}</div>` : ''}
+              ${contactLine ? `<div class="institution-meta">${escapeHtml(contactLine)}</div>` : ''}
+              ${documentHeader ? `<div class="document-header">${escapeHtml(documentHeader)}</div>` : ''}
             </div>
-
           </div>
-
-          <!-- ===============================================
-               ESTUDIANTE
-          ================================================ -->
 
           <div class="document-title">
-
             <div class="document-title-left">
-
-              <div class="document-kicker">
-                ${escapeHtml(
-                  institutionName
-                )}
-                · Legajo del ${personLabel}
-              </div>
-
-              <div class="student-name">
-                ${escapeHtml(
-                  student.lastName
-                )},
-                ${escapeHtml(
-                  student.firstName
-                )}
-              </div>
-
+              <div class="document-kicker">${escapeHtml(institutionName)} · Legajo del ${personLabel}</div>
+              <div class="student-name">${escapeHtml(student.lastName)}, ${escapeHtml(student.firstName)}</div>
               <div class="student-summary">
-
-                ${
-                  student.dni
-                    ? `DNI ${escapeHtml(
-                        student.dni
-                      )}`
-                    : ''
-                }
-
-                ${
-                  age !== null
-                    ? ` · ${age} años`
-                    : ''
-                }
-
+                ${student.dni ? `DNI ${escapeHtml(student.dni)}` : ''}
+                ${age !== null ? ` · ${age} años` : ''}
               </div>
-
-              <div class="status">
-                ${statusText}
-              </div>
-
+              <div class="status">${statusText}</div>
             </div>
-
             ${
               student.photoUrl
-                ? `
-                  <img
-                    src="${escapeHtml(
-                      student.photoUrl
-                    )}"
-                    alt="Foto del ${personLabel}"
-                    class="student-photo"
-                  />
-                `
-                : `
-                  <div class="student-photo-empty">
-                    SIN FOTO
-                  </div>
-                `
+                ? `<img src="${escapeHtml(student.photoUrl)}" alt="Foto del ${personLabel}" class="student-photo" />`
+                : `<div class="student-photo-empty">SIN FOTO</div>`
             }
-
           </div>
 
-          <!-- ===============================================
-               DATOS PERSONALES
-          ================================================ -->
-
           <div class="section">
-
-            <div class="section-title">
-              Datos personales
-            </div>
-
+            <div class="section-title">Datos personales</div>
             <div class="grid">
-
               <div class="field">
-                <div class="field-label">
-                  DNI
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.dni ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">DNI</div>
+                <div class="field-value">${escapeHtml(student.dni || 'Sin datos')}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Fecha de nacimiento
-                </div>
-
-                <div class="field-value">
-                  ${
-                    student.birthDate
-                      ? escapeHtml(
-                          formatDate(
-                            student.birthDate
-                          )
-                        )
-                      : 'Sin datos'
-                  }
-                </div>
+                <div class="field-label">Fecha de nacimiento</div>
+                <div class="field-value">${student.birthDate ? escapeHtml(formatDate(student.birthDate)) : 'Sin datos'}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Edad
-                </div>
-
-                <div class="field-value">
-                  ${
-                    age !== null
-                      ? `${age} años`
-                      : 'Sin datos'
-                  }
-                </div>
+                <div class="field-label">Edad</div>
+                <div class="field-value">${age !== null ? `${age} años` : 'Sin datos'}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Género
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.gender ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">Género</div>
+                <div class="field-value">${escapeHtml(student.gender || 'Sin datos')}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Dirección
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.address ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">Dirección</div>
+                <div class="field-value">${escapeHtml(student.address || 'Sin datos')}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Localidad
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.city ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">Localidad</div>
+                <div class="field-value">${escapeHtml(student.city || 'Sin datos')}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Teléfono
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.phone ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">Teléfono</div>
+                <div class="field-value">${escapeHtml(student.phone || 'Sin datos')}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Email
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.email ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">Email</div>
+                <div class="field-value">${escapeHtml(student.email || 'Sin datos')}</div>
               </div>
-
             </div>
-
           </div>
 
-          <!-- ===============================================
-               SALUD Y DOCUMENTACION
-          ================================================ -->
+          ${schoolSectionHtml}
 
           <div class="section">
-
-            <div class="section-title">
-              Salud y documentación
-            </div>
-
+            <div class="section-title">Salud y documentación</div>
             <div class="grid">
-
               <div class="field">
-                <div class="field-label">
-                  Obra social / prepaga
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.healthInsurance ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">Obra social / prepaga</div>
+                <div class="field-value">${escapeHtml(student.healthInsurance || 'Sin datos')}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  CUD
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.cudNumber ||
-                      'No registrado'
-                  )}
-                </div>
+                <div class="field-label">CUD</div>
+                <div class="field-value">${escapeHtml(student.cudNumber || 'No registrado')}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Vencimiento CUD
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.cudExpiration ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">Vencimiento CUD</div>
+                <div class="field-value">${escapeHtml(student.cudExpiration ? formatDate(student.cudExpiration) : 'Sin datos')}</div>
               </div>
-
               <div class="field">
-                <div class="field-label">
-                  Contacto de emergencia
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.emergencyContact ||
-                      'Sin datos'
-                  )}
-                </div>
+                <div class="field-label">Contacto de emergencia</div>
+                <div class="field-value">${escapeHtml(student.emergencyContact || 'Sin datos')}</div>
               </div>
-
             </div>
-
           </div>
-
-        {/* ESCOLARIDAD */}
-
-<section>
-
-  <SectionTitle>
-    Escolaridad
-  </SectionTitle>
-
-  <div className="grid md:grid-cols-2 gap-3">
-
-    <Select
-      name="level"
-      label="Nivel"
-      defaultValue={
-        student.level || ''
-      }
-    >
-      <option value="">
-        Seleccionar
-      </option>
-
-      {levels.map(
-        level => (
-          <option
-            key={level.id}
-            value={level.id}
-          >
-            {level.name}
-          </option>
-        )
-      )}
-
-    </Select>
-
-    <Select
-      name="scheduleType"
-      label="Jornada"
-      defaultValue={
-        currentJourney
-      }
-    >
-
-      <option value="">
-        Seleccionar
-      </option>
-
-      {journeys.map(
-        journey => (
-          <option
-            key={journey.id}
-            value={journey.id}
-          >
-            {journey.name}
-          </option>
-        )
-      )}
-
-    </Select>
-
-  </div>
-
-  {/* JORNADA SIMPLE */}
-
-  {!currentIsDouble && (
-
-    <div className="mt-4 p-4 rounded-2xl bg-violet-50 border border-violet-100">
-
-      <div className="flex items-center gap-2 mb-3">
-
-        <Clock3
-          size={16}
-          className="text-violet-600"
-        />
-
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
-            Jornada simple
-          </p>
-
-          <p className="text-xs font-bold text-slate-500">
-            Elegí el turno y el grupo donde concurre.
-          </p>
-        </div>
-
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-3">
-
-        <Select
-          name="simpleTurnId"
-          label="Turno"
-          defaultValue={
-            currentSimpleTurnId
-          }
-        >
-
-          <option value="">
-            Seleccionar
-          </option>
-
-          {turns.map(
-            turn => (
-              <option
-                key={turn.id}
-                value={turn.id}
-              >
-                {turn.name}
-              </option>
-            )
-          )}
-
-        </Select>
-
-        <Select
-          name="simpleGroupId"
-          label="Grupo"
-          defaultValue={
-            currentSimplePlacement?.groupId ||
-            ''
-          }
-        >
-
-          <option value="">
-            Sin asignar
-          </option>
-
-          {groups.map(
-            group => (
-              <option
-                key={group.id}
-                value={group.id}
-              >
-                {group.name}
-              </option>
-            )
-          )}
-
-        </Select>
-
-      </div>
-
-    </div>
-
-  )}
-
-  {/* DOBLE JORNADA */}
-
-  {currentIsDouble && (
-
-    <div className="mt-4 space-y-3">
-
-      {/* MAÑANA */}
-
-      <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
-
-        <div className="flex items-center gap-2 mb-3">
-
-          <Clock3
-            size={16}
-            className="text-amber-600"
-          />
-
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
-              Mañana
-            </p>
-
-            <p className="text-xs font-bold text-slate-500">
-              Grupo correspondiente al turno mañana.
-            </p>
-          </div>
-
-        </div>
-
-        {morningTurn ? (
-
-          <div className="grid md:grid-cols-2 gap-3">
-
-            <div className="p-3 rounded-xl bg-white border border-amber-100">
-
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                Turno
-              </span>
-
-              <p className="text-sm font-black text-slate-700 mt-1">
-                {morningTurn.name}
-              </p>
-
-            </div>
-
-            <Select
-              name="morningGroupId"
-              label="Grupo"
-              defaultValue={
-                currentMorning?.groupId ||
-                ''
-              }
-            >
-
-              <option value="">
-                Sin asignar
-              </option>
-
-              {groups.map(
-                group => (
-                  <option
-                    key={group.id}
-                    value={group.id}
-                  >
-                    {group.name}
-                  </option>
-                )
-              )}
-
-            </Select>
-
-          </div>
-
-        ) : (
-
-          <p className="text-xs text-amber-700 font-bold">
-            No hay un turno configurado como “Mañana”.
-          </p>
-
-        )}
-
-      </div>
-
-      {/* TARDE */}
-
-      <div className="p-4 rounded-2xl bg-sky-50 border border-sky-100">
-
-        <div className="flex items-center gap-2 mb-3">
-
-          <Clock3
-            size={16}
-            className="text-sky-600"
-          />
-
-          <div>
-
-            <p className="text-[10px] font-black uppercase tracking-widest text-sky-600">
-              Tarde
-            </p>
-
-            <p className="text-xs font-bold text-slate-500">
-              Grupo correspondiente al turno tarde.
-            </p>
-
-          </div>
-
-        </div>
-
-        {afternoonTurn ? (
-
-          <div className="grid md:grid-cols-2 gap-3">
-
-            <div className="p-3 rounded-xl bg-white border border-sky-100">
-
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                Turno
-              </span>
-
-              <p className="text-sm font-black text-slate-700 mt-1">
-                {afternoonTurn.name}
-              </p>
-
-            </div>
-
-            <Select
-              name="afternoonGroupId"
-              label="Grupo"
-              defaultValue={
-                currentAfternoon?.groupId ||
-                ''
-              }
-            >
-
-              <option value="">
-                Sin asignar
-              </option>
-
-              {groups.map(
-                group => (
-                  <option
-                    key={group.id}
-                    value={group.id}
-                  >
-                    {group.name}
-                  </option>
-                )
-              )}
-
-            </Select>
-
-          </div>
-
-        ) : (
-
-          <p className="text-xs text-sky-700 font-bold">
-            No hay un turno configurado como “Tarde”.
-          </p>
-
-        )}
-
-      </div>
-
-    </div>
-
-  )}
-
-</section>
-
-          <!-- ===============================================
-               FAMILIA
-          ================================================ -->
 
           <div class="section">
-
-            <div class="section-title">
-              Familia y contacto
-            </div>
-
+            <div class="section-title">Familia y contacto</div>
             <div class="family-grid">
-
               <div class="family-card">
-
-                <div class="field-label">
-                  Adulto responsable 1
-                </div>
-
+                <div class="field-label">Adulto responsable 1</div>
                 <div class="field-value">
-                  ${escapeHtml(
-                    student.motherName ||
-                      'Sin datos'
-                  )}
-
-                  ${
-                    student.motherContact
-                      ? `<br>${escapeHtml(
-                          student.motherContact
-                        )}`
-                      : ''
-                  }
-
+                  ${escapeHtml(student.motherName || 'Sin datos')}
+                  ${student.motherContact ? `<br>${escapeHtml(student.motherContact)}` : ''}
                 </div>
-
               </div>
-
               <div class="family-card">
-
-                <div class="field-label">
-                  Adulto responsable 2
-                </div>
-
+                <div class="field-label">Adulto responsable 2</div>
                 <div class="field-value">
-                  ${escapeHtml(
-                    student.fatherName ||
-                      'Sin datos'
-                  )}
-
-                  ${
-                    student.fatherContact
-                      ? `<br>${escapeHtml(
-                          student.fatherContact
-                        )}`
-                      : ''
-                  }
-
+                  ${escapeHtml(student.fatherName || 'Sin datos')}
+                  ${student.fatherContact ? `<br>${escapeHtml(student.fatherContact)}` : ''}
                 </div>
-
               </div>
-
               <div class="family-card full">
-
-                <div class="field-label">
-                  Contacto de emergencia
-                </div>
-
-                <div class="field-value">
-                  ${escapeHtml(
-                    student.emergencyContact ||
-                      'Sin datos'
-                  )}
-                </div>
-
+                <div class="field-label">Contacto de emergencia</div>
+                <div class="field-value">${escapeHtml(student.emergencyContact || 'Sin datos')}</div>
               </div>
-
             </div>
-
           </div>
-
-          <!-- ===============================================
-               OBSERVACIONES
-          ================================================ -->
 
           <div class="section">
-
-            <div class="section-title">
-              Observaciones
-            </div>
-
+            <div class="section-title">Observaciones</div>
             <div class="field full">
-
-              <div class="field-value">
-                ${escapeHtml(
-                  student.notes ||
-                    'Sin observaciones'
-                )}
-              </div>
-
+              <div class="field-value">${escapeHtml(student.notes || 'Sin observaciones')}</div>
             </div>
-
           </div>
-
-          <!-- ===============================================
-               PIE
-          ================================================ -->
 
           <div class="footer">
-
-            <div>
-              ${escapeHtml(
-                institutionName
-              )}
-
-              ${
-                fullAddress
-                  ? ` · ${escapeHtml(
-                      fullAddress
-                    )}`
-                  : ''
-              }
-            </div>
-
+            <div>${escapeHtml(institutionName)}${fullAddress ? ` · ${escapeHtml(fullAddress)}` : ''}</div>
             <div class="footer-right">
-
-              ${
-                documentFooter
-                  ? `${escapeHtml(
-                      documentFooter
-                    )}<br>`
-                  : ''
-              }
-
-              Legajo generado el
-              ${new Date().toLocaleDateString(
-                'es-AR'
-              )}
-
+              ${documentFooter ? `${escapeHtml(documentFooter)}<br>` : ''}
+              Legajo generado el ${new Date().toLocaleDateString('es-AR')}
             </div>
-
           </div>
-
         </div>
 
         <script>
-
-          window.addEventListener(
-            'load',
-            function() {
-
-              setTimeout(
-                function() {
-                  window.print();
-                },
-                300
-              );
-
-            }
-          );
-
+          window.addEventListener('load', function() {
+            setTimeout(function() { window.print(); }, 300);
+          });
         </script>
-
       </body>
     </html>
   `);
@@ -4078,11 +3032,20 @@ const levelName =
   student.level ||
   'Sin nivel';
 const handlePrint = () => {
-  console.log(
-    'CENTRA → imprimir legajo',
-    student.personId
-  );
-};
+    const placementsList = extractPlacements(assignment).map(p => ({
+      ...p,
+      groupName: groups.find(item => item.id === p.groupId)?.name || '',
+      turnName: turns.find(item => item.id === p.turnId)?.name || ''
+    }));
+
+    printStudentFile(
+      student,
+      placementsList,
+      journey,
+      levelName,
+      institutionConfig
+    );
+  };
   return (
     <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
 
@@ -4315,54 +3278,60 @@ const handlePrint = () => {
 
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2">
+        {isModuleEnabled(institutionConfig, 'studentFileActions') && (
+          <div className="p-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            {(institutionConfig?.document?.studentFileActions?.toggleActive ?? true) !== false && (
+              <button
+                type="button"
+                onClick={onToggleActive}
+                className={`px-4 py-2.5 rounded-xl font-black text-xs ${
+                  student.active === false
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-red-50 text-red-600'
+                }`}
+              >
+                {student.active === false
+                  ? `Reactivar ${personLabel}`
+                  : 'Marcar como inactivo'}
+              </button>
+            )}
 
-          <button
-            type="button"
-            onClick={onToggleActive}
-            className={`px-4 py-2.5 rounded-xl font-black text-xs ${
-              student.active === false
-                ? 'bg-emerald-50 text-emerald-700'
-                : 'bg-red-50 text-red-600'
-            }`}
-          >
-            {student.active === false
-              ? `Reactivar ${personLabel}`
-              : 'Marcar como inactivo'}
-          </button>
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
+              {(institutionConfig?.document?.studentFileActions?.edit ?? true) !== false && (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="px-4 py-2.5 rounded-xl bg-violet-600 text-white font-black text-xs flex items-center gap-2"
+                >
+                  <Edit3 size={16} />
+                  Editar legajo
+                </button>
+              )}
 
-          <button
-            type="button"
-            onClick={onEdit}
-            className="px-4 py-2.5 rounded-xl bg-violet-600 text-white font-black text-xs flex items-center gap-2"
-          >
-            <Edit3 size={16} />
-            Editar legajo
-          </button>
-          <button
-  type="button"
-  onClick={() => onBitacora()}
-  className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-black text-xs flex items-center gap-2 hover:bg-emerald-100"
->
-  <BookOpen size={16} />
-  Bitácora
-</button>
-<button
-  type="button"
-  onClick={handlePrint}
-  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-black text-xs flex items-center gap-2 hover:bg-slate-200"
->
-  <Printer size={16} />
-  Imprimir legajo
- </button>
+              {(institutionConfig?.document?.studentFileActions?.bitacora ?? true) !== false && (
+                <button
+                  type="button"
+                  onClick={() => onBitacora()}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-black text-xs flex items-center gap-2 hover:bg-emerald-100"
+                >
+                  <BookOpen size={16} />
+                  Bitácora
+                </button>
+              )}
 
-        </div>
-
-      </div>
-
-    </div>
-  );
-}
+              {(institutionConfig?.document?.studentFileActions?.print ?? true) !== false && (
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-black text-xs flex items-center gap-2 hover:bg-slate-200"
+                >
+                  <Printer size={16} />
+                  Imprimir legajo
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 function InfoBox({
   label,
   value
