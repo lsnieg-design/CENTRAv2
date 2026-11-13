@@ -16,9 +16,10 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { 
-  doc, updateDoc, collection, query, orderBy, onSnapshot, 
+  doc, setDoc, updateDoc, collection, query, orderBy, onSnapshot, 
   addDoc, serverTimestamp, where, deleteDoc, deleteField 
 } from 'firebase/firestore';
+import { COLLECTIONS } from '../data/collections';
 
 export function PersonalView({ user, db, appId }) {
   const [staffList, setStaffList] = useState([]);
@@ -854,12 +855,16 @@ export function PersonalView({ user, db, appId }) {
       d.cargo2_baja = '';
     }
 
-    try {
+   try {
       setProcessing(true);
 
       let staffId = editingStaff?.id || '';
+      const firstName = String(d.firstName || editingStaff?.firstName || '').trim();
+      const lastName = String(d.lastName || editingStaff?.lastName || '').trim();
+      const fullName = `${firstName} ${lastName}`.trim();
 
       if (editingStaff?.id) {
+        staffId = editingStaff.id;
         await updateDoc(
           doc(db, 'artifacts', appId, 'public', 'data', 'staff_records', editingStaff.id),
           { ...d, userId: selectedUserId, updatedAt: serverTimestamp() }
@@ -878,6 +883,40 @@ export function PersonalView({ user, db, appId }) {
         );
         staffId = staffRef.id;
       }
+
+      // Sincronizar con people y staff_profiles para que aparezca en Grupos/Talleres
+      const isInactive = isSchool
+        ? Boolean(d.cargo1_baja && (!d.cargo2_name || d.cargo2_baja))
+        : false;
+
+      await setDoc(
+        doc(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.PEOPLE, staffId),
+        {
+          firstName,
+          lastName,
+          fullName,
+          email: d.email || '',
+          phone: d.phone || '',
+          photoUrl: d.photoUrl || '',
+          type: 'staff',
+          active: !isInactive,
+          updatedAt: serverTimestamp(),
+          ...(editingStaff?.id ? {} : { createdAt: serverTimestamp() })
+        },
+        { merge: true }
+      );
+
+      await setDoc(
+        doc(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.STAFF_PROFILES, staffId),
+        {
+          personId: staffId,
+          ...d,
+          userId: selectedUserId,
+          updatedAt: serverTimestamp(),
+          ...(editingStaff?.id ? {} : { createdAt: serverTimestamp() })
+        },
+        { merge: true }
+      );
 
       // Mantener siempre la relación bidireccional Usuario <-> Personal.
       await updateDoc(
@@ -2103,6 +2142,12 @@ export function PersonalView({ user, db, appId }) {
                         await deleteDoc(
                           doc(db, 'artifacts', appId, 'public', 'data', 'staff_records', editingStaff.id)
                         );
+                        await deleteDoc(
+                          doc(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.PEOPLE, editingStaff.id)
+                        ).catch(() => {});
+                        await deleteDoc(
+                          doc(db, 'artifacts', appId, 'public', 'data', COLLECTIONS.STAFF_PROFILES, editingStaff.id)
+                        ).catch(() => {});
 
                         if (linkedUserId) {
                           await updateDoc(
