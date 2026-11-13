@@ -9,7 +9,7 @@ import {
   updateDoc,
   serverTimestamp
 } from 'firebase/firestore';
-
+import { isModuleEnabled } from '../config';
 
 import {
   Search,
@@ -3032,7 +3032,17 @@ const levelName =
   student.level ||
   'Sin nivel';
 const handlePrint = () => {
-    const placementsList = extractPlacements(assignment).map(p => ({
+    const rawPlacements =
+      Array.isArray(assignment?.placements) && assignment.placements.length > 0
+        ? assignment.placements
+        : assignment?.groupId
+        ? (Array.isArray(assignment?.turnIds) ? assignment.turnIds : []).map(turnId => ({
+            groupId: assignment.groupId,
+            turnId
+          }))
+        : [];
+
+    const placementsList = rawPlacements.map(p => ({
       ...p,
       groupName: groups.find(item => item.id === p.groupId)?.name || '',
       turnName: turns.find(item => item.id === p.turnId)?.name || ''
