@@ -366,6 +366,48 @@ export function GroupsView({
     scheduleType ||
     '';
 
+  // Detecta automáticamente si corresponde Jornada Simple o Doble según los turnos reales en los que participa
+  const resolveScheduleTypeFromPlacements = (placements = [], fallbackSchedule = '') => {
+    if (!Array.isArray(placements) || placements.length === 0) return '';
+
+    const activeTurnIds = new Set();
+
+    placements.forEach(p => {
+      const grp = groups.find(g => g.id === p.groupId);
+      const groupTurns = Array.isArray(grp?.turnIds) && grp.turnIds.length > 0
+        ? grp.turnIds
+        : grp?.turnId
+        ? [grp.turnId]
+        : [];
+
+      if (groupTurns.length === 1) {
+        activeTurnIds.add(groupTurns[0]);
+      } else if (p.turnId && (groupTurns.length === 0 || groupTurns.includes(p.turnId))) {
+        activeTurnIds.add(p.turnId);
+      } else if (groupTurns[0]) {
+        activeTurnIds.add(groupTurns[0]);
+      }
+    });
+
+    const isDouble = activeTurnIds.size > 1;
+
+    const doubleOption = scheduleTypeOptions.find(s => {
+      const name = normalizeText(s.name);
+      return name.includes('doble') || name.includes('completa');
+    });
+
+    const simpleOption =
+      scheduleTypeOptions.find(s => {
+        const name = normalizeText(s.name);
+        return !name.includes('doble') && !name.includes('completa');
+      }) || scheduleTypeOptions[0];
+
+    if (isDouble) {
+      return doubleOption?.id || 'doble_jornada';
+    }
+    return simpleOption?.id || fallbackSchedule || 'jornada_simple';
+  };
+
   // Agregar o quitar un estudiante/concurrente de un grupo/taller directamente desde Organización
   const handleToggleStudentInGroup = async (student, group, turnId = '') => {
     if (!db || !appId || !student?.personId || !group?.id) return;
@@ -407,20 +449,15 @@ export function GroupsView({
       }
 
       if (nextPlacements.length > 0) {
-        const defaultSchedule =
-          currentAssignment?.scheduleType ||
-          (nextPlacements.length > 1
-            ? scheduleTypeOptions.find(s =>
-                normalizeText(s.name).includes('doble') ||
-                normalizeText(s.name).includes('completa')
-              )?.id
-            : scheduleTypeOptions[0]?.id) ||
-          '';
+        const nextScheduleType = resolveScheduleTypeFromPlacements(
+          nextPlacements,
+          currentAssignment?.scheduleType
+        );
 
         await createStudentGroupAssignment(db, appId, {
           studentId: student.personId,
           placements: nextPlacements,
-          scheduleType: defaultSchedule
+          scheduleType: nextScheduleType
         });
       }
     } catch (error) {
@@ -641,35 +678,34 @@ export function GroupsView({
   ]);
 
   const assignedGroupsForStudent = student => {
-    const assignment =
-      getCurrentAssignment(student);
-
+    const assignment = getCurrentAssignment(student);
     if (!assignment) return [];
 
-    return getAssignmentPlacements(
-      assignment
-    )
+    return getAssignmentPlacements(assignment)
       .map(placement => {
-        const group =
-          groups.find(
-            item =>
-              item.id ===
-              placement.groupId
-          );
-
-        const turn =
-          turnOptions.find(
-            item =>
-              item.id ===
-              placement.turnId
-          );
-
+        const group = groups.find(item => item.id === placement.groupId);
         if (!group) return null;
 
-        return {
-          group,
-          turn
-        };
+        const groupTurns = Array.isArray(group.turnIds) && group.turnIds.length > 0
+          ? group.turnIds
+          : group.turnId
+          ? [group.turnId]
+          : [];
+
+        const effectiveTurnId =
+          groupTurns.length === 1
+            ? groupTurns[0]
+            : placement.turnId && (groupTurns.length === 0 || groupTurns.includes(placement.turnId))
+            ? placement.turnId
+            : groupTurns[0] || placement.turnId || '';
+
+        const turn =
+          turnOptions.find(item => item.id === effectiveTurnId) ||
+          turnOptions.find(
+            item => normalizeText(item.name) === normalizeText(effectiveTurnId)
+          );
+
+        return { group, turn };
       })
       .filter(Boolean);
   };
@@ -896,6 +932,69 @@ export function GroupsView({
               roleId:
                 role.id,
               turnIds
+            }
+          );
+        }
+      }
+
+      // Si se editó un grupo/taller existente, sincronizar sus nuevos turnos y recalcular jornada en los legajos
+      if (!editingGroup.isNew) {
+        const newDefaultTurnId = turnIds[0] || '';
+        const affectedStudents = students.filter(student => {
+          const current = getCurrentAssignment(student);
+          return getAssignmentPlacements(current).some(p => p.groupId === groupId);
+        });
+
+        for (const student of affectedStudents) {
+          const current = getCurrentAssignment(student);
+          if (!current?.id) continue;
+
+          const currentPlacements = getAssignmentPlacements(current);
+          const updatedPlacements = currentPlacements.map(p => {
+            if (p.groupId !== groupId) return p;
+            const validTurn =
+              turnIds.length === 1
+                ? turnIds[0]
+                : turnIds.includes(p.turnId)
+                ? p.turnId
+                : newDefaultTurnId;
+            return { ...p, turnId: validTurn };
+          });
+
+          const tempTurnsSet = new Set();
+          updatedPlacements.forEach(p => {
+            if (p.groupId === groupId) {
+              if (p.turnId) tempTurnsSet.add(p.turnId);
+            } else {
+              const otherGrp = groups.find(g => g.id === p.groupId);
+              const otherTurns = Array.isArray(otherGrp?.turnIds) ? otherGrp.turnIds : [];
+              const t = otherTurns.length === 1 ? otherTurns[0] : p.turnId || otherTurns[0];
+              if (t) tempTurnsSet.add(t);
+            }
+          });
+
+          const doubleOpt = scheduleTypeOptions.find(s => {
+            const n = normalizeText(s.name);
+            return n.includes('doble') || n.includes('completa');
+          });
+          const simpleOpt =
+            scheduleTypeOptions.find(s => {
+              const n = normalizeText(s.name);
+              return !n.includes('doble') && !n.includes('completa');
+            }) || scheduleTypeOptions[0];
+
+          const nextScheduleType =
+            tempTurnsSet.size > 1
+              ? doubleOpt?.id || 'doble_jornada'
+              : simpleOpt?.id || current.scheduleType || 'jornada_simple';
+
+          await updateDoc(
+            DOC(db, appId, COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS, current.id),
+            {
+              placements: updatedPlacements,
+              turnIds: [...tempTurnsSet],
+              scheduleType: nextScheduleType,
+              updatedAt: serverTimestamp()
             }
           );
         }
