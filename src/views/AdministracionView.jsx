@@ -3,9 +3,7 @@ import {
   Search,
   Users,
   Briefcase,
-  FileText,
   GraduationCap,
-  CalendarDays,
   Printer,
   ChevronRight,
   Check,
@@ -16,20 +14,11 @@ import {
   Info,
   Building2,
   BadgeCheck,
-  UserRound,
-  ArrowRight,
   Loader2,
   ClipboardCheck,
 } from 'lucide-react';
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  serverTimestamp,
-} from 'firebase/firestore';
 import { canAccessModule } from '../config';
+import { useStudents, useStaff } from '../data/hooks';
 
 const DEFAULT_PRIMARY = '#6d28d9';
 const DEFAULT_SECONDARY = '#f97316';
@@ -65,13 +54,20 @@ const escapeHtml = value =>
 const safeImageUrl = value => {
   const url = cleanText(value);
   if (!url) return '';
-  if (url.startsWith('/') || /^https:\/\//i.test(url) || /^http:\/\//i.test(url)) return url;
+  if (
+    url.startsWith('/') ||
+    /^https?:\/\//i.test(url) ||
+    /^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(url)
+  ) {
+    return url;
+  }
   return '';
 };
 
 const formatDate = (value, options = { day: 'numeric', month: 'long', year: 'numeric' }) => {
   if (!value) return '';
-  const date = value instanceof Date ? value : new Date(`${value}T12:00:00`);
+  const raw = String(value);
+  const date = value instanceof Date ? value : new Date(raw.includes('T') ? raw : `${raw}T12:00:00`);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('es-AR', options);
 };
@@ -138,11 +134,6 @@ const CertificateDocument = ({
     canAccessModule(appConfig, userRole, 'admin');
 
   const [activeSection, setActiveSection] = useState(personModeEnabled ? 'people' : 'staff');
-  const [students, setStudents] = useState([]);
-  const [staff, setStaff] = useState([]);
-  const [loadingStudents, setLoadingStudents] = useState(false);
-  const [loadingStaff, setLoadingStaff] = useState(false);
-  const [loadError, setLoadError] = useState('');
   const [searchText, setSearchText] = useState('');
   const [selectedPeopleIds, setSelectedPeopleIds] = useState([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState([]);
@@ -156,56 +147,53 @@ const CertificateDocument = ({
     if (!personModeEnabled && activeSection === 'people') setActiveSection('staff');
   }, [personModeEnabled, activeSection]);
 
-  useEffect(() => {
-    if (!db || !appId || !canAccess) return undefined;
+  const {
+    students: activeStudents,
+    loading: loadingStudents,
+    error: studentsError,
+  } = useStudents(canAccess ? db : null, appId, { activeOnly: true });
 
-    setLoadingStudents(true);
-    setLoadError('');
-    const studentsQuery = query(
-      collection(db, 'artifacts', appId, 'public', 'data', 'students'),
-      orderBy('lastName', 'asc')
-    );
-    const unsubscribe = onSnapshot(
-      studentsQuery,
-      snapshot => {
-        setStudents(snapshot.docs.map(item => ({ id: item.id, ...item.data() })));
-        setLoadingStudents(false);
-      },
-      error => {
-        console.error('No se pudieron cargar los legajos para certificados:', error);
-        setLoadError('No se pudieron cargar los legajos. Revisá los permisos de acceso o la conexión e intentá nuevamente.');
-        setLoadingStudents(false);
-      }
-    );
-    return () => unsubscribe();
-  }, [db, appId, canAccess]);
+  const {
+    staff: activeStaff,
+    loading: loadingStaff,
+    error: staffError,
+  } = useStaff(canAccess ? db : null, appId, { activeOnly: true });
 
-  useEffect(() => {
-    if (!db || !appId || !canAccess) return undefined;
+  const loadError = useMemo(() => {
+    if (activeSection === 'people' && studentsError) {
+      return 'No se pudieron cargar los legajos. Revisá los permisos de acceso o la conexión e intentá nuevamente.';
+    }
+    if (activeSection === 'staff' && staffError) {
+      return 'No se pudo cargar el registro del personal. Revisá los permisos de acceso o la conexión e intentá nuevamente.';
+    }
+    return '';
+  }, [activeSection, studentsError, staffError]);
 
-    setLoadingStaff(true);
-    const staffQuery = query(
-      collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'),
-      orderBy('lastName', 'asc')
-    );
-    const unsubscribe = onSnapshot(
-      staffQuery,
-      snapshot => {
-        setStaff(snapshot.docs.map(item => ({ id: item.id, ...item.data() })));
-        setLoadingStaff(false);
-      },
-      error => {
-        console.error('No se pudieron cargar los legajos del personal:', error);
-        setLoadError('No se pudo cargar el registro del personal. Revisá los permisos de acceso o la conexión e intentá nuevamente.');
-        setLoadingStaff(false);
-      }
-    );
-    return () => unsubscribe();
-  }, [db, appId, canAccess]);
+  const levelMap = useMemo(() => {
+    const map = new Map();
+    if (Array.isArray(appConfig?.levels)) {
+      appConfig.levels.forEach((lvl, idx) => {
+        if (typeof lvl === 'string') {
+          const id = lvl.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+          map.set(id, lvl);
+          map.set(lvl, lvl);
+        } else if (lvl && typeof lvl === 'object') {
+          const id = lvl.id || `nivel_${idx + 1}`;
+          const name = lvl.name || lvl.label || id;
+          map.set(id, name);
+        }
+      });
+    }
+    return map;
+  }, [appConfig?.levels]);
 
-  const activeStudents = useMemo(
-    () => students.filter(person => person.isActive !== false),
-    [students]
+  const getLevelDisplay = useCallback(
+    person => {
+      const raw = cleanText(person?.level || person?.section || person?.group);
+      if (!raw) return '';
+      return levelMap.get(raw) || raw;
+    },
+    [levelMap]
   );
 
   const filteredPeople = useMemo(() => {
@@ -217,18 +205,13 @@ const CertificateDocument = ({
         person.lastName,
         person.fullName,
         person.dni,
-        person.level,
+        getLevelDisplay(person),
         person.section,
         person.group,
         person.healthInsurance,
       ].join(' ')).includes(search)
     );
-  }, [activeStudents, searchText]);
-
-  const activeStaff = useMemo(
-    () => staff.filter(person => person.isActive !== false && !person.fechaBaja),
-    [staff]
-  );
+  }, [activeStudents, searchText, getLevelDisplay]);
 
   const filteredStaff = useMemo(() => {
     const search = normalizeSearch(searchText);
@@ -321,11 +304,12 @@ const CertificateDocument = ({
   };
 
   const updateStaffDetail = (staffId, field, value) => {
+    const found = activeStaff.find(person => person.id === staffId);
     setStaffCertificateDetails(previous => ({
       ...previous,
       [staffId]: {
-        cargo: previous[staffId]?.cargo ?? getMainStaffRole(staff.find(person => person.id === staffId)),
-        startDate: previous[staffId]?.startDate ?? getMainStaffStartDate(staff.find(person => person.id === staffId)),
+        cargo: previous[staffId]?.cargo ?? getMainStaffRole(found),
+        startDate: previous[staffId]?.startDate ?? getMainStaffStartDate(found),
         ...previous[staffId],
         [field]: value,
       },
@@ -371,7 +355,7 @@ const CertificateDocument = ({
     const personName = escapeHtml(getPersonName(person));
     const dni = escapeHtml(person.dni || 'no informado');
     const personCategory = personCertificate.personLabel;
-    const level = cleanText(person.level || person.section || person.group);
+    const level = getLevelDisplay(person);
     const levelLine = mode === 'school' && level
       ? `<p class="detail-line"><strong>Trayectoria / nivel:</strong> ${escapeHtml(level)}</p>`
       : '';
@@ -382,9 +366,7 @@ const CertificateDocument = ({
     const schoolYearLine = schoolYear
       ? `<p class="detail-line"><strong>Ciclo lectivo:</strong> ${escapeHtml(schoolYear)}</p>`
       : '';
-    const intro = mode === 'day_center'
-      ? `Por medio de la presente, se deja constancia de que <strong>${personName}</strong>, DNI <strong>${dni}</strong>, es ${personCategory} de esta institución.`
-      : `Por medio de la presente, se deja constancia de que <strong>${personName}</strong>, DNI <strong>${dni}</strong>, es ${personCategory} de esta institución.`;
+    const intro = `Por medio de la presente, se deja constancia de que <strong>${personName}</strong>, DNI <strong>${dni}</strong>, es ${personCategory} de esta institución.`;
 
     return `
       <article class="certificate">
@@ -537,16 +519,6 @@ const CertificateDocument = ({
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-
-    if (db && appId) {
-      addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'activity_log'), {
-        userName: user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Usuario',
-        userId: user?.id || '',
-        action: 'Emisión de certificados',
-        details: `Emitió ${targets.length} certificado(s) de ${isPeopleSection ? personCertificate.label.toLowerCase() : 'personal laboral'}.`,
-        timestamp: serverTimestamp(),
-      }).catch(error => console.error('No se pudo registrar la emisión en la auditoría:', error));
-    }
 
     setGenerating(false);
     setSuccessMessage(`${targets.length} certificado(s) preparado(s) para imprimir.`);
@@ -720,6 +692,7 @@ const CertificateDocument = ({
               />
             ) : filteredPeople.map(person => {
               const isSelected = selectedPeopleIds.includes(person.id);
+              const levelLabel = getLevelDisplay(person);
               return (
                 <button
                   key={person.id}
@@ -738,7 +711,7 @@ const CertificateDocument = ({
                     <span className="block truncate text-sm font-extrabold text-slate-800">{getFullName(person)}</span>
                     <span className="mt-1 block truncate text-xs text-slate-500">
                       DNI: {person.dni || 'Sin dato'}
-                      {mode === 'school' && (person.level || person.section) ? ` · ${person.level || person.section}` : ''}
+                      {mode === 'school' && levelLabel ? ` · ${levelLabel}` : ''}
                       {mode === 'day_center' && person.group ? ` · ${person.group}` : ''}
                     </span>
                   </span>
