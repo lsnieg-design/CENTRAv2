@@ -2174,70 +2174,47 @@ Nuevo {personLabel}
 
           <div className="space-y-2">
 
-            {filteredStudents.map(student => {
+           {filteredStudents.map(student => {
+              const assignment = getCurrentAssignment(student);
+              const placements = getPlacementsWithNames(assignment);
 
-              const assignment =
-                getCurrentAssignment(
-                  student
+              // Todos los talleres/grupos únicos (con su turno si tiene)
+              const placementTags = placements
+                .filter(p => p.group?.name)
+                .map(p => ({
+                  key: `${p.group.id}-${p.turn?.id || 'sin-turno'}`,
+                  groupName: p.group.name,
+                  turnName: p.turn?.name || ''
+                }))
+                .filter(
+                  (item, index, arr) =>
+                    index ===
+                    arr.findIndex(
+                      other =>
+                        other.groupName === item.groupName &&
+                        other.turnName === item.turnName
+                    )
                 );
 
-             const placements =
-  getPlacementsWithNames(
-    assignment
-  );
+              const turnLabels = [
+                ...new Set(getTurnLabels(assignment))
+              ];
 
-const groupsForStudent =
-  placements
-    .map(
-      placement =>
-        placement.group
-    )
-    .filter(Boolean);
-const group =
-  groupsForStudent[0] ||
-  null;
-
-const turnNamesForStudent =
-  placements
-    .map(
-      placement =>
-        placement.turn?.name
-    )
-    .filter(Boolean);
-
-              const turnLabels =
-                getTurnLabels(
-                  assignment
-                );
-
-              const age =
-                calculateAge(
-                  student.birthDate
-                );
-
-              const active =
-                student.active !== false;
+              const age = calculateAge(student.birthDate);
+              const active = student.active !== false;
 
               return (
                 <article
                   key={student.id}
                   className="bg-white border border-slate-200 rounded-2xl hover:border-violet-300 hover:shadow-md transition-all"
                 >
-
                   <div className="p-4 flex items-center gap-4">
-
                     {/* FOTO */}
-
                     <div className="w-14 h-14 rounded-2xl overflow-hidden bg-violet-50 border border-violet-100 shrink-0">
-
                       {student.photoUrl ? (
                         <img
-                          src={
-                            student.photoUrl
-                          }
-                          alt={
-                            student.fullName
-                          }
+                          src={student.photoUrl}
+                          alt={student.fullName}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -2245,26 +2222,17 @@ const turnNamesForStudent =
                           <User size={25} />
                         </div>
                       )}
-
                     </div>
 
                     {/* DATOS */}
-
                     <button
                       type="button"
-                      onClick={() =>
-                        setViewingStudent(
-                          student
-                        )
-                      }
+                      onClick={() => setViewingStudent(student)}
                       className="flex-1 min-w-0 text-left"
                     >
-
                       <div className="flex flex-wrap items-center gap-2">
-
                         <h3 className="font-black text-slate-800 truncate">
-                          {student.lastName},{' '}
-                          {student.firstName}
+                          {student.lastName}, {student.firstName}
                         </h3>
 
                         {!active && (
@@ -2272,11 +2240,9 @@ const turnNamesForStudent =
                             Inactivo
                           </span>
                         )}
-
                       </div>
 
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-
                         {student.dni && (
                           <span className="text-[10px] text-slate-400 font-bold">
                             DNI {student.dni}
@@ -2294,47 +2260,42 @@ const turnNamesForStudent =
                             {student.level}
                           </span>
                         )}
-
                       </div>
-
                     </button>
 
-                    {/* ASIGNACIÓN */}
-
-                    <div className="hidden md:flex min-w-[240px] flex-col gap-1">
-
-                      {group ? (
+                    {/* ASIGNACIÓN (TODOS LOS TALLERES / GRUPOS) */}
+                    <div className="hidden md:flex max-w-[380px] flex-col items-end gap-1.5">
+                      {placementTags.length > 0 ? (
                         <>
-                          <span className="text-[10px] font-black text-violet-700 truncate">
-                            {group.name}
-                          </span>
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {placementTags.map(item => (
+                              <span
+                                key={item.key}
+                                className="px-2 py-0.5 rounded-lg bg-violet-50 border border-violet-100 text-violet-800 text-[9px] font-black"
+                              >
+                                {item.groupName}
+                                {item.turnName ? ` (${item.turnName})` : ''}
+                              </span>
+                            ))}
+                          </div>
 
-                          <div className="flex flex-wrap gap-1">
-
-                            {turnLabels.map(
-                              label => (
-                                <span
-                                  key={
-                                    label
-                                  }
-                                  className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase"
-                                >
-                                  {label}
-                                </span>
-                              )
+                          <div className="flex flex-wrap justify-end gap-1">
+                            {placementTags.length > 1 && (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[8px] font-black uppercase">
+                                {placementTags.length}{' '}
+                                {institutionMode === 'day_center'
+                                  ? 'talleres'
+                                  : 'grupos'}
+                              </span>
                             )}
 
                             {assignment?.scheduleType && (
                               <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[8px] font-black uppercase">
                                 {journeys.find(
-                                  item =>
-                                    item.id ===
-                                    assignment.scheduleType
-                                )?.name ||
-                                  assignment.scheduleType}
+                                  item => item.id === assignment.scheduleType
+                                )?.name || assignment.scheduleType}
                               </span>
                             )}
-
                           </div>
                         </>
                       ) : (
@@ -2342,21 +2303,14 @@ const turnNamesForStudent =
                           Sin asignación
                         </span>
                       )}
-
                     </div>
 
                     {/* ACCIONES */}
-
-                    <div className="flex items-center gap-1">
-
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         title="Editar"
-                        onClick={() =>
-                          openEdit(
-                            student
-                          )
-                        }
+                        onClick={() => openEdit(student)}
                         className="p-2.5 rounded-xl text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition"
                       >
                         <Edit3 size={17} />
@@ -2365,63 +2319,50 @@ const turnNamesForStudent =
                       <button
                         type="button"
                         title="Ver legajo"
-                        onClick={() =>
-                          setViewingStudent(
-                            student
-                          )
-                        }
+                        onClick={() => setViewingStudent(student)}
                         className="p-2.5 rounded-xl text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition"
                       >
-                        <ChevronRight
-                          size={18}
-                        />
+                        <ChevronRight size={18} />
                       </button>
-
                     </div>
-
                   </div>
 
                   {/* MOBILE ASIGNACIÓN */}
-
                   <div className="md:hidden px-4 pb-4">
-
-                    {group ? (
+                    {placementTags.length > 0 ? (
                       <div className="px-3 py-2.5 rounded-xl bg-violet-50 border border-violet-100">
-
-                        <p className="text-[9px] font-black uppercase tracking-widest text-violet-400">
-                          Asignación
-                        </p>
-
-                        <p className="text-xs font-black text-violet-800 mt-1">
-                          {group.name}
-                        </p>
-
-                        <div className="flex flex-wrap gap-1 mt-1">
-
-                          {turnLabels.map(
-                            label => (
-                              <span
-                                key={
-                                  label
-                                }
-                                className="text-[8px] font-black uppercase text-violet-500"
-                              >
-                                {label}
-                              </span>
-                            )
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">
+                            {institutionMode === 'day_center'
+                              ? `Talleres asignados (${placementTags.length})`
+                              : 'Asignación'}
+                          </p>
+                          {turnLabels.length > 0 && (
+                            <span className="text-[8px] font-black uppercase text-violet-500">
+                              {turnLabels.join(' · ')}
+                            </span>
                           )}
-
                         </div>
 
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {placementTags.map(item => (
+                            <span
+                              key={item.key}
+                              className="px-2.5 py-1 rounded-lg bg-white border border-violet-100 text-[10px] font-black text-violet-900"
+                            >
+                              {item.groupName}
+                              {item.turnName ? ` · ${item.turnName}` : ''}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     ) : (
                       <div className="px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-100 text-[9px] font-black uppercase text-amber-600">
-                        Sin asignación de grupo
+                        Sin asignación de{' '}
+                        {institutionMode === 'day_center' ? 'taller' : 'grupo'}
                       </div>
                     )}
-
                   </div>
-
                 </article>
               );
             })}
