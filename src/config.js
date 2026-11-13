@@ -136,9 +136,6 @@ export const DEFAULT_APP_CONFIG = {
     'CUMPLEAÑOS'
   ],
 
-  // Configuración visual de los tipos de evento.
-  // eventTypes sigue siendo una lista de IDs para no romper
-  // las secciones que todavía trabajan con strings.
   eventTypeSettings: {
     GENERAL: {
       name: 'General',
@@ -173,10 +170,6 @@ export const DEFAULT_APP_CONFIG = {
   // =========================================================
   // ROLES DE LA INSTITUCIÓN
   // =========================================================
-  // Esta lista sigue siendo la lista oficial de roles.
-  // Cada institución podrá modificarla desde Configuración.
-  // No se limita a escuelas: también se usará en centros de día,
-  // consultorios y demás instituciones.
 
   roles: [
     'Docente',
@@ -202,10 +195,6 @@ export const DEFAULT_APP_CONFIG = {
   // =========================================================
   // CONFIGURACIÓN DEL PERSONAL
   // =========================================================
-  // Estas opciones indican qué información laboral corresponde
-  // mostrar según el modo de funcionamiento de la institución.
-  //
-  // Los roles NO se duplican acá: se administran desde config.roles.
 
   staffSettings: {
     showSchoolFields: true,
@@ -217,8 +206,6 @@ export const DEFAULT_APP_CONFIG = {
     calculateSeniority: true
   },
 
-  // Días disponibles para registrar los días de trabajo/asistencia
-  // del personal de centros de día, consultorios u otras instituciones.
   staffWeekdays: [
     'Lunes',
     'Martes',
@@ -238,7 +225,6 @@ export const DEFAULT_APP_CONFIG = {
     tasks: true,
     studentFiles: true,
     resources: true,
-    evaluations: true,
     externalReports: true,
     notifications: true
   },
@@ -269,39 +255,18 @@ export const DEFAULT_APP_CONFIG = {
   taskSettings: {
     enabled: true,
 
-    // Estados disponibles para las tareas
     statuses: [
-      {
-        id: 'pending',
-        label: 'Pendiente'
-      },
-      {
-        id: 'in_progress',
-        label: 'En proceso'
-      },
-      {
-        id: 'completed',
-        label: 'Completada'
-      }
+      { id: 'pending', label: 'Pendiente' },
+      { id: 'in_progress', label: 'En proceso' },
+      { id: 'completed', label: 'Completada' }
     ],
 
-    // Prioridades disponibles
     priorities: [
-      {
-        id: 'low',
-        label: 'Baja'
-      },
-      {
-        id: 'medium',
-        label: 'Media'
-      },
-      {
-        id: 'high',
-        label: 'Alta'
-      }
+      { id: 'low', label: 'Baja' },
+      { id: 'medium', label: 'Media' },
+      { id: 'high', label: 'Alta' }
     ],
 
-    // Tipos de tarea
     types: [
       'Administrativa',
       'Pedagógica',
@@ -309,65 +274,34 @@ export const DEFAULT_APP_CONFIG = {
       'Institucional'
     ],
 
-    // Formas de asignar
     assignmentTypes: [
       'user',
       'role',
       'team'
     ],
 
-    // Quiénes pueden crear tareas
     createAllowedRoles: [
       'Equipo Directivo',
       'Equipo Técnico',
       'Administración'
     ],
 
-    // Si se permite asignar a usuarios
     allowUserAssignment: true,
-
-    // Si se permite asignar a roles
     allowRoleAssignment: true,
-
-    // Si se permite asignar a equipos
     allowTeamAssignment: true,
-
-    // Si los comentarios están disponibles
     allowComments: true,
-
-    // Si la fecha de vencimiento es obligatoria
     requireDueDate: false,
-
-    // Si se puede programar la aparición
     allowScheduling: true,
-
-    // Si se puede editar una tarea luego de crearla
     allowEditing: true,
-
-    // Si el creador puede eliminar
     allowDeleting: true
   }
 };
-
-
-// =============================================================
-// ALMACENAMIENTO LOCAL
-// =============================================================
-//
-// CENTRA no guarda la configuración institucional en el navegador.
-// Firestore es la única fuente de verdad.
-//
-// Las funciones de compatibilidad de abajo no leen ni escriben storage.
-// Se retirarán definitivamente cuando terminemos de migrar ConfiguracionView.
-// =============================================================
-
 
 // =============================================================
 // PALETAS
 // =============================================================
 
 export const PALETTES = {
-
   'violet-orange': {
     name: 'Violeta + naranja',
     primary: '#6d28d9',
@@ -375,7 +309,6 @@ export const PALETTES = {
     background: '#f8fafc',
     text: '#1e293b'
   },
-
   'blue-teal': {
     name: 'Azul + turquesa',
     primary: '#2563eb',
@@ -383,7 +316,6 @@ export const PALETTES = {
     background: '#f8fafc',
     text: '#172033'
   },
-
   'rose-amber': {
     name: 'Rosa + ámbar',
     primary: '#e11d48',
@@ -391,7 +323,6 @@ export const PALETTES = {
     background: '#fffaf7',
     text: '#292524'
   },
-
   'navy-sky': {
     name: 'Azul noche + cielo',
     primary: '#0f3d66',
@@ -399,7 +330,6 @@ export const PALETTES = {
     background: '#f5f9fc',
     text: '#172033'
   },
-
   'green-blue': {
     name: 'Verde + azul',
     primary: '#15803d',
@@ -407,7 +337,6 @@ export const PALETTES = {
     background: '#f6fbf7',
     text: '#1b2a22'
   },
-
   neutral: {
     name: 'Neutros',
     primary: '#475569',
@@ -416,7 +345,6 @@ export const PALETTES = {
     text: '#1e293b'
   }
 };
-
 
 // =============================================================
 // TIPOS DE INSTITUCIÓN
@@ -433,7 +361,6 @@ export const INSTITUTION_TYPES = [
   'Otro'
 ];
 
-
 // ============================================================
 // MODO DE FUNCIONAMIENTO DE CENTRA
 // ============================================================
@@ -444,15 +371,12 @@ export const INSTITUTION_MODES = {
   CLINIC: 'clinic'
 };
 
-
 // ============================================================
 // CONFIGURACIÓN DEL PERSONAL SEGÚN EL MODO INSTITUCIONAL
 // ============================================================
 
 export const STAFF_MODE_DEFAULTS = {
-
   [INSTITUTION_MODES.SCHOOL]: {
-    // Escuela: conserva la lógica laboral escolar actual.
     showSchoolFields: true,
     showModality: true,
     showSchoolCargoFields: true,
@@ -461,10 +385,7 @@ export const STAFF_MODE_DEFAULTS = {
     showStartDate: true,
     calculateSeniority: true
   },
-
   [INSTITUTION_MODES.DAY_CENTER]: {
-    // Centro de día: no usa Sede / Inclusión ni cargos escolares.
-    // Registra rol, días de trabajo, horas semanales y antigüedad.
     showSchoolFields: false,
     showModality: false,
     showSchoolCargoFields: false,
@@ -473,9 +394,7 @@ export const STAFF_MODE_DEFAULTS = {
     showStartDate: true,
     calculateSeniority: true
   },
-
   [INSTITUTION_MODES.CLINIC]: {
-    // Consultorio / centro terapéutico: misma lógica no escolar.
     showSchoolFields: false,
     showModality: false,
     showSchoolCargoFields: false,
@@ -485,7 +404,6 @@ export const STAFF_MODE_DEFAULTS = {
     calculateSeniority: true
   }
 };
-
 
 // ============================================================
 // DÍAS DE LA SEMANA PARA PERSONAL
@@ -501,315 +419,196 @@ export const STAFF_WEEKDAYS = [
   'Domingo'
 ];
 
-
 // ============================================================
 // OBTENER CONFIGURACIÓN DEL PERSONAL SEGÚN EL MODO
 // ============================================================
 
 export function getStaffModeConfig(config = {}) {
-
-  const mode =
-    config?.institutionMode ||
-    INSTITUTION_MODES.SCHOOL;
-
+  const mode = config?.institutionMode || INSTITUTION_MODES.SCHOOL;
   return {
-
     ...STAFF_MODE_DEFAULTS[INSTITUTION_MODES.SCHOOL],
-
-    ...(
-      STAFF_MODE_DEFAULTS[mode] ||
-      STAFF_MODE_DEFAULTS[INSTITUTION_MODES.SCHOOL]
-    )
-
+    ...(STAFF_MODE_DEFAULTS[mode] || STAFF_MODE_DEFAULTS[INSTITUTION_MODES.SCHOOL])
   };
-
 }
-
 
 // ============================================================
 // TEXTOS SEGÚN EL TIPO DE INSTITUCIÓN
 // ============================================================
 
 export const INSTITUTION_MODE_LABELS = {
-
   [INSTITUTION_MODES.SCHOOL]: {
-
     person: 'Estudiante',
     people: 'Estudiantes',
-
     group: 'Grupo',
     groups: 'Grupos',
-
     schooling: 'Escolaridad',
-
     level: 'Nivel',
     levels: 'Niveles',
-
     shift: 'Turno',
     shifts: 'Turnos'
-
   },
-
   [INSTITUTION_MODES.DAY_CENTER]: {
-
     person: 'Concurrente',
     people: 'Concurrentes',
-
     group: 'Taller',
     groups: 'Talleres',
-
     schooling: null,
-
     level: null,
     levels: null,
-
     shift: 'Tipo de jornada',
     shifts: 'Tipos de jornada'
-
   },
-
   [INSTITUTION_MODES.CLINIC]: {
-
     person: 'Paciente',
     people: 'Pacientes',
-
     group: 'Espacio',
     groups: 'Espacios',
-
     schooling: null,
-
     level: null,
     levels: null,
-
     shift: null,
     shifts: null
-
   }
-
 };
-
 
 // =============================================================
 // PLANES
 // =============================================================
 
 export const PLAN_OPTIONS = [
-
   {
     key: 'basic',
     name: 'Básico',
     description: 'Conjunto inicial de módulos esenciales.'
   },
-
   {
     key: 'standard',
     name: 'Intermedio',
     description: 'Incluye gestión, seguimiento y reportes.'
   },
-
   {
     key: 'complete',
     name: 'Completo',
     description: 'Acceso a todos los módulos disponibles.'
   },
-
   {
     key: 'custom',
     name: 'Personalizado',
     description: 'Módulos elegidos de forma específica para la institución.'
   }
-
 ];
 
-
 // =============================================================
-// MÓDULOS
+// MÓDULOS ACTIVOS EN CENTRA
 // =============================================================
 
 export const MODULES = [
-
   ['dashboard', 'Inicio'],
-
   ['tasks', 'Tareas'],
-
   ['calendar', 'Agenda'],
-
-  ['groups', 'Mi Aula'],
-
+  ['groups', 'Organización'],
   ['matricula', 'Legajos'],
-
   ['studentFileActions', 'Acciones del legajo'],
-
   ['resources', 'Recursos'],
-
-  ['proyecto', 'Proyecto institucional'],
-
   ['informes_externos', 'Informes externos'],
-
-  ['evaluations', 'Evaluaciones'],
-
-  ['equipo', 'Equipo Técnico'],
-
   ['admin', 'Administración'],
-
   ['personal', 'Personal'],
-
   ['notifications', 'Notificaciones'],
-
   ['users', 'Gestión de usuarios'],
-
-  ['audit', 'Auditoría'],
-
   ['configuracion', 'Configuración']
-
 ];
-
 
 // =============================================================
 // CATÁLOGO DE MÓDULOS
 // =============================================================
 
 export const MODULE_CATALOG = {
-
   dashboard: {
     description: 'Inicio y resumen general',
     required: true,
     category: 'Núcleo'
   },
-
   tasks: {
     description: 'Tareas y pendientes',
     category: 'Gestión'
   },
-
   calendar: {
     description: 'Agenda, eventos y calendario',
     category: 'Gestión'
   },
-
   groups: {
-    description: 'Aulas, grupos y estudiantes',
+    description: 'Aulas, grupos, talleres y estudiantes',
     category: 'Personas'
   },
-
   matricula: {
     description: 'Legajos y matrícula',
     category: 'Personas'
   },
-
   studentFileActions: {
-    description:
-      'Acciones disponibles dentro del legajo del estudiante',
+    description: 'Acciones disponibles dentro del legajo del estudiante',
     category: 'Personas'
   },
-
   resources: {
-    description: 'Recursos institucionales',
+    description: 'Recursos institucionales y generador de notas',
     category: 'Gestión'
   },
-
-  proyecto: {
-    description: 'Proyectos institucionales',
-    category: 'Gestión'
-  },
-
   informes_externos: {
     description: 'Informes para terceros',
     category: 'Documentos'
   },
-
-  evaluations: {
-    description: 'Evaluaciones por áreas',
-    category: 'Seguimiento'
-  },
-
-  equipo: {
-    description: 'Gestión del Equipo Técnico',
-    category: 'Equipos'
-  },
-
   admin: {
-    description: 'Documentación administrativa',
+    description: 'Certificados y constancias administrativas',
     category: 'Administración'
   },
-
   personal: {
     description: 'Gestión del personal',
     category: 'Administración'
   },
-
   notifications: {
     description: 'Avisos y notificaciones',
     category: 'Comunicación'
   },
-
   users: {
     description: 'Usuarios y permisos',
     category: 'Administración'
   },
-
-  audit: {
-    description: 'Auditoría y actividad del sistema',
-    category: 'Administración'
-  },
-
   configuracion: {
     description: 'Configuración de la institución',
     required: true,
     category: 'Núcleo'
   }
-
 };
-
 
 // =============================================================
 // COMPATIBILIDAD CON FEATURES ANTIGUAS
 // =============================================================
 
 const LEGACY_FEATURE_MAP = {
-
   calendar: 'calendar',
-
   tasks: 'tasks',
-
   studentFiles: 'matricula',
-
   resources: 'resources',
-
-  evaluations: 'evaluations',
-
   externalReports: 'informes_externos',
-
   notifications: 'notifications'
-
 };
-
 
 // =============================================================
 // COMPROBAR SI UN MÓDULO ESTÁ ACTIVO
 // =============================================================
 
 export function isModuleEnabled(config, moduleId) {
-
   if (MODULE_CATALOG[moduleId]?.required) {
     return true;
   }
 
   if (
     config?.activeModules &&
-    Object.prototype.hasOwnProperty.call(
-      config.activeModules,
-      moduleId
-    )
+    Object.prototype.hasOwnProperty.call(config.activeModules, moduleId)
   ) {
-
     return config.activeModules[moduleId] !== false;
-
   }
 
-  const legacyKey = Object.entries(
-    LEGACY_FEATURE_MAP
-  ).find(
+  const legacyKey = Object.entries(LEGACY_FEATURE_MAP).find(
     ([, id]) => id === moduleId
   )?.[0];
 
@@ -818,49 +617,31 @@ export function isModuleEnabled(config, moduleId) {
     config?.features &&
     config.features[legacyKey] === false
   ) {
-
     return false;
-
   }
 
   return true;
 }
-
 
 // =============================================================
 // ETIQUETAS DE FEATURES ANTIGUAS
 // =============================================================
 
 export const FEATURE_LABELS = {
-
   calendar: 'Agenda',
-
   tasks: 'Tareas',
-
   studentFiles: 'Legajos',
-
   resources: 'Recursos',
-
-  evaluations: 'Evaluaciones',
-
   externalReports: 'Informes externos',
-
   notifications: 'Notificaciones'
-
 };
-
 
 // =============================================================
 // PERMISOS POR ROL
 // =============================================================
 
 export function defaultPermissionsForRole(role) {
-
-  const all = Object.fromEntries(
-    MODULES.map(
-      ([id]) => [id, false]
-    )
-  );
+  const all = Object.fromEntries(MODULES.map(([id]) => [id, false]));
 
   all.dashboard = true;
   all.tasks = true;
@@ -876,142 +657,67 @@ export function defaultPermissionsForRole(role) {
       'Dirección Inclusión'
     ].includes(role)
   ) {
-
     for (const [id] of MODULES) {
       all[id] = true;
     }
-
   } else if (
-    [
-      'Equipo Técnico',
-      'Equipo Técnico Inclusión'
-    ].includes(role)
+    ['Equipo Técnico', 'Equipo Técnico Inclusión'].includes(role)
   ) {
-
-    [
-      'matricula',
-      'resources',
-      'proyecto',
-      'informes_externos',
-      'evaluations',
-      'equipo',
-      'notifications'
-    ].forEach(
+    ['matricula', 'resources', 'informes_externos', 'notifications'].forEach(
       id => {
         all[id] = true;
       }
     );
-
   } else if (
-    [
-      'Docente',
-      'DAI',
-      'Inclusión',
-      'Profes Especiales'
-    ].includes(role)
+    ['Docente', 'DAI', 'Inclusión', 'Profes Especiales'].includes(role)
   ) {
-
-    [
-      'matricula',
-      'resources',
-      'proyecto',
-      'notifications'
-    ].forEach(
-      id => {
-        all[id] = true;
-      }
-    );
-
-  } else if (
-    role === 'Auxiliar/Preceptor'
-  ) {
-
-    [
-      'matricula',
-      'resources',
-      'notifications'
-    ].forEach(
-      id => {
-        all[id] = true;
-      }
-    );
-
+    ['matricula', 'resources', 'notifications'].forEach(id => {
+      all[id] = true;
+    });
+  } else if (role === 'Auxiliar/Preceptor') {
+    ['matricula', 'resources', 'notifications'].forEach(id => {
+      all[id] = true;
+    });
   }
 
   return all;
 }
 
-
 // =============================================================
 // OBTENER PERMISOS DEL ROL
 // =============================================================
 
-export function getRolePermissions(
-  config,
-  role
-) {
-
-  const defaults =
-    defaultPermissionsForRole(role);
-
+export function getRolePermissions(config, role) {
+  const defaults = defaultPermissionsForRole(role);
   return {
     ...defaults,
     ...(config?.rolePermissions?.[role] || {})
   };
-
 }
-
 
 // =============================================================
 // COMPROBAR ACCESO A MÓDULO
 // =============================================================
 
-export function canAccessModule(
-  config,
-  role,
-  moduleId
-) {
-
-  if (
-    !isModuleEnabled(
-      config,
-      moduleId
-    )
-  ) {
-
+export function canAccessModule(config, role, moduleId) {
+  if (!isModuleEnabled(config, moduleId)) {
     return false;
-
   }
 
-  if (
-    role === 'super-admin' ||
-    role === 'admin'
-  ) {
-
+  if (role === 'super-admin' || role === 'admin') {
     return true;
-
   }
 
-  return !!getRolePermissions(
-    config,
-    role
-  )[moduleId];
-
+  return !!getRolePermissions(config, role)[moduleId];
 }
-
 
 // =============================================================
 // NORMALIZAR CONFIGURACIÓN
 // =============================================================
 
-export function normalizeAppConfig(
-  value = {}
-) {
-
+export function normalizeAppConfig(value = {}) {
   const merged = {
-
     ...DEFAULT_APP_CONFIG,
-
     ...value,
 
     document: {
@@ -1058,61 +764,19 @@ export function normalizeAppConfig(
       ...DEFAULT_APP_CONFIG.eventTypeSettings,
       ...(value.eventTypeSettings || {})
     }
-
   };
 
-
-  // ----------------------------------------------------------
-  // STATUS DE TAREAS
-  // ----------------------------------------------------------
-
-  if (
-    !Array.isArray(
-      merged.taskSettings.statuses
-    )
-  ) {
-
-    merged.taskSettings.statuses =
-      DEFAULT_APP_CONFIG.taskSettings.statuses;
-
+  if (!Array.isArray(merged.taskSettings.statuses)) {
+    merged.taskSettings.statuses = DEFAULT_APP_CONFIG.taskSettings.statuses;
   }
 
-
-  // ----------------------------------------------------------
-  // PRIORIDADES
-  // ----------------------------------------------------------
-
-  if (
-    !Array.isArray(
-      merged.taskSettings.priorities
-    )
-  ) {
-
-    merged.taskSettings.priorities =
-      DEFAULT_APP_CONFIG.taskSettings.priorities;
-
+  if (!Array.isArray(merged.taskSettings.priorities)) {
+    merged.taskSettings.priorities = DEFAULT_APP_CONFIG.taskSettings.priorities;
   }
 
-
-  // ----------------------------------------------------------
-  // TIPOS DE TAREA
-  // ----------------------------------------------------------
-
-  if (
-    !Array.isArray(
-      merged.taskSettings.types
-    )
-  ) {
-
-    merged.taskSettings.types =
-      DEFAULT_APP_CONFIG.taskSettings.types;
-
+  if (!Array.isArray(merged.taskSettings.types)) {
+    merged.taskSettings.types = DEFAULT_APP_CONFIG.taskSettings.types;
   }
-
-
-  // ----------------------------------------------------------
-  // TIPOS DE EVENTO
-  // ----------------------------------------------------------
 
   const defaultEventColors = [
     '#64748b',
@@ -1132,196 +796,78 @@ export function normalizeAppConfig(
     ...(merged.eventTypeSettings || {})
   };
 
-
-  (merged.eventTypes || []).forEach(
-    (type, index) => {
-
-      const id = String(type);
-
-      if (!normalizedEventTypeSettings[id]) {
-
-        normalizedEventTypeSettings[id] = {
-
-          name: id
-            .toLowerCase()
-            .replaceAll('_', ' ')
-            .replace(/\b\w/g, char => char.toUpperCase()),
-
-          color:
-            defaultEventColors[
-              index % defaultEventColors.length
-            ]
-
-        };
-
-      }
-
+  (merged.eventTypes || []).forEach((type, index) => {
+    const id = String(type);
+    if (!normalizedEventTypeSettings[id]) {
+      normalizedEventTypeSettings[id] = {
+        name: id
+          .toLowerCase()
+          .replaceAll('_', ' ')
+          .replace(/\b\w/g, char => char.toUpperCase()),
+        color: defaultEventColors[index % defaultEventColors.length]
+      };
     }
-  );
+  });
 
+  merged.eventTypeSettings = normalizedEventTypeSettings;
 
-  merged.eventTypeSettings =
-    normalizedEventTypeSettings;
-
-
-  // ----------------------------------------------------------
-  // TIPOS DE ASIGNACIÓN
-  // ----------------------------------------------------------
-
-  if (
-    !Array.isArray(
-      merged.taskSettings.assignmentTypes
-    )
-  ) {
-
-    merged.taskSettings.assignmentTypes =
-      DEFAULT_APP_CONFIG.taskSettings.assignmentTypes;
-
+  if (!Array.isArray(merged.taskSettings.assignmentTypes)) {
+    merged.taskSettings.assignmentTypes = DEFAULT_APP_CONFIG.taskSettings.assignmentTypes;
   }
 
-
-  // ----------------------------------------------------------
-  // MÓDULOS
-  // ----------------------------------------------------------
-
-  const defaultActiveModules =
-    Object.fromEntries(
-      MODULES.map(
-        ([id]) => [id, true]
-      )
-    );
-
+  const defaultActiveModules = Object.fromEntries(
+    MODULES.map(([id]) => [id, true])
+  );
 
   const hasExplicitModules =
-    value &&
-    Object.prototype.hasOwnProperty.call(
-      value,
-      'activeModules'
-    );
-
+    value && Object.prototype.hasOwnProperty.call(value, 'activeModules');
 
   merged.activeModules = {
-
     ...defaultActiveModules,
-
-    ...(hasExplicitModules
-      ? (value.activeModules || {})
-      : {})
-
+    ...(hasExplicitModules ? value.activeModules || {} : {})
   };
 
-
-  // ----------------------------------------------------------
-  // COMPATIBILIDAD CON FEATURES VIEJAS
-  // ----------------------------------------------------------
-
-  if (
-    !hasExplicitModules &&
-    value?.features
-  ) {
-
-    Object.entries(
-      LEGACY_FEATURE_MAP
-    ).forEach(
-      ([legacyKey, moduleId]) => {
-
-        if (
-          value.features[legacyKey] === false
-        ) {
-
-          merged.activeModules[
-            moduleId
-          ] = false;
-
-        }
-
+  if (!hasExplicitModules && value?.features) {
+    Object.entries(LEGACY_FEATURE_MAP).forEach(([legacyKey, moduleId]) => {
+      if (value.features[legacyKey] === false) {
+        merged.activeModules[moduleId] = false;
       }
-    );
-
+    });
   }
 
-
-  // ----------------------------------------------------------
-  // MÓDULOS OBLIGATORIOS
-  // ----------------------------------------------------------
-
-  MODULES.forEach(
-    ([id]) => {
-
-      if (
-        MODULE_CATALOG[id]?.required
-      ) {
-
-        merged.activeModules[id] = true;
-
-      }
-
+  MODULES.forEach(([id]) => {
+    if (MODULE_CATALOG[id]?.required) {
+      merged.activeModules[id] = true;
     }
-  );
+  });
 
-
-  // ----------------------------------------------------------
-  // MODO INSTITUCIONAL
-  // ----------------------------------------------------------
-
-  if (
-    !Object.values(INSTITUTION_MODES)
-      .includes(merged.institutionMode)
-  ) {
-
+  if (!Object.values(INSTITUTION_MODES).includes(merged.institutionMode)) {
     merged.institutionMode =
-      DEFAULT_APP_CONFIG.institutionMode ||
-      INSTITUTION_MODES.SCHOOL;
-
+      DEFAULT_APP_CONFIG.institutionMode || INSTITUTION_MODES.SCHOOL;
   }
 
-
-  // ----------------------------------------------------------
-  // ROLES
-  // ----------------------------------------------------------
-
-  const allRoles =
-    Array.from(
-      new Set([
-
-        ...(merged.roles || []),
-
-        ...Object.keys(
-          merged.rolePermissions || {}
-        )
-
-      ])
-    );
-
+  const allRoles = Array.from(
+    new Set([
+      ...(merged.roles || []),
+      ...Object.keys(merged.rolePermissions || {})
+    ])
+  );
 
   const permissions = {
     ...merged.rolePermissions
   };
 
+  allRoles.forEach(role => {
+    permissions[role] = getRolePermissions(
+      {
+        ...merged,
+        rolePermissions: permissions
+      },
+      role
+    );
+  });
 
-  allRoles.forEach(
-    role => {
-
-      permissions[role] =
-        getRolePermissions(
-          {
-            ...merged,
-            rolePermissions: permissions
-          },
-          role
-        );
-
-    }
-  );
-
-
-  merged.rolePermissions =
-    permissions;
-
-
-  // ----------------------------------------------------------
-  // LISTAS
-  // ----------------------------------------------------------
+  merged.rolePermissions = permissions;
 
   [
     'turns',
@@ -1336,211 +882,77 @@ export function normalizeAppConfig(
     'areas',
     'teams',
     'staffWeekdays'
-  ]
-
-  .forEach(
-    key => {
-
-      if (
-        !Array.isArray(
-          merged[key]
-        )
-      ) {
-
-        merged[key] =
-          DEFAULT_APP_CONFIG[key];
-
-      }
-
+  ].forEach(key => {
+    if (!Array.isArray(merged[key])) {
+      merged[key] = DEFAULT_APP_CONFIG[key];
     }
-  );
+  });
 
-
-  // ----------------------------------------------------------
-  // CONFIGURACIÓN DEL PERSONAL
-  // ----------------------------------------------------------
-
-  if (
-    !Array.isArray(merged.staffWeekdays) ||
-    merged.staffWeekdays.length === 0
-  ) {
-
-    merged.staffWeekdays =
-      [...STAFF_WEEKDAYS];
-
+  if (!Array.isArray(merged.staffWeekdays) || merged.staffWeekdays.length === 0) {
+    merged.staffWeekdays = [...STAFF_WEEKDAYS];
   } else {
+    merged.staffWeekdays = merged.staffWeekdays
+      .map(value => (typeof value === 'string' ? value.trim() : ''))
+      .filter(Boolean);
 
-    merged.staffWeekdays =
-      merged.staffWeekdays
-
-        .map(
-          value =>
-            typeof value === 'string'
-              ? value.trim()
-              : ''
-        )
-
-        .filter(Boolean);
-
-
-    if (
-      merged.staffWeekdays.length === 0
-    ) {
-
-      merged.staffWeekdays =
-        [...STAFF_WEEKDAYS];
-
+    if (merged.staffWeekdays.length === 0) {
+      merged.staffWeekdays = [...STAFF_WEEKDAYS];
     }
-
   }
-
 
   if (
     !merged.staffSettings ||
     typeof merged.staffSettings !== 'object' ||
     Array.isArray(merged.staffSettings)
   ) {
-
     merged.staffSettings = {};
-
   }
 
-
-  const staffModeDefaults =
-    getStaffModeConfig(
-      merged
-    );
-
-
+  const staffModeDefaults = getStaffModeConfig(merged);
   merged.staffSettings = {
-
     ...staffModeDefaults,
-
     ...merged.staffSettings
-
   };
 
-
   return merged;
-
 }
-
 
 // =============================================================
 // TIPOS DE EVENTO
 // =============================================================
 
-export function getEventTypeConfig(
-  config,
-  type
-) {
-
-  const normalized =
-    normalizeAppConfig(config);
-
-
-  const fallbackName =
-    String(
-      type ||
-      'GENERAL'
-    )
-
-      .toLowerCase()
-
-      .replaceAll(
-        '_',
-        ' '
-      )
-
-      .replace(
-        /\b\w/g,
-        char =>
-          char.toUpperCase()
-      );
-
+export function getEventTypeConfig(config, type) {
+  const normalized = normalizeAppConfig(config);
+  const fallbackName = String(type || 'GENERAL')
+    .toLowerCase()
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
 
   return (
-
-    normalized
-      .eventTypeSettings?.[type]
-
-    || {
-
+    normalized.eventTypeSettings?.[type] || {
       name: fallbackName,
-
       color: '#64748b'
-
     }
-
   );
-
 }
 
-
-// =============================================================
-// OBTENER CONFIGURACIÓN DE TIPOS DE EVENTO
-// =============================================================
-
-export function getEventTypesConfig(
-  config
-) {
-
-  const normalized =
-    normalizeAppConfig(
-      config
-    );
-
-
-  return (
-
-    normalized.eventTypes || []
-
-  ).map(
-
-    type => ({
-
-      id: type,
-
-      ...(normalized
-        .eventTypeSettings?.[type]
-
-        || {
-
-          name:
-            String(type)
-
-              .toLowerCase()
-
-              .replaceAll(
-                '_',
-                ' '
-              )
-
-              .replace(
-                /\b\w/g,
-                char =>
-                  char.toUpperCase()
-              ),
-
-          color:
-            '#64748b'
-
-        })
-
+export function getEventTypesConfig(config) {
+  const normalized = normalizeAppConfig(config);
+  return (normalized.eventTypes || []).map(type => ({
+    id: type,
+    ...(normalized.eventTypeSettings?.[type] || {
+      name: String(type)
+        .toLowerCase()
+        .replaceAll('_', ' ')
+        .replace(/\b\w/g, char => char.toUpperCase()),
+      color: '#64748b'
     })
-
-  );
-
+  }));
 }
-
 
 // =============================================================
 // COMPATIBILIDAD TEMPORAL SIN STORAGE LOCAL
 // =============================================================
-//
-// Estos exports evitan romper componentes que todavía no migramos.
-// No leen ni escriben localStorage. En el próximo paso, al actualizar
-// ConfiguracionView, los eliminamos por completo.
 
 export function getCachedAppConfig() {
   return normalizeAppConfig({});
@@ -1550,216 +962,56 @@ export function cacheAppConfig(config) {
   return normalizeAppConfig(config);
 }
 
-
 // =============================================================
 // APLICAR IDENTIDAD VISUAL
 // =============================================================
 
-export function applyBranding(
-  config
-) {
+export function applyBranding(config) {
+  const c = normalizeAppConfig(config);
 
-  const c =
-    normalizeAppConfig(
-      config
-    );
-
-
-  if (
-    typeof document === 'undefined'
-  ) {
-
+  if (typeof document === 'undefined') {
     return;
-
   }
 
+  const root = document.documentElement;
+  const palette = PALETTES[c.palette] || null;
+  const primary = palette?.primary || c.primaryColor;
+  const secondary = palette?.secondary || c.secondaryColor;
+  const background = palette?.background || c.backgroundColor;
+  const text = palette?.text || c.textColor;
 
-  const root =
-    document.documentElement;
+  root.style.setProperty('--app-primary', primary);
+  root.style.setProperty('--app-secondary', secondary);
+  root.style.setProperty('--app-background', background);
+  root.style.setProperty('--app-text', text);
+  root.style.setProperty('--app-primary-soft', `${primary}18`);
+  root.style.setProperty('--app-secondary-soft', `${secondary}18`);
 
-
-  const palette =
-    PALETTES[
-      c.palette
-    ] || null;
-
-
-  const primary =
-    palette?.primary ||
-    c.primaryColor;
-
-
-  const secondary =
-    palette?.secondary ||
-    c.secondaryColor;
-
-
-  const background =
-    palette?.background ||
-    c.backgroundColor;
-
-
-  const text =
-    palette?.text ||
-    c.textColor;
-
-
-  root.style.setProperty(
-    '--app-primary',
-    primary
-  );
-
-
-  root.style.setProperty(
-    '--app-secondary',
-    secondary
-  );
-
-
-  root.style.setProperty(
-    '--app-background',
-    background
-  );
-
-
-  root.style.setProperty(
-    '--app-text',
-    text
-  );
-
-
-  root.style.setProperty(
-    '--app-primary-soft',
-    `${primary}18`
-  );
-
-
-  root.style.setProperty(
-    '--app-secondary-soft',
-    `${secondary}18`
-  );
-
-
-  let style =
-    document.getElementById(
-      'app-dynamic-branding'
-    );
-
-
+  let style = document.getElementById('app-dynamic-branding');
   if (!style) {
-
-    style =
-      document.createElement(
-        'style'
-      );
-
-    style.id =
-      'app-dynamic-branding';
-
-    document.head.appendChild(
-      style
-    );
-
+    style = document.createElement('style');
+    style.id = 'app-dynamic-branding';
+    document.head.appendChild(style);
   }
-
 
   style.textContent = `
-
-    .bg-violet-800 {
-      background-color:
-        var(--app-primary)
-        !important;
-    }
-
-    .bg-violet-700 {
-      background-color:
-        var(--app-primary)
-        !important;
-    }
-
-    .bg-violet-600 {
-      background-color:
-        var(--app-primary)
-        !important;
-    }
-
-    .text-violet-600 {
-      color:
-        var(--app-primary)
-        !important;
-    }
-
-    .text-violet-700 {
-      color:
-        var(--app-primary)
-        !important;
-    }
-
-    .text-violet-900 {
-      color:
-        color-mix(
-          in srgb,
-          var(--app-primary) 72%,
-          #111827
-        )
-        !important;
-    }
-
-    .bg-violet-50 {
-      background-color:
-        var(--app-primary-soft)
-        !important;
-    }
-
-    .border-violet-100 {
-      border-color:
-        color-mix(
-          in srgb,
-          var(--app-primary) 18%,
-          white
-        )
-        !important;
-    }
-
-    .border-violet-600 {
-      border-color:
-        var(--app-primary)
-        !important;
-    }
-
-    .text-orange-500 {
-      color:
-        var(--app-secondary)
-        !important;
-    }
-
-    .text-orange-600 {
-      color:
-        var(--app-secondary)
-        !important;
-    }
-
-    .bg-orange-500 {
-      background-color:
-        var(--app-secondary)
-        !important;
-    }
-
-    .bg-orange-50 {
-      background-color:
-        var(--app-secondary-soft)
-        !important;
-    }
-
+    .bg-violet-800 { background-color: var(--app-primary) !important; }
+    .bg-violet-700 { background-color: var(--app-primary) !important; }
+    .bg-violet-600 { background-color: var(--app-primary) !important; }
+    .text-violet-600 { color: var(--app-primary) !important; }
+    .text-violet-700 { color: var(--app-primary) !important; }
+    .text-violet-900 { color: color-mix(in srgb, var(--app-primary) 72%, #111827) !important; }
+    .bg-violet-50 { background-color: var(--app-primary-soft) !important; }
+    .border-violet-100 { border-color: color-mix(in srgb, var(--app-primary) 18%, white) !important; }
+    .border-violet-600 { border-color: var(--app-primary) !important; }
+    .text-orange-500 { color: var(--app-secondary) !important; }
+    .text-orange-600 { color: var(--app-secondary) !important; }
+    .bg-orange-500 { background-color: var(--app-secondary) !important; }
+    .bg-orange-50 { background-color: var(--app-secondary-soft) !important; }
   `;
 
-
-  document.title =
-    c.portalTitle ||
-    c.appName;
-
+  document.title = c.portalTitle || c.appName;
 }
-
 
 // =============================================================
 // NOMBRE DE LA INSTITUCIÓN
@@ -1767,7 +1019,6 @@ export function applyBranding(
 
 export function getInstitutionName(config = {}) {
   return (
-    normalizeAppConfig(config).institutionName ||
-    'Mi Institución'
+    normalizeAppConfig(config).institutionName || 'Mi Institución'
   );
 }
