@@ -22,6 +22,7 @@ import {
   GraduationCap,
   ListTodo,
 } from 'lucide-react';
+import { useStudents, useStaff } from '../data/hooks';
 import {
   collection,
   query,
@@ -144,9 +145,61 @@ export function DashboardView({
   const [birthdayModalType, setBirthdayModalType] = useState('students');
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
-  const [studentBirthdays, setStudentBirthdays] = useState([]);
-  const [staffBirthdays, setStaffBirthdays] = useState([]);
-  const [ungroupedCount, setUngroupedCount] = useState(0);
+  const { students: activeStudents } = useStudents(
+    canUseModule('matricula') ? db : null,
+    appId,
+    { activeOnly: true }
+  );
+
+  const { staff: activeStaff } = useStaff(
+    canUseModule('personal') ? db : null,
+    appId,
+    { activeOnly: true }
+  );
+
+  const studentBirthdays = useMemo(() => {
+    if (!canUseModule('matricula')) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+
+    return activeStudents
+      .map(person => {
+        const nextBirthday = getNextBirthday(person.birthDate, today);
+        return nextBirthday ? { ...person, nextBirthday } : null;
+      })
+      .filter(person => person && person.nextBirthday >= today && person.nextBirthday <= nextWeek)
+      .sort((a, b) => a.nextBirthday - b.nextBirthday);
+  }, [activeStudents, canUseModule]);
+
+  const ungroupedCount = useMemo(() => {
+    if (!canUseModule('matricula')) return 0;
+    return activeStudents.filter(person => {
+      const hasNewAssignment =
+        Array.isArray(person.groupAssignments) &&
+        person.groupAssignments.some(a => a.status === 'active' && !a.validTo);
+      const hasLegacyGroup =
+        Boolean(person.groupMorning || person.groupAfternoon || person.daiMorning || person.daiAfternoon);
+      return !hasNewAssignment && !hasLegacyGroup;
+    }).length;
+  }, [activeStudents, canUseModule]);
+
+  const staffBirthdays = useMemo(() => {
+    if (!canUseModule('personal')) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+
+    return activeStaff
+      .map(person => {
+        const nextBirthday = getNextBirthday(person.birthDate, today);
+        return nextBirthday ? { ...person, nextBirthday } : null;
+      })
+      .filter(person => person && person.nextBirthday >= today && person.nextBirthday <= nextWeek)
+      .sort((a, b) => a.nextBirthday - b.nextBirthday);
+  }, [activeStaff, canUseModule]);
   const [tutorialTab, setTutorialTab] = useState('inicio');
   const [noticeMessage, setNoticeMessage] = useState('');
   const [noteError, setNoteError] = useState('');
@@ -237,7 +290,7 @@ export function DashboardView({
       });
   }, [tasks, user?.id, isSuperAdmin, role, appConfig]);
 
-  useEffect(() => {
+ useEffect(() => {
     if (!db || !appId || !user?.id) return undefined;
     const unsubscribers = [];
 
@@ -258,57 +311,6 @@ export function DashboardView({
       }));
     } else {
       setNotes([]);
-    }
-
-    if (canUseModule('matricula')) {
-      const studentsQuery = query(
-        collection(db, 'artifacts', appId, 'public', 'data', 'students'),
-        where('isActive', '==', true)
-      );
-      unsubscribers.push(onSnapshot(studentsQuery, snapshot => {
-        const allStudents = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const nextWeek = new Date(today);
-        nextWeek.setDate(today.getDate() + 7);
-        const birthdays = allStudents
-          .map(person => {
-            const nextBirthday = getNextBirthday(person.birthDate, today);
-            return nextBirthday ? { ...person, nextBirthday } : null;
-          })
-          .filter(person => person && person.nextBirthday >= today && person.nextBirthday <= nextWeek)
-          .sort((a, b) => a.nextBirthday - b.nextBirthday);
-        setStudentBirthdays(birthdays);
-        setUngroupedCount(
-          allStudents.filter(person =>
-            !person.groupMorning && !person.groupAfternoon && !person.daiMorning && !person.daiAfternoon
-          ).length
-        );
-      }, error => console.error('No se pudieron cargar los cumpleaños de estudiantes:', error)));
-    } else {
-      setStudentBirthdays([]);
-      setUngroupedCount(0);
-    }
-
-    if (canUseModule('personal')) {
-      const staffQuery = query(collection(db, 'artifacts', appId, 'public', 'data', 'staff_records'));
-      unsubscribers.push(onSnapshot(staffQuery, snapshot => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const nextWeek = new Date(today);
-        nextWeek.setDate(today.getDate() + 7);
-        const birthdays = snapshot.docs
-          .map(item => {
-            const person = { id: item.id, ...item.data() };
-            const nextBirthday = getNextBirthday(person.birthDate, today);
-            return nextBirthday ? { ...person, nextBirthday } : null;
-          })
-          .filter(person => person && person.nextBirthday >= today && person.nextBirthday <= nextWeek)
-          .sort((a, b) => a.nextBirthday - b.nextBirthday);
-        setStaffBirthdays(birthdays);
-      }, error => console.error('No se pudieron cargar los cumpleaños del personal:', error)));
-    } else {
-      setStaffBirthdays([]);
     }
 
     if (canUseModule('calendar')) {
