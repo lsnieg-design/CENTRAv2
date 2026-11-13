@@ -1,4 +1,4 @@
-import { normalizeAppConfig } from '../config';
+import { normalizeAppConfig, canAccessModule } from '../config';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   User,
@@ -7,7 +7,6 @@ import {
   Users,
   Grid,
   ChevronRight,
-  ChevronLeft,
   Printer,
   MessageSquare,
   Send,
@@ -25,7 +24,8 @@ import {
   CalendarDays,
   Clock3,
   ExternalLink,
-  Trash2
+  Trash2,
+  Check
 } from 'lucide-react';
 import {
   doc,
@@ -36,37 +36,24 @@ import {
   orderBy,
   onSnapshot,
   addDoc,
-  serverTimestamp,
-  where
+  serverTimestamp
 } from 'firebase/firestore';
 import { createGroup, updateGroup } from '../data/groups';
 import {
   createStaffGroupAssignment,
   closeStaffGroupAssignment,
-  getStaffGroupAssignmentsForGroup
+  getStaffGroupAssignmentsForGroup,
+  createStudentGroupAssignment,
+  closeStudentGroupAssignment
 } from '../data/assignments';
 import { COLLECTIONS } from '../data/collections';
+import { useStudents, useStaff } from '../data/hooks';
 
 const BASE = (db, appId, collectionName) =>
-  collection(
-    db,
-    'artifacts',
-    appId,
-    'public',
-    'data',
-    collectionName
-  );
+  collection(db, 'artifacts', appId, 'public', 'data', collectionName);
 
 const DOC = (db, appId, collectionName, id) =>
-  doc(
-    db,
-    'artifacts',
-    appId,
-    'public',
-    'data',
-    collectionName,
-    id
-  );
+  doc(db, 'artifacts', appId, 'public', 'data', collectionName, id);
 
 const normalizeText = value =>
   String(value ?? '')
@@ -77,29 +64,13 @@ const normalizeText = value =>
 
 const calculateAge = birthDate => {
   if (!birthDate) return null;
-
   try {
-    const birth = new Date(birthDate);
+    const raw = String(birthDate);
+    const birth = new Date(raw.includes('T') ? raw : `${raw}T12:00:00`);
     const today = new Date();
-
-    let age =
-      today.getFullYear() -
-      birth.getFullYear();
-
-    const monthDifference =
-      today.getMonth() -
-      birth.getMonth();
-
-    if (
-      monthDifference < 0 ||
-      (
-        monthDifference === 0 &&
-        today.getDate() < birth.getDate()
-      )
-    ) {
-      age--;
-    }
-
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
     return age;
   } catch {
     return null;
@@ -108,20 +79,11 @@ const calculateAge = birthDate => {
 
 const formatDate = value => {
   if (!value) return '';
-
   try {
-    if (value?.toDate) {
-      return value
-        .toDate()
-        .toLocaleDateString('es-AR');
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return '';
-    }
-
+    if (value?.toDate) return value.toDate().toLocaleDateString('es-AR');
+    const raw = String(value);
+    const date = new Date(raw.includes('T') ? raw : `${raw}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleDateString('es-AR');
   } catch {
     return '';
@@ -130,16 +92,9 @@ const formatDate = value => {
 
 const formatDateTime = value => {
   if (!value) return '';
-
   try {
-    const date = value?.toDate
-      ? value.toDate()
-      : new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return '';
-    }
-
+    const date = value?.toDate ? value.toDate() : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
     return `${date.toLocaleDateString('es-AR')} · ${date.toLocaleTimeString('es-AR', {
       hour: '2-digit',
       minute: '2-digit'
@@ -159,32 +114,19 @@ const escapeHtml = value =>
 
 const getAssignmentPlacements = assignment => {
   if (!assignment) return [];
-
-  if (
-    Array.isArray(assignment.placements) &&
-    assignment.placements.length > 0
-  ) {
+  if (Array.isArray(assignment.placements) && assignment.placements.length > 0) {
     return assignment.placements;
   }
-
   const groupId = assignment.groupId || '';
-  const turnIds = Array.isArray(assignment.turnIds)
-    ? assignment.turnIds
-    : [];
-
+  const turnIds = Array.isArray(assignment.turnIds) ? assignment.turnIds : [];
   if (!groupId) return [];
-
-  return turnIds.map(turnId => ({
-    groupId,
-    turnId
-  }));
+  if (turnIds.length === 0) return [{ groupId, turnId: '' }];
+  return turnIds.map(turnId => ({ groupId, turnId }));
 };
 
 const getCurrentAssignment = student =>
   student?.groupAssignments?.find(
-    assignment =>
-      assignment.status === 'active' &&
-      !assignment.validTo
+    assignment => assignment.status === 'active' && !assignment.validTo
   ) || null;
 
 const INCIDENT_TYPES = [
@@ -192,57 +134,49 @@ const INCIDENT_TYPES = [
     label: 'Trabajó muy bien',
     emoji: '🌟',
     severity: 'positive',
-    className:
-      'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+    className: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
   },
   {
     label: 'Buena disposición',
     emoji: '😊',
     severity: 'positive',
-    className:
-      'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+    className: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
   },
   {
     label: 'Logro / aprendizaje',
     emoji: '🏆',
     severity: 'positive',
-    className:
-      'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100'
+    className: 'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100'
   },
   {
     label: 'Participación',
     emoji: '🙌',
     severity: 'positive',
-    className:
-      'bg-cyan-50 border-cyan-200 text-cyan-800 hover:bg-cyan-100'
+    className: 'bg-cyan-50 border-cyan-200 text-cyan-800 hover:bg-cyan-100'
   },
   {
     label: 'Crisis / desregulación',
     emoji: '😭',
     severity: 'medium',
-    className:
-      'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100'
+    className: 'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100'
   },
   {
     label: 'Conflicto / agresión',
     emoji: '✊',
     severity: 'high',
-    className:
-      'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
+    className: 'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
   },
   {
     label: 'Fuga / intento',
     emoji: '🏃',
     severity: 'high',
-    className:
-      'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
+    className: 'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
   },
   {
     label: 'Ausentismo',
     emoji: '🏠',
     severity: 'medium',
-    className:
-      'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100'
+    className: 'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100'
   }
 ];
 
@@ -253,86 +187,84 @@ export function GroupsView({
   setActiveTab,
   onSelectStudent
 }) {
-  const [students, setStudents] = useState([]);
-  const [staffList, setStaffList] = useState([]);
+  const { students } = useStudents(db, appId, { activeOnly: true });
+  const { staff: staffList } = useStaff(db, appId, { activeOnly: true });
+
   const [groups, setGroups] = useState([]);
   const [staffAssignments, setStaffAssignments] = useState([]);
   const [institutionConfig, setInstitutionConfig] = useState(() =>
     normalizeAppConfig({})
   );
 
-  const [selectedTurnId, setSelectedTurnId] =
-    useState('all');
-  const [selectedGroupDetails, setSelectedGroupDetails] =
-    useState(null);
-  const [selectedStudent, setSelectedStudent] =
-    useState(null);
-  const [showBitacoraModal, setShowBitacoraModal] =
-    useState(null);
-  const [bitacoraEntries, setBitacoraEntries] =
-    useState([]);
-  const [groupMessages, setGroupMessages] =
-    useState({});
-  const [editingGroup, setEditingGroup] =
-    useState(null);
-  const [staffSelections, setStaffSelections] =
-    useState({});
-  const [updatingGroup, setUpdatingGroup] =
-    useState(false);
+  const [selectedTurnId, setSelectedTurnId] = useState('all');
+  const [selectedGroupDetails, setSelectedGroupDetails] = useState(null);
+  const [managingMembersGroup, setManagingMembersGroup] = useState(null);
+  const [savingMemberId, setSavingMemberId] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showBitacoraModal, setShowBitacoraModal] = useState(null);
+  const [bitacoraEntries, setBitacoraEntries] = useState([]);
+  const [groupMessages, setGroupMessages] = useState({});
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [staffSelections, setStaffSelections] = useState({});
+  const [updatingGroup, setUpdatingGroup] = useState(false);
   const [newNote, setNewNote] = useState('');
-  const [isWriting, setIsWriting] =
-    useState(false);
-  const [savingIncident, setSavingIncident] =
-    useState(false);
-  const [editingBitacoraEntry, setEditingBitacoraEntry] =
-    useState(null);
-  const [editingBitacoraText, setEditingBitacoraText] =
-    useState('');
-  const [showPrintOptions, setShowPrintOptions] =
-    useState(false);
-  const [groupsToPrint, setGroupsToPrint] =
-    useState([]);
-  const [printMode, setPrintMode] =
-    useState('students');
-  const [searchTerm, setSearchTerm] =
-    useState('');
+  const [isWriting, setIsWriting] = useState(false);
+  const [savingIncident, setSavingIncident] = useState(false);
+  const [editingBitacoraEntry, setEditingBitacoraEntry] = useState(null);
+  const [editingBitacoraText, setEditingBitacoraText] = useState('');
+  const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [groupsToPrint, setGroupsToPrint] = useState([]);
+  const [printMode, setPrintMode] = useState('students');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const institutionMode =
-    institutionConfig?.institutionMode ||
-    'school';
+  const institutionMode = institutionConfig?.institutionMode || 'school';
+  const customLabels = institutionConfig?.labels || {};
 
-  const personLabel =
-    institutionMode === 'day_center'
+  const personLabel = (
+    customLabels.person && customLabels.person !== 'Estudiante'
+      ? customLabels.person
+      : institutionMode === 'day_center'
       ? 'concurrente'
       : institutionMode === 'clinic'
       ? 'paciente'
-      : 'estudiante';
+      : customLabels.person || 'estudiante'
+  ).toLowerCase();
 
-  const personLabelPlural =
-    institutionMode === 'day_center'
+  const personLabelPlural = (
+    customLabels.people && customLabels.people !== 'Estudiantes'
+      ? customLabels.people
+      : institutionMode === 'day_center'
       ? 'concurrentes'
       : institutionMode === 'clinic'
       ? 'pacientes'
-      : 'estudiantes';
+      : customLabels.people || 'estudiantes'
+  ).toLowerCase();
 
-  const groupLabel =
-    institutionMode === 'day_center'
-      ? 'taller / grupo'
+  const groupLabel = (
+    customLabels.group && customLabels.group !== 'Grupo'
+      ? customLabels.group
+      : institutionMode === 'day_center'
+      ? 'taller'
       : institutionMode === 'clinic'
-      ? 'espacio / equipo'
-      : 'grupo';
+      ? 'espacio'
+      : customLabels.group || 'grupo'
+  ).toLowerCase();
 
-  const groupLabelPlural =
-    institutionMode === 'day_center'
-      ? 'talleres / grupos'
+  const groupLabelPlural = (
+    customLabels.groups && customLabels.groups !== 'Grupos'
+      ? customLabels.groups
+      : institutionMode === 'day_center'
+      ? 'talleres'
       : institutionMode === 'clinic'
-      ? 'espacios / equipos'
-      : 'grupos';
+      ? 'espacios'
+      : customLabels.groups || 'grupos'
+  ).toLowerCase();
 
   const isManagement =
     user?.rol === 'admin' ||
     user?.rol === 'super-admin' ||
     user?.accessRoleId === 'admin' ||
+    canAccessModule(institutionConfig, user?.role, 'admin') ||
     [
       'admin',
       'super-admin',
@@ -343,29 +275,19 @@ export function GroupsView({
 
   const scheduleTypeOptions = useMemo(
     () =>
-      (Array.isArray(
-        institutionConfig.scheduleTypes
-      )
+      (Array.isArray(institutionConfig.scheduleTypes)
         ? institutionConfig.scheduleTypes
         : []
       ).map((item, index) => {
         if (typeof item === 'string') {
           return {
-            id: item
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_'),
+            id: item.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
             name: item
           };
         }
-
         return {
-          id:
-            item?.id ||
-            `jornada_${index + 1}`,
-          name:
-            item?.name ||
-            item?.label ||
-            `Jornada ${index + 1}`
+          id: item?.id || `jornada_${index + 1}`,
+          name: item?.name || item?.label || `Jornada ${index + 1}`
         };
       }),
     [institutionConfig.scheduleTypes]
@@ -383,15 +305,9 @@ export function GroupsView({
             name: turn
           };
         }
-
         return {
-          id:
-            turn?.id ||
-            `turno_${index + 1}`,
-          name:
-            turn?.name ||
-            turn?.label ||
-            `Turno ${index + 1}`
+          id: turn?.id || `turno_${index + 1}`,
+          name: turn?.name || turn?.label || `Turno ${index + 1}`
         };
       }),
     [institutionConfig.turns]
@@ -405,357 +321,176 @@ export function GroupsView({
       ).map((role, index) => {
         if (typeof role === 'string') {
           return {
-            id: role
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_'),
+            id: role.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
             name: role,
             requiredForGroup: false
           };
         }
-
         return {
-          id:
-            role?.id ||
-            `rol_${index + 1}`,
-          name:
-            role?.name ||
-            role?.label ||
-            `Rol ${index + 1}`,
-          requiredForGroup:
-            Boolean(role?.requiredForGroup)
+          id: role?.id || `rol_${index + 1}`,
+          name: role?.name || role?.label || `Rol ${index + 1}`,
+          requiredForGroup: Boolean(role?.requiredForGroup)
         };
       }),
     [institutionConfig.roles]
   );
 
   const defaultGroupRole =
-    roleOptions.find(
-      role => role.requiredForGroup
-    ) ||
+    roleOptions.find(role => role.requiredForGroup) ||
     roleOptions[0] ||
     null;
 
   const normalizeRoles = roles => {
-    const result = Array.isArray(roles)
-      ? [...roles]
-      : [];
-
-    if (
-      result.length === 0 &&
-      defaultGroupRole?.id
-    ) {
-      result.unshift(
-        defaultGroupRole.id
-      );
+    const result = Array.isArray(roles) ? [...roles] : [];
+    if (result.length === 0 && defaultGroupRole?.id) {
+      result.unshift(defaultGroupRole.id);
     }
-
     return [...new Set(result)];
   };
 
   const getTurnLabel = turnId =>
+    turnOptions.find(turn => turn.id === turnId)?.name ||
     turnOptions.find(
-      turn => turn.id === turnId
+      turn => normalizeText(turn.name) === normalizeText(turnId)
     )?.name ||
     turnId ||
     '';
 
   const getRoleLabel = roleId =>
-    roleOptions.find(
-      role => role.id === roleId
-    )?.name ||
+    roleOptions.find(role => role.id === roleId)?.name ||
     roleId ||
     'Rol';
 
   const getScheduleTypeLabel = scheduleType =>
-    scheduleTypeOptions.find(
-      item => item.id === scheduleType
-    )?.name ||
+    scheduleTypeOptions.find(item => item.id === scheduleType)?.name ||
     scheduleType ||
     '';
+
+  // Agregar o quitar un estudiante/concurrente de un grupo/taller directamente desde Organización
+  const handleToggleStudentInGroup = async (student, group, turnId = '') => {
+    if (!db || !appId || !student?.personId || !group?.id) return;
+    setSavingMemberId(student.personId);
+
+    try {
+      const currentAssignment = getCurrentAssignment(student);
+      const existingPlacements = getAssignmentPlacements(currentAssignment);
+      const effectiveTurnId =
+        turnId ||
+        (Array.isArray(group.turnIds) && group.turnIds[0]) ||
+        turnOptions[0]?.id ||
+        '';
+
+      const alreadyInGroup = existingPlacements.some(
+        p =>
+          p.groupId === group.id &&
+          (!turnId || p.turnId === effectiveTurnId)
+      );
+
+      let nextPlacements = [];
+      if (alreadyInGroup) {
+        nextPlacements = existingPlacements.filter(
+          p =>
+            !(
+              p.groupId === group.id &&
+              (!turnId || p.turnId === effectiveTurnId)
+            )
+        );
+      } else {
+        nextPlacements = [
+          ...existingPlacements,
+          { groupId: group.id, turnId: effectiveTurnId }
+        ];
+      }
+
+      if (currentAssignment?.id) {
+        await closeStudentGroupAssignment(db, appId, currentAssignment.id);
+      }
+
+      if (nextPlacements.length > 0) {
+        const defaultSchedule =
+          currentAssignment?.scheduleType ||
+          (nextPlacements.length > 1
+            ? scheduleTypeOptions.find(s =>
+                normalizeText(s.name).includes('doble') ||
+                normalizeText(s.name).includes('completa')
+              )?.id
+            : scheduleTypeOptions[0]?.id) ||
+          '';
+
+        await createStudentGroupAssignment(db, appId, {
+          studentId: student.personId,
+          placements: nextPlacements,
+          scheduleType: defaultSchedule
+        });
+      }
+    } catch (error) {
+      console.error('Error al actualizar integrante del grupo:', error);
+      alert(`No se pudo actualizar la asignación: ${error.message}`);
+    } finally {
+      setSavingMemberId(null);
+    }
+  };
 
   useEffect(() => {
     if (!db || !appId) return undefined;
 
-    let studentPeople = [];
-    let studentProfiles = [];
-    let studentAssignments = [];
-
-    const unsubs = [];
-
-    const rebuildStudents = () => {
-      const peopleById = new Map(
-        studentPeople.map(person => [
-          person.id,
-          person
-        ])
-      );
-
-      const result = studentProfiles.map(
-        profile => {
-          const person =
-            peopleById.get(
-              profile.personId
-            ) || {};
-
-          const assignments =
-            studentAssignments.filter(
-              item =>
-                item.studentId ===
-                  (profile.personId ||
-                    person.id) &&
-                item.status !== 'closed' &&
-                !item.validTo
-            );
-
-          return {
-            ...person,
-            ...profile,
-            id:
-              profile.personId ||
-              person.id,
-            personId:
-              profile.personId ||
-              person.id,
-            firstName:
-              profile.firstName ||
-              person.firstName ||
-              '',
-            lastName:
-              profile.lastName ||
-              person.lastName ||
-              '',
-            fullName:
-              profile.fullName ||
-              person.fullName ||
-              `${person.firstName || ''} ${person.lastName || ''}`.trim(),
-            groupAssignments:
-              assignments
-          };
-        }
-      );
-
-      setStudents(result);
-    };
-
-    unsubs.push(
+    const unsubs = [
       onSnapshot(
-        doc(
-          db,
-          'artifacts',
-          appId,
-          'public',
-          'data',
-          'config',
-          'institution'
-        ),
+        doc(db, 'artifacts', appId, 'public', 'data', 'config', 'institution'),
         snapshot => {
           setInstitutionConfig(
-            normalizeAppConfig(
-              snapshot.exists()
-                ? snapshot.data()
-                : {}
-            )
+            normalizeAppConfig(snapshot.exists() ? snapshot.data() : {})
           );
         }
-      )
-    );
-
-    unsubs.push(
+      ),
+      onSnapshot(BASE(db, appId, COLLECTIONS.GROUPS), snapshot => {
+        setGroups(
+          snapshot.docs
+            .map(item => ({ id: item.id, ...item.data() }))
+            .filter(group => group.active !== false)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        );
+      }),
       onSnapshot(
-        BASE(
-          db,
-          appId,
-          COLLECTIONS.GROUPS
-        ),
-        snapshot => {
-          setGroups(
-            snapshot.docs
-              .map(item => ({
-                id: item.id,
-                ...item.data()
-              }))
-              .filter(
-                group =>
-                  group.active !== false
-              )
-              .sort((a, b) =>
-                (a.name || '').localeCompare(
-                  b.name || ''
-                )
-              )
-          );
-        }
-      )
-    );
-
-    unsubs.push(
-      onSnapshot(
-        query(
-          BASE(
-            db,
-            appId,
-            COLLECTIONS.PEOPLE
-          ),
-          where('type', '==', 'staff')
-        ),
-        snapshot => {
-          setStaffList(
-            snapshot.docs.map(item => ({
-              id: item.id,
-              ...item.data()
-            }))
-          );
-        }
-      )
-    );
-
-    unsubs.push(
-      onSnapshot(
-        query(
-          BASE(
-            db,
-            appId,
-            COLLECTIONS.PEOPLE
-          ),
-          where('type', '==', 'student')
-        ),
-        snapshot => {
-          studentPeople = snapshot.docs.map(
-            item => ({
-              id: item.id,
-              ...item.data()
-            })
-          );
-          rebuildStudents();
-        }
-      )
-    );
-
-    unsubs.push(
-      onSnapshot(
-        BASE(
-          db,
-          appId,
-          COLLECTIONS.STUDENT_PROFILES
-        ),
-        snapshot => {
-          studentProfiles = snapshot.docs.map(
-            item => ({
-              id: item.id,
-              ...item.data()
-            })
-          );
-          rebuildStudents();
-        }
-      )
-    );
-
-    unsubs.push(
-      onSnapshot(
-        BASE(
-          db,
-          appId,
-          COLLECTIONS.STUDENT_GROUP_ASSIGNMENTS
-        ),
-        snapshot => {
-          studentAssignments = snapshot.docs.map(
-            item => ({
-              id: item.id,
-              ...item.data()
-            })
-          );
-          rebuildStudents();
-        }
-      )
-    );
-
-    unsubs.push(
-      onSnapshot(
-        BASE(
-          db,
-          appId,
-          COLLECTIONS.STAFF_GROUP_ASSIGNMENTS
-        ),
+        BASE(db, appId, COLLECTIONS.STAFF_GROUP_ASSIGNMENTS),
         snapshot => {
           setStaffAssignments(
-            snapshot.docs.map(item => ({
-              id: item.id,
-              ...item.data()
-            }))
+            snapshot.docs.map(item => ({ id: item.id, ...item.data() }))
           );
         }
-      )
-    );
-
-    unsubs.push(
+      ),
       onSnapshot(
-        query(
-          BASE(
-            db,
-            appId,
-            COLLECTIONS.STUDENT_BITACORA
-          ),
-          orderBy('date', 'desc')
-        ),
+        query(BASE(db, appId, COLLECTIONS.STUDENT_BITACORA), orderBy('date', 'desc')),
         snapshot => {
           setBitacoraEntries(
-            snapshot.docs.map(item => ({
-              id: item.id,
-              ...item.data()
-            }))
+            snapshot.docs.map(item => ({ id: item.id, ...item.data() }))
           );
         }
-      )
-    );
-
-    unsubs.push(
+      ),
       onSnapshot(
-        query(
-          BASE(
-            db,
-            appId,
-            'group_mural'
-          ),
-          orderBy('createdAt', 'desc')
-        ),
+        query(BASE(db, appId, 'group_mural'), orderBy('createdAt', 'desc')),
         snapshot => {
-          const messages =
-            snapshot.docs.map(item => ({
-              id: item.id,
-              ...item.data()
-            }));
-
-          const grouped = messages.reduce(
-            (acc, message) => {
-              const key =
-                message.groupId ||
-                message.groupName ||
-                'sin-grupo';
-
-              if (!acc[key]) {
-                acc[key] = [];
-              }
-
-              acc[key].push(message);
-              return acc;
-            },
-            {}
-          );
-
+          const messages = snapshot.docs.map(item => ({
+            id: item.id,
+            ...item.data()
+          }));
+          const grouped = messages.reduce((acc, message) => {
+            const key = message.groupId || message.groupName || 'sin-grupo';
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(message);
+            return acc;
+          }, {});
           setGroupMessages(grouped);
         }
       )
-    );
+    ];
 
     return () => {
       unsubs.forEach(unsubscribe => {
-        if (typeof unsubscribe === 'function') {
-          unsubscribe();
-        }
+        if (typeof unsubscribe === 'function') unsubscribe();
       });
     };
   }, [db, appId]);
-
   const gruposFinales = useMemo(() => {
     const normalizedSearch =
       normalizeText(searchTerm);
@@ -2321,48 +2056,31 @@ export function GroupsView({
           VISTA DEL GRUPO
       =========================================== */}
 
+     {/* ==========================================
+          VISTA DEL GRUPO
+      =========================================== */}
+
       {selectedGroupDetails && (
         <GroupDetailModal
           group={
+            gruposFinales.find(g => g.id === selectedGroupDetails.id) ||
             selectedGroupDetails
           }
-          institutionMode={
-            institutionMode
-          }
-          personLabelPlural={
-            personLabelPlural
-          }
-          messages={
-            sortedGroupMessages
-          }
-          onClose={() =>
-            setSelectedGroupDetails(
-              null
-            )
-          }
-          onOpenStudent={student =>
-            setSelectedStudent(
-              student
-            )
-          }
+          institutionMode={institutionMode}
+          groupLabel={groupLabel}
+          personLabelPlural={personLabelPlural}
+          messages={sortedGroupMessages}
+          onClose={() => setSelectedGroupDetails(null)}
+          onOpenStudent={student => setSelectedStudent(student)}
           onOpenBitacora={student => {
-            setShowBitacoraModal(
-              student
-            );
-            setSelectedGroupDetails(
-              null
-            );
+            setShowBitacoraModal(student);
+            setSelectedGroupDetails(null);
           }}
           onAddComment={event =>
-            handleAddGroupComment(
-              event,
-              selectedGroupDetails
-            )
+            handleAddGroupComment(event, selectedGroupDetails)
           }
           onOpenDrive={() => {
-            if (
-              selectedGroupDetails.institucionalDrive
-            ) {
+            if (selectedGroupDetails.institucionalDrive) {
               window.open(
                 selectedGroupDetails.institucionalDrive,
                 '_blank',
@@ -2370,15 +2088,37 @@ export function GroupsView({
               );
             }
           }}
-          onEdit={
+          onManageMembers={
             isManagement
-              ? () => {
-                  openEditGroup(
-                    selectedGroupDetails
-                  );
-                }
+              ? () => setManagingMembersGroup(selectedGroupDetails)
               : null
           }
+          onEdit={
+            isManagement
+              ? () => openEditGroup(selectedGroupDetails)
+              : null
+          }
+        />
+      )}
+
+      {/* ==========================================
+          GESTIONAR INTEGRANTES DEL GRUPO / TALLER
+      =========================================== */}
+
+      {managingMembersGroup && (
+        <ManageGroupMembersModal
+          group={
+            gruposFinales.find(g => g.id === managingMembersGroup.id) ||
+            managingMembersGroup
+          }
+          allStudents={students}
+          turnOptions={turnOptions}
+          groupLabel={groupLabel}
+          personLabel={personLabel}
+          personLabelPlural={personLabelPlural}
+          savingMemberId={savingMemberId}
+          onToggleMember={handleToggleStudentInGroup}
+          onClose={() => setManagingMembersGroup(null)}
         />
       )}
 
@@ -3002,6 +2742,7 @@ function BitacoraExpressModal({
 function GroupDetailModal({
   group,
   institutionMode,
+  groupLabel = 'grupo',
   personLabelPlural,
   messages,
   onClose,
@@ -3009,6 +2750,7 @@ function GroupDetailModal({
   onOpenBitacora,
   onAddComment,
   onOpenDrive,
+  onManageMembers,
   onEdit
 }) {
   const members = [...(group.students || [])].sort(
@@ -3090,7 +2832,7 @@ function GroupDetailModal({
           {/* INTEGRANTES */}
           <div className="w-full lg:w-[48%] border-r border-slate-100 overflow-y-auto bg-slate-50/70 p-5 md:p-6">
 
-            <div className="flex items-end justify-between gap-3 mb-4">
+           <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">
                   Integrantes
@@ -3100,9 +2842,20 @@ function GroupDetailModal({
                 </h3>
               </div>
 
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-white border border-slate-200 px-2.5 py-1.5 rounded-full">
-                Click en la persona para ver datos
-              </span>
+              {onManageMembers ? (
+                <button
+                  type="button"
+                  onClick={onManageMembers}
+                  className="px-3.5 py-2 rounded-xl bg-violet-600 text-white text-xs font-black flex items-center gap-1.5 hover:bg-violet-700 transition shadow-sm"
+                >
+                  <UserPlus size={15} />
+                  Sumar / quitar {personLabelPlural}
+                </button>
+              ) : (
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-white border border-slate-200 px-2.5 py-1.5 rounded-full">
+                  Click para ver datos
+                </span>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -3269,7 +3022,181 @@ function GroupDetailModal({
     </div>
   );
 }
+function ManageGroupMembersModal({
+  group,
+  allStudents,
+  turnOptions,
+  groupLabel,
+  personLabel,
+  personLabelPlural,
+  savingMemberId,
+  onToggleMember,
+  onClose
+}) {
+  const [search, setSearch] = useState('');
+  const groupTurnIds = Array.isArray(group.turnIds) && group.turnIds.length > 0
+    ? group.turnIds
+    : turnOptions[0]?.id
+    ? [turnOptions[0].id]
+    : [''];
 
+  const [selectedTurnId, setSelectedTurnId] = useState(groupTurnIds[0] || '');
+
+  const filtered = useMemo(() => {
+    const q = normalizeText(search);
+    return (allStudents || []).filter(student => {
+      if (!q) return true;
+      return normalizeText(
+        `${student.lastName || ''} ${student.firstName || ''} ${student.dni || ''}`
+      ).includes(q);
+    });
+  }, [allStudents, search]);
+
+  const isStudentInGroup = student => {
+    const assignments = student.groupAssignments || [];
+    return assignments.some(assignment =>
+      getAssignmentPlacements(assignment).some(
+        p =>
+          p.groupId === group.id &&
+          (!selectedTurnId || !p.turnId || p.turnId === selectedTurnId)
+      )
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[950] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-[30px] w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
+              Asignación directa · {group.name}
+            </p>
+            <h3 className="text-lg font-black text-slate-900 mt-0.5">
+              Sumar o quitar {personLabelPlural}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:text-red-500"
+          >
+            <X size={19} />
+          </button>
+        </div>
+
+        <div className="p-4 border-b border-slate-100 bg-slate-50 space-y-3">
+          {groupTurnIds.length > 1 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-black uppercase text-slate-400">
+                Turno / franja:
+              </span>
+              {groupTurnIds.map(tid => {
+                const tName =
+                  turnOptions.find(t => t.id === tid)?.name || tid;
+                return (
+                  <button
+                    key={tid}
+                    type="button"
+                    onClick={() => setSelectedTurnId(tid)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                      selectedTurnId === tid
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-white border border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {tName}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={`Buscar ${personLabel} por apellido, nombre o DNI...`}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold outline-none focus:border-violet-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {filtered.length === 0 ? (
+            <p className="text-center text-xs font-bold text-slate-400 py-8">
+              No se encontraron {personLabelPlural}.
+            </p>
+          ) : (
+            filtered.map(student => {
+              const assigned = isStudentInGroup(student);
+              const busy = savingMemberId === student.personId;
+
+              return (
+                <div
+                  key={student.personId}
+                  className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition ${
+                    assigned
+                      ? 'border-emerald-200 bg-emerald-50/60'
+                      : 'border-slate-200 bg-white'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-slate-800 truncate">
+                      {student.lastName}, {student.firstName}
+                    </p>
+                    <p className="text-[10px] font-semibold text-slate-400">
+                      DNI: {student.dni || 'Sin dato'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      onToggleMember(student, group, selectedTurnId)
+                    }
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition shrink-0 ${
+                      assigned
+                        ? 'bg-white border border-red-200 text-red-600 hover:bg-red-50'
+                        : 'bg-violet-600 text-white hover:bg-violet-700'
+                    } disabled:opacity-50`}
+                  >
+                    {busy ? (
+                      'Guardando…'
+                    ) : assigned ? (
+                      <>
+                        <X size={14} /> Quitar
+                      </>
+                    ) : (
+                      <>
+                        <Check size={14} /> Sumar al {groupLabel}
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-black"
+          >
+            Listo
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function GroupFormModal({
   editingGroup,
   institutionMode,
