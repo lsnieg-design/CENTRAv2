@@ -3319,7 +3319,7 @@ const handlePrint = () => {
                 </button>
               )}
 
-              {(institutionConfig?.document?.studentFileActions?.print ?? true) !== false && (
+            {(institutionConfig?.document?.studentFileActions?.print ?? true) !== false && (
                 <button
                   type="button"
                   onClick={handlePrint}
@@ -3332,6 +3332,11 @@ const handlePrint = () => {
             </div>
           </div>
         )}
+
+      </div>
+    </div>
+  );
+}
 function InfoBox({
   label,
   value
