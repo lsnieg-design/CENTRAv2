@@ -2902,7 +2902,7 @@ function printStudentFile(
 // ============================================================
 
 function StudentDetailModal({
- student,
+  student,
   groups,
   turns,
   journeys,
@@ -2913,82 +2913,68 @@ function StudentDetailModal({
   levels,
   onBitacora
 }) {
- const assignment =
-  student?.groupAssignments?.find(
-    item =>
-      item.status === 'active' &&
-      !item.validTo
-  ) || null;
-const institutionMode =
-  institutionConfig?.institutionMode || 'school';
+  const assignment =
+    student?.groupAssignments?.find(
+      item => item.status === 'active' && !item.validTo
+    ) || null;
 
-const personLabel =
-  institutionMode === 'day_center'
-    ? 'concurrente'
-    : institutionMode === 'clinic'
-    ? 'paciente'
-    : 'estudiante';
+  const institutionMode =
+    institutionConfig?.institutionMode || 'school';
 
-const personLabelPlural =
-  institutionMode === 'day_center'
-    ? 'concurrentes'
-    : institutionMode === 'clinic'
-    ? 'pacientes'
-    : 'estudiantes';
-  const group = assignment
-    ? groups.find(
-        item =>
-          item.id ===
-          assignment.groupId
-      )
-    : null;
+  const personLabel =
+    institutionMode === 'day_center'
+      ? 'concurrente'
+      : institutionMode === 'clinic'
+      ? 'paciente'
+      : 'estudiante';
 
-  const turnLabels =
-    Array.isArray(
-      assignment?.turnIds
-    )
-      ? assignment.turnIds
-          .map(id =>
-            turns.find(
-              turn =>
-                turn.id === id
-            )?.name
-          )
-          .filter(Boolean)
+  const rawPlacements =
+    Array.isArray(assignment?.placements) && assignment.placements.length > 0
+      ? assignment.placements
+      : assignment?.groupId
+      ? (Array.isArray(assignment?.turnIds) && assignment.turnIds.length > 0
+          ? assignment.turnIds
+          : ['']
+        ).map(turnId => ({
+          groupId: assignment.groupId,
+          turnId
+        }))
       : [];
 
-   const journey =
-    journeys.find(
-      item =>
-        item.id ===
-        assignment?.scheduleType
-    )?.name ||
-    assignment?.scheduleType ||
-    '';
-const levelName =
-  levels.find(
-    item =>
-      item.id === student.level
-  )?.name ||
-  student.level ||
-  'Sin nivel';
-const handlePrint = () => {
-    const rawPlacements =
-      Array.isArray(assignment?.placements) && assignment.placements.length > 0
-        ? assignment.placements
-        : assignment?.groupId
-        ? (Array.isArray(assignment?.turnIds) ? assignment.turnIds : []).map(turnId => ({
-            groupId: assignment.groupId,
-            turnId
-          }))
-        : [];
-
-    const placementsList = rawPlacements.map(p => ({
+  const placementsList = rawPlacements
+    .map(p => ({
       ...p,
       groupName: groups.find(item => item.id === p.groupId)?.name || '',
       turnName: turns.find(item => item.id === p.turnId)?.name || ''
-    }));
+    }))
+    .filter(p => p.groupName)
+    .filter(
+      (item, index, arr) =>
+        index ===
+        arr.findIndex(
+          other =>
+            other.groupId === item.groupId &&
+            other.turnName === item.turnName
+        )
+    );
 
+  const turnLabels = [
+    ...new Set(
+      placementsList.map(p => p.turnName).filter(Boolean)
+    )
+  ];
+
+  const journey =
+    journeys.find(item => item.id === assignment?.scheduleType)?.name ||
+    assignment?.scheduleType ||
+    '';
+
+  const levelName =
+    levels.find(item => item.id === student.level)?.name ||
+    student.level ||
+    'Sin nivel';
+
+  const handlePrint = () => {
     printStudentFile(
       student,
       placementsList,
@@ -2997,15 +2983,12 @@ const handlePrint = () => {
       institutionConfig
     );
   };
+
   return (
     <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-
       <div className="bg-white rounded-[28px] w-full max-w-3xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col">
-
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-
           <div className="flex items-center gap-3">
-
             <div className="w-12 h-12 rounded-2xl bg-violet-100 flex items-center justify-center text-violet-600">
               {student.photoUrl ? (
                 <img
@@ -3020,15 +3003,13 @@ const handlePrint = () => {
 
             <div>
               <h3 className="text-xl font-black text-slate-900">
-                {student.lastName},{' '}
-                {student.firstName}
+                {student.lastName}, {student.firstName}
               </h3>
 
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Legajo del {personLabel}
               </p>
             </div>
-
           </div>
 
           <button
@@ -3038,195 +3019,154 @@ const handlePrint = () => {
           >
             <X size={20} />
           </button>
-
         </div>
 
         <div className="p-6 overflow-y-auto space-y-4">
-
           <div className="grid md:grid-cols-3 gap-3">
-
-            <InfoBox
-              label="DNI"
-              value={
-                student.dni ||
-                'Sin datos'
-              }
-            />
+            <InfoBox label="DNI" value={student.dni || 'Sin datos'} />
 
             <InfoBox
               label="Nacimiento"
               value={
                 student.birthDate
-                  ? `${formatDate(
-                      student.birthDate
-                    )} · ${calculateAge(
+                  ? `${formatDate(student.birthDate)} · ${calculateAge(
                       student.birthDate
                     )} años`
                   : 'Sin datos'
               }
             />
 
-            <InfoBox
-              label="Nivel"
-              value={levelName}
-            />
-
+            <InfoBox label="Nivel" value={levelName} />
           </div>
 
           <section className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
-
             <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
               Contacto
             </h4>
 
             <div className="grid md:grid-cols-2 gap-3">
-
               <ContactLine
                 icon={<MapPin size={15} />}
                 label="Dirección"
-                value={
-                  student.address ||
-                  'Sin datos'
-                }
+                value={student.address || 'Sin datos'}
               />
 
               <ContactLine
                 icon={<Phone size={15} />}
                 label="Teléfono"
-                value={
-                  student.phone ||
-                  'Sin datos'
-                }
+                value={student.phone || 'Sin datos'}
               />
 
               <ContactLine
                 icon={<Mail size={15} />}
                 label="Email"
-                value={
-                  student.email ||
-                  'Sin datos'
-                }
+                value={student.email || 'Sin datos'}
               />
 
               <ContactLine
                 icon={<User size={15} />}
                 label="Contacto de emergencia"
-                value={
-                  student.emergencyContact ||
-                  'Sin datos'
-                }
+                value={student.emergencyContact || 'Sin datos'}
               />
-
             </div>
-
           </section>
 
-          <section className="bg-violet-50 rounded-2xl p-4 border border-violet-100">
+          <section className="bg-violet-50 rounded-2xl p-4 border border-violet-100 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <GraduationCap size={16} className="text-violet-600" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-violet-500">
+                  {institutionMode === 'day_center'
+                    ? `Talleres / grupos asignados (${placementsList.length})`
+                    : 'Asignación actual'}
+                </h4>
+              </div>
 
-            <div className="flex items-center gap-2 mb-3">
-
-              <GraduationCap
-                size={16}
-                className="text-violet-600"
-              />
-
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-violet-500">
-                Asignación actual
-              </h4>
-
+              {journey && (
+                <span className="px-2.5 py-1 rounded-full bg-white border border-violet-200 text-[10px] font-black text-violet-700">
+                  {journey}
+                </span>
+              )}
             </div>
 
-            {group ? (
-              <div className="grid md:grid-cols-3 gap-3">
+            {placementsList.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {placementsList.map(item => (
+                    <div
+                      key={`${item.groupId}-${item.turnId || 'sin-turno'}`}
+                      className="px-3 py-2 rounded-xl bg-white border border-violet-200 shadow-sm flex items-center gap-2"
+                    >
+                      <span className="text-xs font-black text-slate-800">
+                        {item.groupName}
+                      </span>
+                      {item.turnName && (
+                        <span className="px-2 py-0.5 rounded-md bg-violet-50 text-[9px] font-extrabold uppercase text-violet-600">
+                          {item.turnName}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
 
-                <InfoBox
-                  label="Grupo"
-                  value={
-                    group.name
-                  }
-                />
-
-                <InfoBox
-                  label="Jornada"
-                  value={
-                    journey ||
-                    'Sin jornada'
-                  }
-                />
-
-                <InfoBox
-                  label="Turno"
-                  value={
-                    turnLabels.join(
-                      ' · '
-                    ) ||
-                    'Sin turno'
-                  }
-                />
-
+                {turnLabels.length > 0 && (
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <InfoBox
+                      label="Turnos / franjas"
+                      value={turnLabels.join(' · ')}
+                    />
+                    <InfoBox
+                      label="Jornada"
+                      value={journey || 'Sin jornada'}
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
-                <AlertCircle
-                  size={17}
-                />
+                <AlertCircle size={17} />
                 El {personLabel} no tiene una asignación actual.
               </div>
             )}
-
           </section>
 
           <div className="grid md:grid-cols-2 gap-3">
-
             <InfoBox
               label="Obra social"
-              value={
-                student.healthInsurance ||
-                'No registrada'
-              }
+              value={student.healthInsurance || 'No registrada'}
             />
 
             <InfoBox
               label="CUD"
-              value={
-                student.cudNumber ||
-                'No registrado'
-              }
+              value={student.cudNumber || 'No registrado'}
             />
-
           </div>
 
-          {(student.motherName ||
-            student.fatherName) && (
+          {(student.motherName || student.fatherName) && (
             <section className="bg-white rounded-2xl border border-slate-200 p-4">
-
               <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
                 Familia
               </h4>
 
               <div className="grid md:grid-cols-2 gap-4">
-
                 <ContactLine
-                  icon={
-                    <User size={15} />
-                  }
+                  icon={<User size={15} />}
                   label="Adulto responsable 1"
-                  value={`${student.motherName || 'Sin nombre'}${student.motherContact ? ` · ${student.motherContact}` : ''}`}
+                  value={`${student.motherName || 'Sin nombre'}${
+                    student.motherContact ? ` · ${student.motherContact}` : ''
+                  }`}
                 />
 
                 <ContactLine
-                  icon={
-                    <User size={15} />
-                  }
+                  icon={<User size={15} />}
                   label="Adulto responsable 2"
-                  value={`${student.fatherName || 'Sin nombre'}${student.fatherContact ? ` · ${student.fatherContact}` : ''}`}
+                  value={`${student.fatherName || 'Sin nombre'}${
+                    student.fatherContact ? ` · ${student.fatherContact}` : ''
+                  }`}
                 />
-
               </div>
-
             </section>
           )}
-
         </div>
 
         {isModuleEnabled(institutionConfig, 'studentFileActions') && (
@@ -3270,7 +3210,7 @@ const handlePrint = () => {
                 </button>
               )}
 
-            {(institutionConfig?.document?.studentFileActions?.print ?? true) !== false && (
+              {(institutionConfig?.document?.studentFileActions?.print ?? true) !== false && (
                 <button
                   type="button"
                   onClick={handlePrint}
@@ -3283,7 +3223,6 @@ const handlePrint = () => {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
