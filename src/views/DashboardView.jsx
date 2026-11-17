@@ -89,15 +89,18 @@ const getNextBirthday = (birthDate, today = new Date()) => {
   return next;
 };
 
-const SectionHeading = ({ icon: Icon, title, badge, action }) => (
-  <div className="flex items-center justify-between gap-2 mb-2.5">
+const SectionHeading = ({ icon: Icon, title, badge, action, primaryColor }) => (
+  <div className="flex items-center justify-between gap-2 mb-3">
     <div className="flex items-center gap-2 min-w-0">
       {Icon && (
-        <div className="w-6 h-6 rounded-md bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-          <Icon size={13} aria-hidden="true" />
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+          style={primaryColor ? { backgroundColor: `${primaryColor}12`, color: primaryColor } : undefined}
+        >
+          <Icon size={15} aria-hidden="true" />
         </div>
       )}
-      <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 truncate">{title}</h3>
+      <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 truncate">{title}</h3>
       {badge !== undefined && badge > 0 && (
         <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-extrabold text-slate-600">
           {badge}
@@ -109,9 +112,9 @@ const SectionHeading = ({ icon: Icon, title, badge, action }) => (
 );
 
 const EmptyState = ({ title, description }) => (
-  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-3 text-center">
-    <p className="text-[11px] font-bold text-slate-600">{title}</p>
-    {description && <p className="text-[10px] leading-relaxed text-slate-400 mt-0.5">{description}</p>}
+  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-5 text-center">
+    <p className="text-xs font-bold text-slate-700">{title}</p>
+    {description && <p className="text-[11px] leading-relaxed text-slate-500 mt-1">{description}</p>}
   </div>
 );
 
@@ -454,14 +457,21 @@ export function DashboardView({
   const secondaryButtonStyle = { backgroundColor: secondaryColor };
   const showCountdown = canUseModule('calendar') && Boolean(countdown.date || isManagement);
   const showAnnouncements = canUseModule('notifications');
+  const showActivityColumn = canUseModule('tasks') || canUseModule('calendar');
+  const showNotesColumn = canUseModule('tasks');
+  const dashboardColumnCount = [showAnnouncements, showActivityColumn, showNotesColumn].filter(Boolean).length;
+  const dashboardColumnClass = dashboardColumnCount === 3 ? 'xl:col-span-4' : dashboardColumnCount === 2 ? 'xl:col-span-6' : 'xl:col-span-12';
+  const announcementColumnClass = dashboardColumnCount === 3 ? 'xl:col-span-5' : dashboardColumnCount === 2 ? 'xl:col-span-6' : 'xl:col-span-12';
+  const activityColumnClass = dashboardColumnCount === 3 ? 'xl:col-span-4' : dashboardColumnClass;
+  const notesColumnClass = dashboardColumnCount === 3 ? 'xl:col-span-3' : dashboardColumnClass;
 
   return (
-    <main className="mx-auto w-full max-w-7xl pb-4">
-      <div className="space-y-2.5 px-1 sm:px-2">
+    <main className="mx-auto min-h-full w-full max-w-[1560px] rounded-[30px] bg-white/20 px-3 pb-8 pt-3 sm:px-4 lg:px-6">
+      <div className="space-y-4">
 
         {/* BARRA SUPERIOR COMPACTA: Saludo + Cuenta regresiva + Acciones */}
         <section
-          className="rounded-2xl border bg-white px-3.5 py-2.5 shadow-sm"
+          className="rounded-[26px] border bg-white px-4 py-4 shadow-sm sm:px-5"
           style={{ borderColor: `${primaryColor}28` }}
         >
           <div className="flex flex-wrap items-center justify-between gap-2.5">
@@ -471,11 +481,11 @@ export function DashboardView({
                 <img
                   src={logoUrl}
                   alt={institutionName}
-                  className="h-9 w-9 shrink-0 rounded-xl border border-slate-100 bg-white p-1 object-contain"
+                  className="h-11 w-11 shrink-0 rounded-2xl border border-slate-100 bg-white p-1.5 object-contain"
                 />
               ) : (
                 <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white"
                   style={primaryButtonStyle}
                 >
                   <GraduationCap size={18} aria-hidden="true" />
@@ -483,7 +493,7 @@ export function DashboardView({
               )}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="truncate text-base font-black text-slate-900 sm:text-lg">
+                  <h1 className="truncate text-lg font-black text-slate-900 sm:text-xl">
                     ¡Hola, {user?.firstName || user?.fullName?.split(' ')[0] || 'bienvenido'}!
                   </h1>
                   <span className="hidden rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold capitalize text-slate-500 sm:inline-block">
@@ -610,13 +620,13 @@ export function DashboardView({
           )}
         </section>
 
-        {/* FILA DE INDICADORES COMPACTOS (PÍLDORAS HORIZONTALES) */}
-        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {/* INDICADORES PRINCIPALES */}
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {canUseModule('tasks') && (
             <button
               type="button"
               onClick={() => setActiveTab('tasks')}
-              className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300"
+              className="group flex min-h-[76px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
                 <CheckSquare size={15} />
@@ -636,7 +646,7 @@ export function DashboardView({
             <button
               type="button"
               onClick={() => setActiveTab('calendar')}
-              className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300"
+              className="group flex min-h-[76px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white" style={primaryButtonStyle}>
                 <CalendarDays size={15} />
@@ -656,7 +666,7 @@ export function DashboardView({
             <button
               type="button"
               onClick={() => openBirthdayModal('students')}
-              className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300"
+              className="group flex min-h-[76px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pink-50 text-pink-600">
                 <Cake size={15} />
@@ -676,7 +686,7 @@ export function DashboardView({
             <button
               type="button"
               onClick={() => openBirthdayModal('staff')}
-              className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300"
+              className="group flex min-h-[76px] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
                 <UserRound size={15} />
@@ -712,16 +722,17 @@ export function DashboardView({
           </button>
         )}
 
-        {/* GRILLA PRINCIPAL EN 3 COLUMNAS: Todo visible sin bajar */}
-        <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-3 items-start">
+        {/* ESPACIOS DE TRABAJO: avisos, actividad y notas personales */}
+        <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-12">
 
           {/* COLUMNA 1: AVISOS INSTITUCIONALES */}
           {showAnnouncements && (
-            <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <section className={`min-h-[245px] rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm ${announcementColumnClass}`}>
               <SectionHeading
                 icon={Bell}
                 title="Avisos"
                 badge={visibleAnnouncements.length}
+                primaryColor={primaryColor}
                 action={
                   canPost && (
                     <button
@@ -772,12 +783,14 @@ export function DashboardView({
 
           {/* COLUMNA 2: TAREAS PENDIENTES + PRÓXIMAS FECHAS */}
           {(canUseModule('tasks') || canUseModule('calendar')) && (
-            <div className="space-y-2.5">
+            <div className={`${activityColumnClass} space-y-4`}>
+
               {canUseModule('tasks') && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                <section className="min-h-[150px] rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
                   <SectionHeading
                     icon={ListTodo}
                     title="Mis tareas"
+                    primaryColor={primaryColor}
                     badge={myPendingTasks.length}
                     action={
                       <button
@@ -822,10 +835,11 @@ export function DashboardView({
               )}
 
               {canUseModule('calendar') && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                <section className="min-h-[150px] rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
                   <SectionHeading
                     icon={CalendarDays}
                     title="Próximas fechas"
+                    primaryColor={primaryColor}
                     action={
                       <button
                         type="button"
@@ -879,10 +893,11 @@ export function DashboardView({
 
           {/* COLUMNA 3: NOTAS RÁPIDAS PERSONALES */}
           {canUseModule('tasks') && (
-            <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <section className={`min-h-[245px] rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm ${notesColumnClass}`}>
               <SectionHeading
                 icon={LockKeyhole}
                 title="Mis notas rápidas"
+                primaryColor={primaryColor}
                 badge={notes.filter(n => !n.done).length}
               />
               <form onSubmit={saveNote} className="flex gap-1.5">
