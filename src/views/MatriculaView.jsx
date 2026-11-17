@@ -7,6 +7,7 @@ import {
   doc,
   setDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
 import { isModuleEnabled } from '../config';
@@ -19,6 +20,7 @@ import {
   Edit3,
   Users,
   Filter,
+  Trash2,
   BarChart3,
   MapPin,
   Phone,
