@@ -556,10 +556,6 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
   const canManageContent = isSuperAdmin || !!rolePermissions.admin;
   const isAdminRole = hasModule('admin') || hasModule('personal');
   const canAccessInformesExternos = hasModule('informes_externos');
-  const showPrivateMenu = isSuperAdmin || [
-    'admin', 'personal', 'informes_externos'
-  ].some(hasModule);
-
   useEffect(() => {
     if (!hasModule('personal') && activeTab === 'personal') setActiveTab('dashboard');
     if (!hasModule('admin') && activeTab === 'admin') setActiveTab('dashboard');
@@ -965,7 +961,8 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
     closeAllMenus();
   };
 
-  const isWideTab = ['groups', 'calendar', 'matricula', 'resources', 'users', 'admin', 'personal'].includes(activeTab);
+  // Inicio utiliza el ancho amplio para evitar que el dashboard quede angosto en pantallas grandes.
+  const isWideTab = ['dashboard', 'groups', 'calendar', 'matricula', 'resources', 'users', 'admin', 'personal'].includes(activeTab);
   const brandLogo = appConfig.logoUrl || LOGO_URL;
   const institutionName = appConfig.institutionShortName || appConfig.institutionName || 'Mi Institución';
   const primaryColor = appConfig.primaryColor || '#6d28d9';
@@ -1110,18 +1107,14 @@ function MainApp({ user: initialUser, onLogout, appConfig }) {
 
           <div ref={moreMenuRef} className="relative">
             <NavButton active={['matricula','resources','admin','personal','users','informes_externos','configuracion'].includes(activeTab)} onClick={() => { setShowMoreMenu(value => !value); setShowProfileMenu(false); setShowNotifPanel(false); }} icon={<List size={20}/>} label="Más" />
-            {showMoreMenu && <div className="absolute bottom-16 right-0 bg-white rounded-3xl shadow-2xl border border-gray-100 p-2 w-72 animate-in slide-in-from-bottom-5 zoom-in-95 origin-bottom-right z-[100] max-h-[75vh] overflow-y-auto custom-scrollbar">
+            {showMoreMenu && <div className="absolute bottom-16 right-0 bg-white rounded-3xl shadow-2xl border border-gray-100 p-2 w-72 animate-in slide-in-from-bottom-5 zoom-in-95 origin-bottom-right z-[100] max-h-[75vh] overflow-y-auto custom-scrollbar flex flex-col gap-1">
               {hasModule('matricula') && <button onClick={() => navigate('matricula')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><GraduationCap size={18} className="text-violet-500"/> Legajos</button>}
               {hasModule('resources') && <button onClick={() => navigate('resources')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><LinkIcon size={18} className="text-green-500"/> Recursos</button>}
-
-              {showPrivateMenu && <div className="mt-2 pt-2 border-t border-gray-100 space-y-1"><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 mb-1">Gestión</p>
-                {isAdminRole && hasModule('admin') && <button onClick={() => navigate('admin')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><FileText size={18} className="text-blue-500"/> Administración</button>}
-                {isAdminRole && hasModule('personal') && <button onClick={() => navigate('personal')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><Users size={18} className="text-violet-500"/> Personal</button>}
-                {canAccessInformesExternos && hasModule('informes_externos') && <button onClick={() => navigate('informes_externos')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><ExternalLink size={18} className="text-pink-500"/> Informes externos</button>}
-
-                {isSuperAdmin && hasModule('users') && <button onClick={() => navigate('users')} className="w-full text-left p-3 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-700 transition"><Shield size={18} className="text-red-500"/> Gestión de usuarios</button>}
-                {isSuperAdmin && <button onClick={() => navigate('configuracion')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-violet-700 transition border-t border-violet-100 mt-1 pt-3"><Settings size={18} className="text-violet-600"/> Configuración de la app</button>}
-              </div>}
+              {isAdminRole && hasModule('admin') && <button onClick={() => navigate('admin')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><FileText size={18} className="text-blue-500"/> Administración</button>}
+              {isAdminRole && hasModule('personal') && <button onClick={() => navigate('personal')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><Users size={18} className="text-violet-500"/> Personal</button>}
+              {canAccessInformesExternos && hasModule('informes_externos') && <button onClick={() => navigate('informes_externos')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-gray-600 transition"><ExternalLink size={18} className="text-pink-500"/> Informes externos</button>}
+              {isSuperAdmin && hasModule('users') && <button onClick={() => navigate('users')} className="w-full text-left p-3 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-700 transition"><Shield size={18} className="text-red-500"/> Gestión de usuarios</button>}
+              {isSuperAdmin && <button onClick={() => navigate('configuracion')} className="w-full text-left p-3 rounded-xl hover:bg-violet-50 flex items-center gap-3 text-sm font-bold text-violet-700 transition"><Settings size={18} className="text-violet-600"/> Configuración de la app</button>}
             </div>}
           </div>
         </div>
