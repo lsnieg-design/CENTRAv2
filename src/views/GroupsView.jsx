@@ -112,6 +112,25 @@ const escapeHtml = value =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
+// Colores institucionales: se leen desde Configuración > Apariencia.
+const normalizeHexColor = (value, fallback) => {
+  const color = String(value || '').trim();
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+  if (/^#[0-9a-f]{3}$/i.test(color)) {
+    return `#${color.slice(1).split('').map(char => char + char).join('')}`;
+  }
+  return fallback;
+};
+
+const colorWithAlpha = (hexColor, alpha = 0.1) => {
+  const hex = normalizeHexColor(hexColor, '#000000').slice(1);
+  const value = parseInt(hex, 16);
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+};
+
 const getAssignmentPlacements = assignment => {
   if (!assignment) return [];
   if (Array.isArray(assignment.placements) && assignment.placements.length > 0) {
@@ -219,6 +238,13 @@ export function GroupsView({
 
   const institutionMode = institutionConfig?.institutionMode || 'school';
   const customLabels = institutionConfig?.labels || {};
+
+  const brandPrimary = normalizeHexColor(institutionConfig?.primaryColor, '#6d28d9');
+  const brandSecondary = normalizeHexColor(institutionConfig?.secondaryColor, '#f97316');
+  const brandBackground = normalizeHexColor(institutionConfig?.backgroundColor, '#f8fafc');
+  const brandText = normalizeHexColor(institutionConfig?.textColor, '#1e293b');
+  const brandPrimarySoft = colorWithAlpha(brandPrimary, 0.10);
+  const brandSecondarySoft = colorWithAlpha(brandSecondary, 0.12);
 
   const personLabel = (
     customLabels.person && customLabels.person !== 'Estudiante'
@@ -1349,7 +1375,7 @@ export function GroupsView({
             body {
               margin: 0;
               font-family: Arial, Helvetica, sans-serif;
-              color: #1e293b;
+              color: ${brandText};
               background: #ffffff;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
@@ -1361,8 +1387,8 @@ export function GroupsView({
               align-items: center;
               padding: 18px 20px;
               border-radius: 18px;
-              background: #f5f3ff;
-              border: 1px solid #ddd6fe;
+              background: ${brandPrimarySoft};
+              border: 1px solid ${colorWithAlpha(brandPrimary, 0.28)};
               margin-bottom: 18px;
             }
             .brand {
@@ -1370,7 +1396,7 @@ export function GroupsView({
               font-weight: 900;
               text-transform: uppercase;
               letter-spacing: 1.6px;
-              color: #7c3aed;
+              color: ${brandPrimary};
               margin-bottom: 7px;
             }
             .student-name {
@@ -1399,8 +1425,8 @@ export function GroupsView({
               display: flex;
               align-items: center;
               justify-content: center;
-              background: #ede9fe;
-              color: #6d28d9;
+              background: ${brandPrimarySoft};
+              color: ${brandPrimary};
               font-size: 28px;
               font-weight: 900;
             }
@@ -1410,7 +1436,7 @@ export function GroupsView({
               text-transform: uppercase;
               letter-spacing: 1px;
               margin: 20px 0 10px;
-              color: #475569;
+              color: ${brandSecondary};
             }
             .entry {
               border: 1px solid #e2e8f0;
@@ -1670,24 +1696,24 @@ export function GroupsView({
           <style>
             @page { size: A4 landscape; margin: 8mm; }
             * { box-sizing: border-box; }
-            body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #1e293b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            h1 { font-size: 20px; margin: 0 0 16px; color: #4c1d95; text-transform: uppercase; }
+            body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: ${brandText}; background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            h1 { font-size: 20px; margin: 0 0 16px; color: ${brandPrimary}; text-transform: uppercase; }
             .group-page { page-break-after: always; }
             .group-page:last-child { page-break-after: avoid; }
-            .group-header { display: flex; justify-content: space-between; gap: 20px; align-items: center; border: 1px solid #ddd6fe; background: #f5f3ff; border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
-            .eyebrow { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.4px; color: #7c3aed; margin-bottom: 4px; }
-            h2 { margin: 0; font-size: 18px; text-transform: uppercase; }
-            .meta { margin-top: 4px; color: #64748b; font-size: 9px; font-weight: 700; }
-            .count { width: 62px; height: 62px; border-radius: 16px; background: white; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #6d28d9; }
-            .count span { font-size: 7px; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; }
-            .team { margin-bottom: 10px; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; font-size: 9px; }
+            .group-header { display: flex; justify-content: space-between; gap: 20px; align-items: center; border: 1px solid ${colorWithAlpha(brandPrimary, 0.28)}; background: linear-gradient(135deg, ${brandPrimarySoft}, ${brandSecondarySoft}); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+            .eyebrow { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.4px; color: ${brandPrimary}; margin-bottom: 4px; }
+            h2 { margin: 0; font-size: 18px; text-transform: uppercase; color: ${brandText}; }
+            .meta { margin-top: 4px; color: ${colorWithAlpha(brandText, 0.72)}; font-size: 9px; font-weight: 700; }
+            .count { width: 62px; height: 62px; border-radius: 16px; background: white; border: 1px solid ${colorWithAlpha(brandPrimary, 0.25)}; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: ${brandPrimary}; }
+            .count span { font-size: 7px; text-transform: uppercase; letter-spacing: .8px; color: ${colorWithAlpha(brandText, 0.55)}; }
+            .team { margin-bottom: 10px; padding: 8px 10px; border: 1px solid ${colorWithAlpha(brandSecondary, 0.24)}; border-radius: 10px; background: ${brandBackground}; color: ${brandText}; font-size: 9px; }
             table { width: 100%; border-collapse: collapse; font-size: 9px; }
-            th { background: #6d28d9; color: white; text-transform: uppercase; padding: 7px 6px; text-align: left; font-size: 7.5px; }
-            td { border: 1px solid #e2e8f0; padding: 6px; vertical-align: middle; }
+            th { background: ${brandPrimary}; color: white; text-transform: uppercase; padding: 7px 6px; text-align: left; font-size: 7.5px; }
+            td { border: 1px solid ${colorWithAlpha(brandPrimary, 0.18)}; padding: 6px; vertical-align: middle; }
             .center { text-align: center; }
             .person-photo { width: 30px; height: 30px; object-fit: cover; border-radius: 8px; display: block; }
-            .initials { background: #ede9fe; color: #6d28d9; font-weight: 900; display: flex; align-items: center; justify-content: center; }
-            .empty { text-align: center; color: #94a3b8; padding: 16px; font-style: italic; }
+            .initials { background: ${brandPrimarySoft}; color: ${brandPrimary}; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+            .empty { text-align: center; color: ${colorWithAlpha(brandText, 0.55)}; padding: 16px; font-style: italic; }
           </style>
         </head>
         <body>
@@ -1757,7 +1783,10 @@ export function GroupsView({
     );
 
   return (
-    <div className="flex flex-col h-full bg-slate-100 animate-in fade-in relative overflow-hidden">
+    <div
+      className="flex flex-col h-full animate-in fade-in relative overflow-hidden"
+      style={{ backgroundColor: brandBackground, color: brandText }}
+    >
 
       {/* ==========================================
           CABECERA
@@ -1768,12 +1797,15 @@ export function GroupsView({
 
           <div>
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-2xl bg-violet-50 text-violet-700 flex items-center justify-center">
+              <div
+                className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                style={{ backgroundColor: brandPrimarySoft, color: brandPrimary }}
+              >
                 <Grid size={20} />
               </div>
 
               <div>
-                <h2 className="text-2xl font-black text-violet-900 uppercase italic leading-none">
+                <h2 className="text-2xl font-black uppercase italic leading-none" style={{ color: brandPrimary }}>
                   Organización
                 </h2>
 
@@ -1793,7 +1825,8 @@ export function GroupsView({
               <button
                 type="button"
                 onClick={openCreateGroup}
-                className="bg-violet-600 text-white px-4 py-2.5 rounded-xl hover:bg-violet-700 transition shadow-sm flex items-center gap-2 font-black text-xs"
+                className="text-white px-4 py-2.5 rounded-xl hover:brightness-95 transition shadow-sm flex items-center gap-2 font-black text-xs"
+                style={{ backgroundColor: brandPrimary }}
               >
                 <Plus size={16} />
                 Nuevo {institutionMode === 'day_center' ? 'taller' : 'grupo'}
@@ -1811,7 +1844,8 @@ export function GroupsView({
                   true
                 );
               }}
-              className="bg-slate-100 text-slate-700 p-2.5 rounded-xl hover:bg-slate-200 transition shadow-sm"
+              className="p-2.5 rounded-xl transition shadow-sm hover:brightness-95"
+              style={{ backgroundColor: brandPrimarySoft, color: brandPrimary }}
               title="Imprimir"
             >
               <Printer size={22} />
@@ -1835,12 +1869,16 @@ export function GroupsView({
                 )
               }
               placeholder={`Buscar ${groupLabelPlural}...`}
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:border-violet-400 text-sm font-semibold"
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white border outline-none text-sm font-semibold"
+              style={{ borderColor: colorWithAlpha(brandPrimary, 0.25), color: brandText, '--tw-ring-color': colorWithAlpha(brandPrimary, 0.25) }}
             />
           </div>
 
           {turnOptions.length > 0 && (
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl overflow-x-auto no-scrollbar">
+            <div
+              className="flex items-center gap-1 p-1 rounded-2xl overflow-x-auto no-scrollbar"
+              style={{ backgroundColor: colorWithAlpha(brandPrimary, 0.07) }}
+            >
               <button
                 type="button"
                 onClick={() =>
@@ -1851,7 +1889,7 @@ export function GroupsView({
                 className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase whitespace-nowrap ${
                   selectedTurnId ===
                   'all'
-                    ? 'bg-white text-violet-700 shadow-sm'
+                    ? 'bg-white shadow-sm'
                     : 'text-slate-400'
                 }`}
               >
@@ -1871,7 +1909,7 @@ export function GroupsView({
                     className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase whitespace-nowrap ${
                       selectedTurnId ===
                       turnOption.id
-                        ? 'bg-white text-violet-700 shadow-sm'
+                        ? 'bg-white shadow-sm'
                         : 'text-slate-400'
                     }`}
                   >
@@ -1888,22 +1926,26 @@ export function GroupsView({
           LISTADO COMPACTO DE GRUPOS / TALLERES
       =========================================== */}
 
-      <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/70">
+      <div className="flex-1 min-h-0 overflow-y-auto" style={{ backgroundColor: brandBackground }}>
         <div className="mx-auto max-w-[1800px] p-3 sm:p-4 md:p-5">
           {gruposFinales.length === 0 ? (
             <div className="flex min-h-[340px] items-center justify-center">
               <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-10">
-                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <div
+                  className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl"
+                  style={{ backgroundColor: brandPrimarySoft, color: brandPrimary }}
+                >
                   <UsersRound size={30} />
                 </div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Organización institucional</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: brandPrimary }}>Organización institucional</p>
                 <h3 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">Todavía no hay {groupLabelPlural}</h3>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-500">Creá la estructura de la institución y después asigná a las personas desde sus legajos.</p>
                 {isManagement && (
                   <button
                     type="button"
                     onClick={openCreateGroup}
-                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800"
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-xs font-black text-white shadow-sm transition hover:brightness-95"
+                    style={{ backgroundColor: brandPrimary }}
                   >
                     <Plus size={16} />
                     Crear primer {institutionMode === 'day_center' ? 'taller' : 'grupo'}
@@ -1931,24 +1973,33 @@ export function GroupsView({
                 return (
                   <article
                     key={group.id}
-                    className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
+                    className="group min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition duration-150 hover:-translate-y-0.5 hover:shadow-md"
+                    style={{ borderColor: colorWithAlpha(brandPrimary, 0.24) }}
                   >
                     <div className="p-3 sm:p-3.5">
                       <div className="flex items-start gap-2.5">
                         <button
                           type="button"
                           onClick={() => setSelectedGroupDetails(group)}
-                          className="flex min-w-0 flex-1 items-start gap-2.5 rounded-xl text-left focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2"
+                          className="flex min-w-0 flex-1 items-start gap-2.5 rounded-xl text-left focus:outline-none focus:ring-2 focus:ring-offset-2"
+                          style={{ '--tw-ring-color': colorWithAlpha(brandPrimary, 0.38) }}
                           aria-label={`Ver detalle de ${group.name}`}
                         >
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
+                          <span
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                            style={{ backgroundColor: brandPrimarySoft, color: brandPrimary }}
+                          >
                             <UsersRound size={19} />
                           </span>
                           <span className="min-w-0 flex-1 pt-0.5">
-                            <span className="block truncate text-sm font-black text-slate-900 sm:text-base">{group.name}</span>
+                            <span className="block truncate text-sm font-black sm:text-base" style={{ color: brandText }}>{group.name}</span>
                             <span className="mt-1 flex flex-wrap gap-1">
                               {(group.turnLabels || []).map(label => (
-                                <span key={label} className="inline-flex rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-emerald-800">
+                                <span
+                                  key={label}
+                                  className="inline-flex rounded-full border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide"
+                                  style={{ borderColor: colorWithAlpha(brandSecondary, 0.28), backgroundColor: brandSecondarySoft, color: brandSecondary }}
+                                >
                                   {label}
                                 </span>
                               ))}
@@ -1959,7 +2010,7 @@ export function GroupsView({
                               )}
                             </span>
                           </span>
-                          <ChevronRight size={16} className="mt-2 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-700" />
+                          <ChevronRight size={16} className="mt-2 shrink-0 transition group-hover:translate-x-0.5" style={{ color: brandSecondary }} />
                         </button>
 
                         <div className="flex shrink-0 items-center gap-1">
@@ -1980,7 +2031,8 @@ export function GroupsView({
                             <button
                               type="button"
                               onClick={() => openEditGroup(group)}
-                              className="rounded-lg bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100"
+                              className="rounded-lg p-2 transition hover:brightness-95"
+                              style={{ backgroundColor: brandSecondarySoft, color: brandSecondary }}
                               title={`Editar ${groupLabel}`}
                               aria-label={`Editar ${group.name}`}
                             >
@@ -1999,18 +2051,19 @@ export function GroupsView({
                       <button
                         type="button"
                         onClick={() => setSelectedGroupDetails(group)}
-                        className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                        className="mt-3 flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition hover:brightness-[0.98] focus:outline-none focus:ring-2"
+                        style={{ backgroundColor: colorWithAlpha(brandPrimary, 0.045), borderColor: colorWithAlpha(brandPrimary, 0.14), '--tw-ring-color': colorWithAlpha(brandPrimary, 0.28) }}
                         aria-label={`Abrir ${groupLabel} ${group.name}`}
                       >
                         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-xs font-bold text-slate-600">
                           <Users size={14} className="shrink-0 text-slate-400" />
-                          <span className="font-black text-slate-900">{personCount}</span>
+                          <span className="font-black" style={{ color: brandPrimary }}>{personCount}</span>
                           <span className="truncate">{personLabelPlural}</span>
                         </span>
                         <span className="h-4 w-px shrink-0 bg-slate-200" />
                         <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-xs font-bold text-slate-600">
-                          <User size={14} className="shrink-0 text-emerald-700" />
-                          <span className="font-black text-emerald-800">{teamCount}</span>
+                          <User size={14} className="shrink-0" style={{ color: brandSecondary }} />
+                          <span className="font-black" style={{ color: brandSecondary }}>{teamCount}</span>
                           <span>equipo</span>
                         </span>
                       </button>
@@ -2024,7 +2077,8 @@ export function GroupsView({
                             <button
                               type="button"
                               onClick={() => window.open(group.institucionalDrive, '_blank', 'noopener,noreferrer')}
-                              className="rounded-md p-1 text-blue-600 transition hover:bg-blue-50"
+                              className="rounded-md p-1 transition hover:brightness-95"
+                              style={{ color: brandSecondary }}
                               title="Abrir Drive institucional"
                               aria-label={`Abrir Drive de ${group.name}`}
                             >
@@ -2034,7 +2088,8 @@ export function GroupsView({
                           <button
                             type="button"
                             onClick={() => setSelectedGroupDetails(group)}
-                            className="whitespace-nowrap text-[10px] font-extrabold text-emerald-800 transition hover:text-emerald-950"
+                            className="whitespace-nowrap text-[10px] font-extrabold transition hover:underline"
+                            style={{ color: brandPrimary }}
                           >
                             Ver detalle
                           </button>
