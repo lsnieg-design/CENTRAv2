@@ -7,7 +7,6 @@ import {
   doc,
   setDoc,
   updateDoc,
-  deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
 import { isModuleEnabled } from '../config';
@@ -35,9 +34,7 @@ import {
 BookOpen,
   Camera,
   UserRound,
-  Clock3,
-  Trash2,
-  Zap
+  Clock3
 } from 'lucide-react';
 
 import { COLLECTIONS } from '../data/collections';
@@ -3771,24 +3768,93 @@ function BitacoraModal({
   institutionConfig,
   user
 }) {
-  const [text, setText] =
-    useState('');
+  const BITACORA_INCIDENT_TYPES = [
+    {
+      label: 'Trabajó muy bien',
+      emoji: '🌟',
+      severity: 'positive',
+      className:
+        'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+    },
+    {
+      label: 'Buena disposición',
+      emoji: '😊',
+      severity: 'positive',
+      className:
+        'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+    },
+    {
+      label: 'Logro / aprendizaje',
+      emoji: '🏆',
+      severity: 'positive',
+      className:
+        'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100'
+    },
+    {
+      label: 'Participación',
+      emoji: '🙌',
+      severity: 'positive',
+      className:
+        'bg-cyan-50 border-cyan-200 text-cyan-800 hover:bg-cyan-100'
+    },
+    {
+      label: 'Crisis / desregulación',
+      emoji: '😭',
+      severity: 'medium',
+      className:
+        'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100'
+    },
+    {
+      label: 'Conflicto / agresión',
+      emoji: '✊',
+      severity: 'high',
+      className:
+        'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
+    },
+    {
+      label: 'Fuga / intento',
+      emoji: '🏃',
+      severity: 'high',
+      className:
+        'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
+    },
+    {
+      label: 'Ausentismo',
+      emoji: '🏠',
+      severity: 'medium',
+      className:
+        'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100'
+    }
+  ];
 
-  const [saving, setSaving] =
-    useState(false);
+  const [text, setText] = useState('');
+  // El editor comienza visible, como en la primera versión.
+  // Puede ocultarse y volver a abrirse, como en la segunda versión.
+  const [isWriting, setIsWriting] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [editingText, setEditingText] = useState('');
+
+  const canAddBitacora =
+    institutionConfig?.document?.bitacoraActions?.add !== false;
+  const canPrintBitacora =
+    institutionConfig?.document?.bitacoraActions?.print !== false;
+
   const handlePrint = () => {
-  printBitacora(
-    student,
-    entries,
-    institutionConfig
-  );
-};
+    printBitacora(student, entries, institutionConfig);
+  };
 
-  const addEntry = async () => {
-    const cleanText =
-      text.trim();
-
+  // Guarda tanto las notas escritas como los registros rápidos.
+  // Unifica la lógica que estaba repetida en las dos versiones.
+  const saveEntry = async (type, severity, entryText) => {
+    const cleanText = String(entryText ?? type ?? '').trim();
     if (!cleanText) return;
+
+    const targetStudentId = student?.personId || student?.id;
+    if (!targetStudentId) {
+      alert('No se encontró el identificador de la persona. No se pudo guardar el registro.');
+      return;
+    }
 
     setSaving(true);
 
@@ -3804,39 +3870,24 @@ function BitacoraModal({
           crypto.randomUUID()
         ),
         {
-          studentId:
-            student.personId,
-
-          date:
-            new Date().toISOString(),
-
-          type: 'Nota',
-
-          severity: 'medium',
-
+          studentId: targetStudentId,
+          date: new Date().toISOString(),
+          type: type || 'Nota',
+          severity: severity || 'medium',
           text: cleanText,
-
           author:
             user?.fullName ||
             user?.firstName ||
             'Usuario',
-
-          authorId:
-            user?.id || null,
-
-          createdAt:
-            serverTimestamp()
+          authorId: user?.id || null,
+          createdAt: serverTimestamp()
         }
       );
 
       setText('');
-
+      setIsWriting(false);
     } catch (error) {
-      console.error(
-        'Error guardando bitácora:',
-        error
-      );
-
+      console.error('Error guardando bitácora:', error);
       alert(
         `No se pudo guardar la bitácora: ${
           error?.message || error
@@ -3847,209 +3898,298 @@ function BitacoraModal({
     }
   };
 
+  // Conserva el registro manual de la primera versión.
+  const addEntry = () => {
+    saveEntry('Nota', 'medium', text);
+  };
+
+  // Conserva los botones de incidentes de la segunda versión.
+  const handleQuickIncident = incident => {
+    saveEntry(incident.label, incident.severity, incident.label);
+  };
+
+  const handleSaveEdit = async () => {
+    const clean = editingText.trim();
+    if (!editingEntry?.id || !clean) return;
+
+    try {
+      await updateDoc(
+        doc(
+          db,
+          'artifacts',
+          appId,
+          'public',
+          'data',
+          COLLECTIONS.STUDENT_BITACORA,
+          editingEntry.id
+        ),
+        {
+          text: clean,
+          updatedAt: serverTimestamp(),
+          editedBy: user?.id || null
+        }
+      );
+      setEditingEntry(null);
+      setEditingText('');
+    } catch (error) {
+      console.error('Error editando registro de bitácora:', error);
+      alert(`No se pudo editar el registro: ${error?.message || error}`);
+    }
+  };
+
+  const handleDeleteEntry = async entry => {
+    if (!entry?.id) return;
+    if (!window.confirm('¿Querés eliminar este registro de la bitácora?')) return;
+
+    try {
+      await deleteDoc(
+        doc(
+          db,
+          'artifacts',
+          appId,
+          'public',
+          'data',
+          COLLECTIONS.STUDENT_BITACORA,
+          entry.id
+        )
+      );
+    } catch (error) {
+      console.error('Error eliminando registro de bitácora:', error);
+      alert(`No se pudo eliminar el registro: ${error?.message || error}`);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-
       <div className="bg-white rounded-[28px] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
-
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-
+        {/* ENCABEZADO E IMPRESIÓN */}
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
           <div>
-            <h3 className="text-xl font-black text-slate-900">
+            <h3 className="text-xl font-black text-slate-900 uppercase italic">
               Bitácora
             </h3>
-
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
-              {student.lastName},{' '}
-              {student.firstName}
+              {student.lastName}, {student.firstName}
             </p>
           </div>
-<button
-  type="button"
-  onClick={handlePrint}
-  className="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-black text-xs flex items-center gap-2"
->
-  <Printer size={15} />
-  Imprimir
-</button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl bg-slate-100 text-slate-500"
-          >
-            <X size={20} />
-          </button>
 
-        </div>
-
-        <div className="p-5 border-b border-slate-100 bg-slate-50">
-
-          <textarea
-            value={text}
-            onChange={event =>
-              setText(
-                event.target.value
-              )
-            }
-            rows={3}
-            placeholder="Escribí una observación o registro..."
-            className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 resize-none"
-          />
-
-          <div className="flex justify-end mt-2">
+          <div className="flex items-center gap-2">
+            {canPrintBitacora && (
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="px-3 py-2 rounded-xl bg-violet-50 text-violet-700 hover:bg-violet-100 font-black text-xs flex items-center gap-2 transition"
+              >
+                <Printer size={15} />
+                Imprimir
+              </button>
+            )}
 
             <button
               type="button"
-              onClick={addEntry}
-              disabled={
-                saving ||
-                !text.trim()
-              }
-              className="px-4 py-2.5 rounded-xl bg-violet-600 text-white font-black text-xs disabled:opacity-40 flex items-center gap-2"
+              onClick={onClose}
+              className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:text-red-500 transition"
+              aria-label="Cerrar bitácora"
             >
-              <Plus size={16} />
-              {saving
-                ? 'Guardando...'
-                : 'Agregar registro'}
+              <X size={20} />
             </button>
-
           </div>
-
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        {/* REGISTROS RÁPIDOS Y NOTA ESCRITA */}
+        {canAddBitacora && (
+          <div className="p-5 border-b border-slate-100 bg-slate-50 shrink-0 space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {BITACORA_INCIDENT_TYPES.map(incident => (
+                <button
+                  type="button"
+                  key={incident.label}
+                  disabled={saving}
+                  onClick={() => handleQuickIncident(incident)}
+                  className={`min-h-[74px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1 px-2 py-2.5 transition active:scale-95 disabled:opacity-50 ${incident.className}`}
+                >
+                  <span className="text-xl leading-none">
+                    {incident.emoji}
+                  </span>
+                  <span className="text-[8px] font-black uppercase tracking-tight text-center leading-tight">
+                    {incident.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {isWriting ? (
+              <div>
+                <textarea
+                  autoFocus
+                  value={text}
+                  onChange={event => setText(event.target.value)}
+                  rows={3}
+                  placeholder="Escribí una observación o registro..."
+                  className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm font-medium outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100 resize-none"
+                />
+
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsWriting(false);
+                      setText('');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-200/70 text-slate-600 font-black text-xs"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={addEntry}
+                    disabled={saving || !text.trim()}
+                    className="flex-[2] py-2.5 rounded-xl bg-violet-600 text-white font-black text-xs disabled:opacity-40 flex items-center justify-center gap-2"
+                  >
+                    <Plus size={16} />
+                    {saving ? 'Guardando...' : 'Agregar registro'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsWriting(true)}
+                className="w-full py-3 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider hover:bg-slate-800 transition flex items-center justify-center gap-2"
+              >
+                <Edit3 size={14} />
+                Redactar nota escrita
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* LISTADO DE REGISTROS: FECHA, AUTOR, TIPO, NIVEL, TEXTO Y ACCIONES */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              Registros ({entries.length})
+            </p>
+          </div>
 
           {loading ? (
             <div className="py-10 text-center text-xs font-black uppercase tracking-widest text-slate-400">
               Cargando bitácora...
             </div>
           ) : entries.length === 0 ? (
-            <div className="py-10 text-center">
-
-              <BookOpen
-                size={32}
-                className="mx-auto text-slate-300"
-              />
-
+            <div className="py-10 text-center border border-dashed border-slate-200 rounded-2xl">
+              <BookOpen size={32} className="mx-auto text-slate-300" />
               <p className="mt-3 text-sm font-bold text-slate-400">
-                Todavía no hay registros.
+                Todavía no hay registros en la bitácora.
               </p>
-
             </div>
           ) : (
+            entries.map(entry => {
+              const tone =
+                entry.severity === 'positive'
+                  ? 'border-emerald-200 bg-emerald-50/70'
+                  : entry.severity === 'high'
+                  ? 'border-red-200 bg-red-50/70'
+                  : 'border-orange-200 bg-orange-50/70';
 
-            <div className="space-y-3">
+              const isEditing = editingEntry?.id === entry.id;
 
-              {entries.map(entry => (
-
+              return (
                 <div
                   key={entry.id}
-                  className="border border-slate-200 rounded-2xl p-4 bg-white"
+                  className={`rounded-2xl border p-4 ${tone}`}
                 >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-violet-700">
+                          {entry.type || 'Registro'}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400">
+                          {formatDate(entry.date)}
+                        </span>
+                        <span className="px-2 py-1 rounded-full bg-white/80 text-slate-500 text-[8px] font-black uppercase">
+                          {entry.severity || 'medium'}
+                        </span>
+                      </div>
 
-                  <div className="flex items-center justify-between gap-3">
-
-                    <div>
-                      <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">
-                        {entry.type ||
-                          'Registro'}
-                      </p>
-
-                      <p className="text-[10px] text-slate-400 font-bold mt-1">
-                        {formatDate(
-                          entry.date
-                        )}{' '}
-                        ·{' '}
-                        {entry.author ||
-                          'Usuario'}
-                      </p>
+                      {isEditing ? (
+                        <div className="mt-2">
+                          <textarea
+                            value={editingText}
+                            onChange={event => setEditingText(event.target.value)}
+                            rows={3}
+                            className="w-full p-3 rounded-xl bg-white border border-slate-200 text-sm font-medium outline-none focus:border-violet-400 resize-none"
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingEntry(null);
+                                setEditingText('');
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-[10px] font-black"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSaveEdit}
+                              disabled={!editingText.trim()}
+                              className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-[10px] font-black disabled:opacity-50"
+                            >
+                              Guardar cambios
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="mt-2 text-sm text-slate-800 font-bold whitespace-pre-wrap leading-snug">
+                            {entry.text || entry.type}
+                          </p>
+                          <p className="text-[9px] font-bold uppercase text-slate-400 mt-2">
+                            Registrado por: {entry.author || 'Usuario'}
+                          </p>
+                        </>
+                      )}
                     </div>
 
-                    <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-[8px] font-black uppercase">
-                      {entry.severity ||
-                        'medium'}
-                    </span>
-
+                    {!isEditing && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingEntry(entry);
+                            setEditingText(entry.text || '');
+                          }}
+                          className="p-2 rounded-lg bg-white/80 text-slate-500 hover:text-violet-600 transition"
+                          title="Editar registro"
+                          aria-label="Editar registro"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEntry(entry)}
+                          className="p-2 rounded-lg bg-white/80 text-slate-500 hover:text-red-600 transition"
+                          title="Eliminar registro"
+                          aria-label="Eliminar registro"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
-
-                  <p className="mt-3 text-sm text-slate-700 font-medium whitespace-pre-wrap">
-                    {entry.text}
-                  </p>
-
                 </div>
-
-              ))}
-
-            </div>
+              );
+            })
           )}
-
         </div>
-
       </div>
-
     </div>
   );
 }
-const BITACORA_INCIDENT_TYPES = [
-  {
-    label: 'Trabajó muy bien',
-    emoji: '🌟',
-    severity: 'positive',
-    className:
-      'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
-  },
-  {
-    label: 'Buena disposición',
-    emoji: '😊',
-    severity: 'positive',
-    className:
-      'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
-  },
-  {
-    label: 'Logro / aprendizaje',
-    emoji: '🏆',
-    severity: 'positive',
-    className:
-      'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100'
-  },
-  {
-    label: 'Participación',
-    emoji: '🙌',
-    severity: 'positive',
-    className:
-      'bg-cyan-50 border-cyan-200 text-cyan-800 hover:bg-cyan-100'
-  },
-  {
-    label: 'Crisis / desregulación',
-    emoji: '😭',
-    severity: 'medium',
-    className:
-      'bg-orange-50 border-orange-200 text-orange-800 hover:bg-orange-100'
-  },
-  {
-    label: 'Conflicto / agresión',
-    emoji: '✊',
-    severity: 'high',
-    className:
-      'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
-  },
-  {
-    label: 'Fuga / intento',
-    emoji: '🏃',
-    severity: 'high',
-    className:
-      'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
-  },
-  {
-    label: 'Ausentismo',
-    emoji: '🏠',
-    severity: 'medium',
-    className:
-      'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100'
-  }
-];
-
-
 function StudentFormModal({
   student,
   groups,
