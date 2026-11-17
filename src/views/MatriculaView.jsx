@@ -3346,15 +3346,16 @@ const printBitacora = (
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
-  const institutionMode =
-  institutionConfig?.institutionMode || 'school';
 
-const personLabel =
-  institutionMode === 'day_center'
-    ? 'concurrente'
-    : institutionMode === 'clinic'
-    ? 'paciente'
-    : 'estudiante';
+  const institutionMode =
+    institutionConfig?.institutionMode || 'school';
+
+  const personLabel =
+    institutionMode === 'day_center'
+      ? 'concurrente'
+      : institutionMode === 'clinic'
+      ? 'paciente'
+      : 'estudiante';
 
   const primary =
     institutionConfig?.primaryColor ||
@@ -3394,6 +3395,69 @@ const personLabel =
       .filter(Boolean)
       .join(' · ');
 
+  // Fecha y hora exactas en que se genera la impresión.
+  const printedAt = new Date();
+  const printedDate = printedAt.toLocaleDateString('es-AR');
+  const printedTime = printedAt.toLocaleTimeString('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  // Datos disponibles del legajo. Los campos vacíos no se imprimen.
+  const age = calculateAge(student?.birthDate);
+
+  const studentFields = [
+    ['DNI', student?.dni],
+    [
+      'Fecha de nacimiento',
+      student?.birthDate ? formatDate(student.birthDate) : ''
+    ],
+    ['Edad', age !== null ? `${age} años` : ''],
+    ['Género', student?.gender],
+    ['Nivel', student?.level],
+    ['Dirección', student?.address],
+    ['Localidad', student?.city],
+    ['Teléfono', student?.phone],
+    ['Correo electrónico', student?.email],
+    ['Obra social', student?.healthInsurance],
+    ['Número de CUD', student?.cudNumber],
+    [
+      'Vencimiento del CUD',
+      student?.cudExpiration ? formatDate(student.cudExpiration) : ''
+    ],
+    [
+      'Referentes familiares',
+      [student?.motherName, student?.fatherName].filter(Boolean).join(' · ')
+    ],
+    [
+      'Contactos familiares',
+      [student?.motherContact, student?.fatherContact].filter(Boolean).join(' · ')
+    ],
+    ['Contacto de emergencia', student?.emergencyContact]
+  ].filter(([, value]) =>
+    value !== null &&
+    value !== undefined &&
+    String(value).trim() !== ''
+  );
+
+  const studentFieldsHtml =
+    studentFields.length > 0
+      ? studentFields
+          .map(
+            ([label, value]) => `
+              <div class="student-field">
+                <div class="field-label">${escapeHtml(label)}</div>
+                <div class="field-value">${escapeHtml(value)}</div>
+              </div>
+            `
+          )
+          .join('')
+      : `
+          <div class="student-field student-field-empty">
+            No hay otros datos personales cargados en el legajo.
+          </div>
+        `;
+
   const printWindow =
     window.open(
       '',
@@ -3418,12 +3482,8 @@ const personLabel =
 
         <title>
           Bitácora -
-          ${escapeHtml(
-            student.lastName
-          )},
-          ${escapeHtml(
-            student.firstName
-          )}
+          ${escapeHtml(student?.lastName)},
+          ${escapeHtml(student?.firstName)}
         </title>
 
         <style>
@@ -3437,8 +3497,14 @@ const personLabel =
             box-sizing: border-box;
           }
 
+          html,
           body {
+            width: 100%;
             margin: 0;
+            padding: 0;
+          }
+
+          body {
             font-family:
               Arial,
               Helvetica,
@@ -3448,11 +3514,12 @@ const personLabel =
 
             font-size: 10px;
 
-            -webkit-print-color-adjust:
-              exact;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
 
-            print-color-adjust:
-              exact;
+          .page-content {
+            width: 100%;
           }
 
           .header {
@@ -3473,7 +3540,7 @@ const personLabel =
 
             color: white;
 
-            margin-bottom: 14px;
+            margin-bottom: 12px;
           }
 
           .logo {
@@ -3481,24 +3548,38 @@ const personLabel =
             height: 42px;
 
             object-fit: contain;
+            flex-shrink: 0;
 
             background: white;
-
             padding: 4px;
-
             border-radius: 6px;
+          }
+
+          .institution-block {
+            min-width: 0;
           }
 
           .institution {
             font-size: 13px;
             font-weight: 900;
             text-transform: uppercase;
+            overflow-wrap: anywhere;
           }
 
           .institution-meta {
             font-size: 7px;
             margin-top: 3px;
             opacity: .9;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+          }
+
+          .title-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 2px 0 9px;
           }
 
           .title {
@@ -3508,51 +3589,124 @@ const personLabel =
             text-transform: uppercase;
           }
 
-          .student {
-            font-size: 9px;
+          .print-date {
+            flex-shrink: 0;
+            text-align: right;
+            color: #475569;
+            font-size: 8px;
+            line-height: 1.45;
+          }
+
+          .print-date strong {
+            display: block;
+            color: ${primary};
+            font-size: 7px;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+          }
+
+          .student-panel {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 9px 10px;
+            margin-bottom: 12px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .student-heading {
+            padding-bottom: 7px;
+            margin-bottom: 7px;
+            border-bottom: 1px solid #e2e8f0;
+          }
+
+          .student-label {
+            color: ${primary};
+            font-size: 7px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            margin-bottom: 3px;
+          }
+
+          .student-name {
+            color: #1e293b;
+            font-size: 14px;
+            line-height: 1.2;
+            font-weight: 900;
+            text-transform: uppercase;
+            overflow-wrap: anywhere;
+          }
+
+          .student-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            column-gap: 14px;
+            row-gap: 7px;
+          }
+
+          .student-field {
+            min-width: 0;
+            overflow-wrap: anywhere;
+          }
+
+          .field-label {
             color: #64748b;
-            font-weight: 700;
-            margin-top: 3px;
+            font-size: 6.5px;
+            line-height: 1.2;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+          }
+
+          .field-value {
+            color: #1e293b;
+            font-size: 8px;
+            line-height: 1.3;
+            font-weight: 600;
+            margin-top: 2px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+          }
+
+          .student-field-empty {
+            grid-column: 1 / -1;
+            color: #64748b;
+            font-size: 8px;
           }
 
           .section-title {
-            margin-top: 14px;
-
+            margin-top: 12px;
+            margin-bottom: 7px;
             padding: 5px 8px;
-
-            border-left:
-              3px solid ${primary};
-
+            border-left: 3px solid ${primary};
             background: ${background};
-
             color: ${primary};
-
             border-radius: 5px;
-
             font-size: 8px;
-
             font-weight: 900;
-
             text-transform: uppercase;
           }
 
           .entry {
             margin-top: 8px;
-
             padding: 9px 10px;
-
-            border:
-              1px solid #e2e8f0;
-
+            border: 1px solid #e2e8f0;
             border-radius: 7px;
 
-            page-break-inside: avoid;
+            /* Permite que una nota larga continúe en la página siguiente. */
+            break-inside: auto;
+            page-break-inside: auto;
           }
 
           .entry-top {
             display: flex;
+            align-items: flex-start;
             justify-content: space-between;
             gap: 10px;
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
 
           .entry-type {
@@ -3560,43 +3714,56 @@ const personLabel =
             font-size: 8px;
             font-weight: 900;
             text-transform: uppercase;
+            overflow-wrap: anywhere;
           }
 
           .entry-date {
             color: #64748b;
             font-size: 7px;
             font-weight: 700;
+            white-space: nowrap;
+            flex-shrink: 0;
           }
 
           .entry-text {
             margin-top: 6px;
-
             font-size: 9px;
+            line-height: 1.45;
 
-            line-height: 1.35;
-
+            /* Mantiene saltos de párrafo y corta textos muy largos. */
             white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            hyphens: auto;
+            orphans: 2;
+            widows: 2;
           }
 
           .entry-author {
             margin-top: 6px;
-
             font-size: 7px;
-
             color: #64748b;
+            overflow-wrap: anywhere;
           }
 
           .footer {
             margin-top: 12px;
-
-            border-top:
-              1px solid #e2e8f0;
-
+            border-top: 1px solid #e2e8f0;
             padding-top: 6px;
-
             color: #64748b;
-
             font-size: 7px;
+          }
+
+          @media print {
+            .entry {
+              break-inside: auto;
+              page-break-inside: auto;
+            }
+
+            .entry-text {
+              break-inside: auto;
+              page-break-inside: auto;
+            }
           }
 
         </style>
@@ -3605,135 +3772,122 @@ const personLabel =
 
       <body>
 
-        <div class="header">
+        <div class="page-content">
 
-          ${
-            logoUrl
-              ? `
-                <img
-                  src="${escapeHtml(
-                    logoUrl
-                  )}"
-                  class="logo"
-                  alt="Logo"
-                />
-              `
-              : ''
-          }
+          <div class="header">
 
-          <div>
+            ${
+              logoUrl
+                ? `
+                  <img
+                    src="${escapeHtml(logoUrl)}"
+                    class="logo"
+                    alt="Logo"
+                  />
+                `
+                : ''
+            }
 
-            <div class="institution">
-              ${escapeHtml(
-                institutionName
-              )}
+            <div class="institution-block">
+
+              <div class="institution">
+                ${escapeHtml(institutionName)}
+              </div>
+
+              ${
+                address
+                  ? `
+                    <div class="institution-meta">
+                      ${escapeHtml(address)}
+                    </div>
+                  `
+                  : ''
+              }
+
+              ${
+                contact
+                  ? `
+                    <div class="institution-meta">
+                      ${escapeHtml(contact)}
+                    </div>
+                  `
+                  : ''
+              }
+
             </div>
-
-            ${
-              address
-                ? `
-                  <div class="institution-meta">
-                    ${escapeHtml(
-                      address
-                    )}
-                  </div>
-                `
-                : ''
-            }
-
-            ${
-              contact
-                ? `
-                  <div class="institution-meta">
-                    ${escapeHtml(
-                      contact
-                    )}
-                  </div>
-                `
-                : ''
-            }
 
           </div>
 
-        </div>
+          <div class="title-row">
+            <div class="title">Bitácora</div>
+            <div class="print-date">
+              <strong>Fecha de impresión</strong>
+              ${escapeHtml(printedDate)} · ${escapeHtml(printedTime)} hs
+            </div>
+          </div>
 
-        <div class="title">
-          Bitácora
-        </div>
-
-        <div class="student">
-          Legajo del ${personLabel} ·
-          ${escapeHtml(
-            student.lastName
-          )},
-          ${escapeHtml(
-            student.firstName
-          )}
-        </div>
-
-        <div class="section-title">
-          Registros
-        </div>
-
-        ${
-          entries.length === 0
-            ? `
-              <div class="entry">
-                No hay registros en la bitácora.
+          <div class="student-panel">
+            <div class="student-heading">
+              <div class="student-label">
+                Datos del ${escapeHtml(personLabel)}
               </div>
-            `
-            : entries
-                .map(
-                  entry => `
-                    <div class="entry">
+              <div class="student-name">
+                ${escapeHtml(student?.lastName)}, ${escapeHtml(student?.firstName)}
+              </div>
+            </div>
 
-                      <div class="entry-top">
+            <div class="student-grid">
+              ${studentFieldsHtml}
+            </div>
+          </div>
 
-                        <div class="entry-type">
-                          ${escapeHtml(
-                            entry.type ||
-                              'Registro'
-                          )}
+          <div class="section-title">
+            Registros
+          </div>
+
+          ${
+            !entries || entries.length === 0
+              ? `
+                <div class="entry">
+                  No hay registros en la bitácora.
+                </div>
+              `
+              : entries
+                  .map(
+                    entry => `
+                      <div class="entry">
+
+                        <div class="entry-top">
+
+                          <div class="entry-type">
+                            ${escapeHtml(entry.type || 'Registro')}
+                          </div>
+
+                          <div class="entry-date">
+                            ${escapeHtml(formatDate(entry.date))}
+                          </div>
+
                         </div>
 
-                        <div class="entry-date">
-                          ${escapeHtml(
-                            formatDate(
-                              entry.date
-                            )
-                          )}
+                        <div class="entry-text">${escapeHtml(entry.text || '')}</div>
+
+                        <div class="entry-author">
+                          Registrado por:
+                          ${escapeHtml(entry.author || 'Usuario')}
                         </div>
 
                       </div>
+                    `
+                  )
+                  .join('')
+          }
 
-                      <div class="entry-text">
-                        ${escapeHtml(
-                          entry.text
-                        )}
-                      </div>
+          <div class="footer">
+            ${escapeHtml(institutionName)}
+            · Bitácora impresa el ${escapeHtml(printedDate)} a las
+            ${escapeHtml(printedTime)} hs
+          </div>
 
-                      <div class="entry-author">
-                        Registrado por:
-                        ${escapeHtml(
-                          entry.author ||
-                            'Usuario'
-                        )}
-                      </div>
-
-                    </div>
-                  `
-                )
-                .join('')
-        }
-
-        <div class="footer">
-          ${escapeHtml(
-            institutionName
-          )}
-          · Bitácora generada el
-          ${new Date().toLocaleDateString(
-            'es-AR'
-          )}
         </div>
 
         <script>
