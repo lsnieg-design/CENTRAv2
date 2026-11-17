@@ -234,6 +234,22 @@ export function GroupsView({
   const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [groupsToPrint, setGroupsToPrint] = useState([]);
   const [printMode, setPrintMode] = useState('students');
+  // Selección de datos que se incluirán en la impresión de grupos.
+  // Se comparte para imprimir todos los grupos o uno en particular.
+  const [printFields, setPrintFields] = useState({
+    photo: true,
+    fullName: true,
+    dni: true,
+    age: true,
+    birthDate: true,
+    level: false,
+    healthInsurance: false,
+    address: false,
+    phoneEmail: false,
+    familyContacts: false,
+    emergencyContact: false,
+    cud: false
+  });
   const [searchTerm, setSearchTerm] = useState('');
 
   const institutionMode = institutionConfig?.institutionMode || 'school';
@@ -1550,6 +1566,7 @@ export function GroupsView({
   };
 
   const printGroups = groupsList => {
+    const safeGroups = Array.isArray(groupsList) ? groupsList : [];
     const title =
       institutionMode === 'day_center'
         ? 'Listado de talleres y concurrentes'
@@ -1561,6 +1578,38 @@ export function GroupsView({
       personLabelPlural.charAt(0).toUpperCase() +
       personLabelPlural.slice(1);
 
+    const institutionName =
+      institutionConfig?.institutionShortName ||
+      institutionConfig?.institutionName ||
+      'Mi Institución';
+    const logoUrl = institutionConfig?.logoUrl || '';
+    const institutionAddress = [
+      institutionConfig?.address,
+      institutionConfig?.city,
+      institutionConfig?.province
+    ].filter(Boolean).join(' · ');
+    const institutionContact = [
+      institutionConfig?.phone,
+      institutionConfig?.email,
+      institutionConfig?.website
+    ].filter(Boolean).join(' · ');
+    const printedAt = new Date().toLocaleString('es-AR', {
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+
+    const institutionHeader = `
+      <div class="institution-header">
+        ${logoUrl ? `<img src="${escapeHtml(logoUrl)}" class="institution-logo" alt="Logo institucional" />` : ''}
+        <div class="institution-info">
+          <div class="institution-name">${escapeHtml(institutionName)}</div>
+          ${institutionAddress ? `<div class="institution-meta">${escapeHtml(institutionAddress)}</div>` : ''}
+          ${institutionContact ? `<div class="institution-meta">${escapeHtml(institutionContact)}</div>` : ''}
+          <div class="institution-printed">Impreso el ${escapeHtml(printedAt)}</div>
+        </div>
+      </div>
+    `;
+
     const printWindow = window.open(
       '',
       '_blank',
@@ -1568,54 +1617,139 @@ export function GroupsView({
     );
 
     if (!printWindow) {
-      alert(
-        'El navegador bloqueó la ventana de impresión.'
-      );
+      alert('El navegador bloqueó la ventana de impresión.');
       return;
     }
 
-    const pages = groupsList
+    // Cada columna se genera solamente cuando fue seleccionada en las opciones.
+    const columnDefinitions = [
+      {
+        key: 'photo',
+        label: 'Foto',
+        render: person => person.photoUrl
+          ? `<img src="${escapeHtml(person.photoUrl)}" class="person-photo" alt="Foto de ${escapeHtml(person.firstName || '')}" />`
+          : `<div class="person-photo initials">${escapeHtml((person.firstName || '?').charAt(0).toUpperCase())}</div>`
+      },
+      {
+        key: 'fullName',
+        label: 'Nombre y apellido',
+        render: person => `<strong>${escapeHtml([person.lastName, person.firstName].filter(Boolean).join(', ') || person.fullName || '-')}</strong>`
+      },
+      {
+        key: 'dni',
+        label: 'DNI',
+        render: person => escapeHtml(person.dni || '-')
+      },
+      {
+        key: 'age',
+        label: 'Edad',
+        render: person => {
+          const age = calculateAge(person.birthDate);
+          return escapeHtml(age != null && age >= 0 ? `${age} años` : '-');
+        }
+      },
+      {
+        key: 'birthDate',
+        label: 'Fecha de nacimiento',
+        render: person => escapeHtml(formatDate(person.birthDate) || '-')
+      },
+      {
+        key: 'level',
+        label: 'Nivel / trayectoria',
+        render: person => escapeHtml(person.level || person.levelName || '-')
+      },
+      {
+        key: 'healthInsurance',
+        label: 'Obra social',
+        render: person => escapeHtml(person.healthInsurance || '-')
+      },
+      {
+        key: 'address',
+        label: 'Domicilio',
+        render: person => escapeHtml([person.address, person.city].filter(Boolean).join(' · ') || '-')
+      },
+      {
+        key: 'phoneEmail',
+        label: 'Teléfono / correo',
+        render: person => escapeHtml([person.phone, person.email].filter(Boolean).join(' · ') || '-')
+      },
+      {
+        key: 'familyContacts',
+        label: 'Referentes familiares',
+        render: person => {
+          const details = [];
+          if (person.motherName || person.motherContact) {
+            details.push(`Madre: ${[person.motherName, person.motherContact].filter(Boolean).join(' · ') || '-'}`);
+          }
+          if (person.fatherName || person.fatherContact) {
+            details.push(`Padre: ${[person.fatherName, person.fatherContact].filter(Boolean).join(' · ') || '-'}`);
+          }
+          return details.length
+            ? details.map(item => escapeHtml(item)).join('<br />')
+            : '-';
+        }
+      },
+      {
+        key: 'emergencyContact',
+        label: 'Contacto de emergencia',
+        render: person => escapeHtml(person.emergencyContact || '-')
+      },
+      {
+        key: 'cud',
+        label: 'CUD',
+        render: person => {
+          const number = person.cudNumber || '';
+          const expiration = person.cudExpiration ? formatDate(person.cudExpiration) : '';
+          const value = [number ? `N.º ${number}` : '', expiration ? `Vence: ${expiration}` : ''].filter(Boolean).join(' · ');
+          return escapeHtml(value || '-');
+        }
+      }
+    ];
+
+    const selectedColumns = columnDefinitions.filter(column => printFields?.[column.key]);
+
+    if (printMode !== 'staff' && selectedColumns.length === 0) {
+      alert('Seleccioná al menos un dato para incluir en el listado.');
+      return;
+    }
+
+    const columnHeaders = selectedColumns
+      .map(column => `<th>${escapeHtml(column.label)}</th>`)
+      .join('');
+
+    const pages = safeGroups
       .map(group => {
-        const team =
-          group.staffByRole
-            ?.map(
-              item =>
-                `${item.roleName}: ${item.name}`
-            )
-            .join(' · ') ||
-          'Sin personal asignado';
+        const groupStudents = Array.isArray(group.students) ? group.students : [];
+        const team = group.staffByRole
+          ?.map(item => `${item.roleName}: ${item.name}`)
+          .join(' · ') || 'Sin personal asignado';
 
-        const peopleRows =
-          [...(group.students || [])]
-            .sort((a, b) =>
-              (a.lastName || '').localeCompare(
-                b.lastName || ''
-              )
-            )
-            .map((person, index) => {
-              const photo = person.photoUrl
-                ? `<img src="${escapeHtml(person.photoUrl)}" class="person-photo" />`
-                : `<div class="person-photo initials">${escapeHtml((person.firstName || '?').charAt(0).toUpperCase())}</div>`;
+        const peopleRows = [...groupStudents]
+          .sort((a, b) => (a.lastName || '').localeCompare(b.lastName || '', 'es'))
+          .map((person, index) => {
+            const cells = selectedColumns
+              .map(column => {
+                const className = column.key === 'photo' ? ' class="center photo-cell"' : '';
+                return `<td${className}>${column.render(person)}</td>`;
+              })
+              .join('');
 
-              return `
-                <tr>
-                  <td class="center">${index + 1}</td>
-                  <td>${photo}</td>
-                  <td><strong>${escapeHtml(person.lastName || '')}, ${escapeHtml(person.firstName || '')}</strong></td>
-                  <td>${escapeHtml(person.dni || '-')}</td>
-                  <td>${escapeHtml(calculateAge(person.birthDate) ?? '-')} años</td>
-                  <td>${escapeHtml(formatDate(person.birthDate) || '-')}</td>
-                </tr>
-              `;
-            })
-            .join('');
+            return `
+              <tr>
+                <td class="center row-number">${index + 1}</td>
+                ${cells}
+              </tr>
+            `;
+          })
+          .join('');
 
         return `
           <section class="group-page">
+            ${institutionHeader}
             <div class="group-header">
-              <div>
+              <div class="group-heading">
                 <div class="eyebrow">${escapeHtml(groupLabelPlural)}</div>
-                <h2>${escapeHtml(group.name)}</h2>
+                <h2>${escapeHtml(group.name || '')}</h2>
                 <div class="meta">
                   ${group.turnLabels?.length ? escapeHtml(group.turnLabels.join(' · ')) : ''}
                   ${group.levelId && institutionMode === 'school' ? ` · ${escapeHtml(group.levelId)}` : ''}
@@ -1623,7 +1757,10 @@ export function GroupsView({
                   ${group.classroom ? ` · ${escapeHtml(group.classroom)}` : ''}
                 </div>
               </div>
-              <div class="count">${group.students.length}<span>${escapeHtml(personPluralLabel)}</span></div>
+              <div class="count">
+                <strong>${groupStudents.length}</strong>
+                <span>${escapeHtml(personPluralLabel)}</span>
+              </div>
             </div>
 
             <div class="team"><strong>Equipo:</strong> ${escapeHtml(team)}</div>
@@ -1631,16 +1768,12 @@ export function GroupsView({
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Foto</th>
-                  <th>Nombre y apellido</th>
-                  <th>DNI</th>
-                  <th>Edad</th>
-                  <th>Fecha de nacimiento</th>
+                  <th class="row-number">#</th>
+                  ${columnHeaders}
                 </tr>
               </thead>
               <tbody>
-                ${peopleRows || `<tr><td colspan="6" class="empty">Sin ${escapeHtml(personLabelPlural)} asignados.</td></tr>`}
+                ${peopleRows || `<tr><td colspan="${selectedColumns.length + 1}" class="empty">Sin ${escapeHtml(personLabelPlural)} asignados.</td></tr>`}
               </tbody>
             </table>
           </section>
@@ -1648,19 +1781,15 @@ export function GroupsView({
       })
       .join('');
 
-    const staffRows = groupsList
+    const staffRows = safeGroups
       .map(group => {
-        const team =
-          group.staffByRole
-            ?.map(
-              item =>
-                `${item.roleName}: ${item.name}`
-            )
-            .join(' · ') || '-';
+        const team = group.staffByRole
+          ?.map(item => `${item.roleName}: ${item.name}`)
+          .join(' · ') || '-';
 
         return `
           <tr>
-            <td><strong>${escapeHtml(group.name)}</strong></td>
+            <td><strong>${escapeHtml(group.name || '-')}</strong></td>
             <td>${escapeHtml(team)}</td>
             <td>${escapeHtml(group.turnLabels?.join(' · ') || '-')}</td>
             <td>${escapeHtml(group.classroom || '-')}</td>
@@ -1669,9 +1798,9 @@ export function GroupsView({
       })
       .join('');
 
-    const content =
-      printMode === 'staff'
-        ? `
+    const content = printMode === 'staff'
+      ? `
+          ${institutionHeader}
           <h1>${escapeHtml(title)}</h1>
           <table>
             <thead>
@@ -1682,10 +1811,10 @@ export function GroupsView({
                 <th>Espacio</th>
               </tr>
             </thead>
-            <tbody>${staffRows}</tbody>
+            <tbody>${staffRows || `<tr><td colspan="4" class="empty">No hay equipos asignados.</td></tr>`}</tbody>
           </table>
         `
-        : pages;
+      : pages;
 
     printWindow.document.write(`
       <!doctype html>
@@ -1697,30 +1826,41 @@ export function GroupsView({
             @page { size: A4 landscape; margin: 8mm; }
             * { box-sizing: border-box; }
             body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: ${brandText}; background: #ffffff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            h1 { font-size: 20px; margin: 0 0 16px; color: ${brandPrimary}; text-transform: uppercase; }
-            .group-page { page-break-after: always; }
-            .group-page:last-child { page-break-after: avoid; }
-            .group-header { display: flex; justify-content: space-between; gap: 20px; align-items: center; border: 1px solid ${colorWithAlpha(brandPrimary, 0.28)}; background: linear-gradient(135deg, ${brandPrimarySoft}, ${brandSecondarySoft}); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+            .institution-header { display: flex; align-items: center; gap: 12px; padding: 9px 12px; margin-bottom: 10px; border: 1px solid ${colorWithAlpha(brandPrimary, 0.25)}; border-radius: 12px; background: linear-gradient(135deg, ${brandPrimarySoft}, ${brandSecondarySoft}); }
+            .institution-logo { width: 50px; height: 44px; object-fit: contain; flex: 0 0 auto; padding: 3px; border-radius: 7px; background: #ffffff; }
+            .institution-info { min-width: 0; flex: 1; }
+            .institution-name { color: ${brandPrimary}; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; }
+            .institution-meta { margin-top: 2px; color: ${brandText}; font-size: 7.5px; line-height: 1.3; overflow-wrap: anywhere; }
+            .institution-printed { margin-top: 3px; color: ${brandText}; opacity: .65; font-size: 7px; font-weight: 700; }
+            h1 { font-size: 20px; margin: 0 0 12px; color: ${brandPrimary}; text-transform: uppercase; }
+            .group-page { page-break-after: always; break-after: page; }
+            .group-page:last-child { page-break-after: auto; break-after: auto; }
+            .group-header { display: flex; justify-content: space-between; gap: 16px; align-items: center; border: 1px solid ${colorWithAlpha(brandPrimary, 0.28)}; background: linear-gradient(135deg, ${brandPrimarySoft}, ${brandSecondarySoft}); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+            .group-heading { min-width: 0; flex: 1; }
             .eyebrow { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 1.4px; color: ${brandPrimary}; margin-bottom: 4px; }
-            h2 { margin: 0; font-size: 18px; text-transform: uppercase; color: ${brandText}; }
-            .meta { margin-top: 4px; color: ${colorWithAlpha(brandText, 0.72)}; font-size: 9px; font-weight: 700; }
-            .count { width: 62px; height: 62px; border-radius: 16px; background: white; border: 1px solid ${colorWithAlpha(brandPrimary, 0.25)}; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: ${brandPrimary}; }
-            .count span { font-size: 7px; text-transform: uppercase; letter-spacing: .8px; color: ${colorWithAlpha(brandText, 0.55)}; }
-            .team { margin-bottom: 10px; padding: 8px 10px; border: 1px solid ${colorWithAlpha(brandSecondary, 0.24)}; border-radius: 10px; background: ${brandBackground}; color: ${brandText}; font-size: 9px; }
-            table { width: 100%; border-collapse: collapse; font-size: 9px; }
-            th { background: ${brandPrimary}; color: white; text-transform: uppercase; padding: 7px 6px; text-align: left; font-size: 7.5px; }
-            td { border: 1px solid ${colorWithAlpha(brandPrimary, 0.18)}; padding: 6px; vertical-align: middle; }
+            h2 { margin: 0; font-size: 18px; text-transform: uppercase; color: ${brandText}; overflow-wrap: anywhere; }
+            .meta { margin-top: 4px; color: ${colorWithAlpha(brandText, 0.72)}; font-size: 9px; font-weight: 700; overflow-wrap: anywhere; }
+            .count { min-width: 100px; max-width: 135px; min-height: 62px; height: auto; padding: 8px 12px; flex: 0 0 auto; border-radius: 16px; background: #ffffff; border: 1px solid ${colorWithAlpha(brandPrimary, 0.25)}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: ${brandPrimary}; }
+            .count strong { font-size: 20px; line-height: 1.1; font-weight: 900; }
+            .count span { display: block; max-width: 110px; margin-top: 3px; font-size: 7px; line-height: 1.15; text-transform: uppercase; letter-spacing: .45px; color: ${colorWithAlpha(brandText, 0.65)}; white-space: normal; overflow-wrap: anywhere; word-break: normal; text-align: center; }
+            .team { margin-bottom: 10px; padding: 8px 10px; border: 1px solid ${colorWithAlpha(brandSecondary, 0.24)}; border-radius: 10px; background: ${brandBackground}; color: ${brandText}; font-size: 9px; line-height: 1.4; overflow-wrap: anywhere; }
+            table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 8.5px; }
+            th { background: ${brandPrimary}; color: #ffffff; text-transform: uppercase; padding: 7px 6px; text-align: left; font-size: 7px; line-height: 1.2; }
+            td { border: 1px solid ${colorWithAlpha(brandPrimary, 0.18)}; padding: 6px; vertical-align: middle; line-height: 1.35; overflow-wrap: anywhere; word-break: break-word; }
             .center { text-align: center; }
-            .person-photo { width: 30px; height: 30px; object-fit: cover; border-radius: 8px; display: block; }
+            .row-number { width: 28px; text-align: center; }
+            .photo-cell { width: 52px; }
+            .person-photo { width: 34px; height: 34px; object-fit: cover; border-radius: 8px; display: block; margin: 0 auto; }
             .initials { background: ${brandPrimarySoft}; color: ${brandPrimary}; font-weight: 900; display: flex; align-items: center; justify-content: center; }
             .empty { text-align: center; color: ${colorWithAlpha(brandText, 0.55)}; padding: 16px; font-style: italic; }
+            @media print { .group-page { page-break-after: always; } .group-page:last-child { page-break-after: auto; } }
           </style>
         </head>
         <body>
           ${content}
           <script>
             window.addEventListener('load', function() {
-              setTimeout(function() { window.print(); }, 300);
+              setTimeout(function() { window.print(); }, 400);
             });
           </script>
         </body>
@@ -1729,7 +1869,6 @@ export function GroupsView({
 
     printWindow.document.close();
   };
-
   const currentBitacoraStudent =
     students.find(
       item =>
@@ -2348,6 +2487,10 @@ export function GroupsView({
           personLabelPlural={
             personLabelPlural
           }
+          printFields={printFields}
+          setPrintFields={setPrintFields}
+          brandPrimary={brandPrimary}
+          brandPrimarySoft={brandPrimarySoft}
         />
       )}
     </div>
@@ -3781,18 +3924,39 @@ function SectionHeading({
   );
 }
 
+const PRINT_FIELD_OPTIONS = [
+  { key: 'photo', label: 'Foto' },
+  { key: 'fullName', label: 'Nombre y apellido' },
+  { key: 'dni', label: 'DNI' },
+  { key: 'birthDate', label: 'Fecha de nacimiento' },
+  { key: 'age', label: 'Edad' },
+  { key: 'level', label: 'Nivel / trayectoria' },
+  { key: 'healthInsurance', label: 'Obra social' },
+  { key: 'address', label: 'Domicilio y localidad' },
+  { key: 'phoneEmail', label: 'Teléfono y correo' },
+  { key: 'familyContacts', label: 'Referentes familiares' },
+  { key: 'emergencyContact', label: 'Contacto de emergencia' },
+  { key: 'cud', label: 'Número y vencimiento del CUD' }
+];
+
 function PrintOptionsModal({
   printMode,
   setPrintMode,
   onClose,
   onConfirm,
   groupLabelPlural,
-  personLabelPlural
+  personLabelPlural,
+  printFields,
+  setPrintFields,
+  brandPrimary = '#6d28d9',
+  brandPrimarySoft = 'rgba(109, 40, 217, 0.10)'
 }) {
+  const hasSelectedField = PRINT_FIELD_OPTIONS.some(option => printFields?.[option.key]);
+
   return (
     <div className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-[32px] w-full max-w-md p-7 shadow-2xl border-t-8 border-violet-600">
-        <p className="text-[9px] font-black uppercase tracking-widest text-violet-500">
+      <div className="bg-white rounded-[32px] w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 md:p-7 shadow-2xl border-t-8" style={{ borderTopColor: brandPrimary }}>
+        <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: brandPrimary }}>
           Imprimir
         </p>
 
@@ -3803,33 +3967,27 @@ function PrintOptionsModal({
         <div className="flex flex-col gap-3 mt-5">
           <button
             type="button"
-            onClick={() =>
-              setPrintMode('students')
-            }
-            className={`p-4 rounded-2xl border-2 text-left transition ${
-              printMode === 'students'
-                ? 'border-violet-600 bg-violet-50'
-                : 'border-slate-100 hover:border-slate-200'
-            }`}
+            onClick={() => setPrintMode('students')}
+            className="p-4 rounded-2xl border-2 text-left transition"
+            style={printMode === 'students'
+              ? { borderColor: brandPrimary, backgroundColor: brandPrimarySoft }
+              : { borderColor: '#f1f5f9' }}
           >
             <p className="font-black text-xs uppercase text-slate-800">
               Listado de {personLabelPlural}
             </p>
             <p className="text-[10px] text-slate-500 mt-1">
-              Foto, nombre, DNI, edad y fecha de nacimiento.
+              Elegí qué datos personales aparecen en cada {groupLabelPlural}.
             </p>
           </button>
 
           <button
             type="button"
-            onClick={() =>
-              setPrintMode('staff')
-            }
-            className={`p-4 rounded-2xl border-2 text-left transition ${
-              printMode === 'staff'
-                ? 'border-violet-600 bg-violet-50'
-                : 'border-slate-100 hover:border-slate-200'
-            }`}
+            onClick={() => setPrintMode('staff')}
+            className="p-4 rounded-2xl border-2 text-left transition"
+            style={printMode === 'staff'
+              ? { borderColor: brandPrimary, backgroundColor: brandPrimarySoft }
+              : { borderColor: '#f1f5f9' }}
           >
             <p className="font-black text-xs uppercase text-slate-800">
               Organización de personal
@@ -3839,6 +3997,43 @@ function PrintOptionsModal({
             </p>
           </button>
         </div>
+
+        {printMode === 'students' && (
+          <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: `${brandPrimary}35`, backgroundColor: brandPrimarySoft }}>
+            <div className="mb-3">
+              <p className="text-xs font-black uppercase" style={{ color: brandPrimary }}>
+                Información a incluir
+              </p>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Estas opciones se aplican tanto al imprimir todos los grupos como al imprimir un solo grupo.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+              {PRINT_FIELD_OPTIONS.map(option => (
+                <label key={option.key} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(printFields?.[option.key])}
+                    onChange={event => setPrintFields(previous => ({
+                      ...previous,
+                      [option.key]: event.target.checked
+                    }))}
+                    className="h-4 w-4 shrink-0"
+                    style={{ accentColor: brandPrimary }}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+
+            {!hasSelectedField && (
+              <p className="text-[10px] font-bold text-red-600 mt-3">
+                Seleccioná al menos un dato para generar el listado.
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-2 mt-6">
           <button
@@ -3852,7 +4047,9 @@ function PrintOptionsModal({
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-[2] py-3 rounded-xl bg-violet-600 text-white font-black text-xs shadow-lg"
+            disabled={printMode === 'students' && !hasSelectedField}
+            className="flex-[2] py-3 rounded-xl text-white font-black text-xs shadow-lg disabled:opacity-40"
+            style={{ backgroundColor: brandPrimary }}
           >
             <span className="inline-flex items-center gap-2">
               <Printer size={15} />
